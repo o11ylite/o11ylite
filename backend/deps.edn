@@ -1,0 +1,49 @@
+{;; ---------------------------------------------------------
+ :paths
+ ["src" "resources"]
+ ;; ---------------------------------------------------------
+
+ ;; ---------------------------------------------------------
+ :deps
+ {;; Application
+  org.clojure/clojure {:mvn/version "1.12.3"}
+  com.brunobonacci/mulog {:mvn/version "0.9.0"}}
+ ;; ---------------------------------------------------------
+
+ ;; ---------------------------------------------------------
+ :aliases
+ {;; ------------
+  ;; Clojure.main execution of application
+  :run/app
+  {:main-opts ["-m" "o11ylite.backend"]}
+
+  ;; Clojure.exec execution of specified function
+  :run/greet
+  {:exec-fn o11ylite.backend/greet
+   :exec-args {:name "Clojure"}}
+  ;; ------------
+
+  ;; ------------
+  ;; Add libraries and paths to support additional test tools
+  :test/env
+  {}
+
+  ;; Test runner - local and CI
+  ;; call with :watch? true to start file watcher and re-run tests on saved changes
+  :test/run
+  {:extra-paths ["test"]
+   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+   :main-opts   ["-m" "kaocha.runner"]
+   :exec-fn kaocha.runner/exec-fn
+   :exec-args {:randomize? false
+               :fail-fast? true}}
+  ;; ------------
+
+  ;; ------------
+  ;; tools.build `build.clj` built script
+  :build/task
+  {:replace-paths ["."]
+   :replace-deps  {io.github.clojure/tools.build {:mvn/version "0.10.3"}}
+   :ns-default    build}}}
+  ;; ------------
+ ;; ---------------------------------------------------------
