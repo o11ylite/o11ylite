@@ -19,24 +19,31 @@
   ([{:keys [team-name]}]
    (str "o11ylite backend service developed by the " team-name " team")))
 
-(defn -main
-  "Entry point into the application via clojure.main -M"
-  [& _args]
-  (mulog/set-global-context!
-   {:app-name "o11ylite backend" :version "0.1.0-SNAPSHOT"})
-  (mulog/log ::application-startup)
-  (println (greet))
+(defn- dev-mode? []
+  (or (some? (System/getProperty "O11YLITE_DEV"))
+      (some? (System/getenv "O11YLITE_DEV"))))
 
-  ;; Start the system
-  (let [sys (system/start)]
-    ;; Add shutdown hook for graceful shutdown
-    (.addShutdownHook
-     (Runtime/getRuntime)
-     (Thread. ^Runnable (fn []
-                          (mulog/log ::shutdown-initiated)
-                          (system/stop sys))))
-    ;; Keep the main thread alive
-    @(promise)))
+(defn -main
+  "Entry point into the application via clojure.main -M
+   
+   Set O11YLITE_DEV=1 for development mode (uses Vite dev server)."
+  [& _args]
+  (let [profile (if (dev-mode?) :dev :default)]
+    (mulog/set-global-context!
+     {:app-name "o11ylite backend" :version "0.1.0-SNAPSHOT"})
+    (mulog/log ::application-startup :profile profile)
+    (println (greet))
+
+    ;; Start the system
+    (let [sys (system/start profile)]
+      ;; Add shutdown hook for graceful shutdown
+      (.addShutdownHook
+       (Runtime/getRuntime)
+       (Thread. ^Runnable (fn []
+                            (mulog/log ::shutdown-initiated)
+                            (system/stop sys))))
+      ;; Keep the main thread alive
+      @(promise))))
 
 ;; ---------------------------------------------------------
 

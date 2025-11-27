@@ -6,7 +6,11 @@
 
 (ns o11ylite.util.response
   (:require
-   [jsonista.core :as j]))
+   [jsonista.core :as j]
+   [ring.util.response :as rr]))
+
+;; ---------------------------------------------------------
+;; JSON Responses
 
 (defn json
   "Create a JSON response with the given status and body."
@@ -19,3 +23,15 @@
   "Create a 404 not found response."
   []
   (json 404 {:error "Not found"}))
+
+;; ---------------------------------------------------------
+;; Inertia Responses
+
+(defn inertia
+  "Create an Inertia response for a component with optional props.
+   This is used by route handlers - the middleware converts it to HTML/JSON."
+  ([component]
+   (inertia component {}))
+  ([component props]
+   (rr/response {:component component
+                 :props props})))

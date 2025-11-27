@@ -1,0 +1,20 @@
+;; ---------------------------------------------------------
+;; o11ylite.components.inertia
+;;
+;; Inertia configuration component
+;; ---------------------------------------------------------
+
+(ns o11ylite.components.inertia
+  (:require
+   [integrant.core :as ig]
+   [com.brunobonacci.mulog :as mulog]
+   [o11ylite.inertia.template :as template]))
+
+(defmethod ig/init-key :inertia/config
+  [_ config]
+  (let [assets (template/load-assets config)
+        version (:version assets)]
+    (mulog/log ::inertia-init :dev? (:dev? config) :version version)
+    (assoc config
+           :template-fn (template/make-template-fn assets)
+           :version version)))

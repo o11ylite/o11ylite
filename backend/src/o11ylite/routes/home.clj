@@ -9,9 +9,9 @@
    [o11ylite.util.response :as response]))
 
 (defn handler
-  "Home page handler."
+  "Home page handler - renders Inertia Home component."
   [_request]
-  (response/json 200 {:message "Welcome to o11ylite"}))
+  (response/inertia "Home" {:greeting "Welcome to o11ylite"}))
 
 (defn routes
   "Home routes."

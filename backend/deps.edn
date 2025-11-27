@@ -22,16 +22,22 @@
   metosin/reitit-ring {:mvn/version "0.9.2"}
   metosin/reitit-middleware {:mvn/version "0.9.2"}
 
-  ;; JSON
-  metosin/jsonista {:mvn/version "0.3.13"}}
+   ;; JSON
+  metosin/jsonista {:mvn/version "0.3.13"}
+
+   ;; Inertia
+  hiccup/hiccup {:mvn/version "2.0.0-RC4"}
+  camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}}
  ;; ---------------------------------------------------------
 
  ;; ---------------------------------------------------------
  :aliases
- {;; ------------
-  ;; Clojure.main execution of application
-  :run/app
-  {:main-opts ["-m" "o11ylite.backend"]}
+{;; ------------
+   ;; Run in development mode (uses Vite dev server)
+   ;; Sets O11YLITE_DEV env var to enable dev profile
+   :run/dev
+   {:main-opts ["-m" "o11ylite.backend"]
+    :jvm-opts ["-DO11YLITE_DEV=1"]}
 
   ;; Clojure.exec execution of specified function
   :run/greet

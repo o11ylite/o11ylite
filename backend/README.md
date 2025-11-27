@@ -1,17 +1,11 @@
 # O11yLite Backend
 
-## Run the service
+## Run the dev service
 
 Run the service (clojure.main)
 
 ```shell
-clojure -M:run/app
-```
-
-Run the greet function (clojure.exec), optionally passing a `:name` key and value as arguments
-
-```shell
-clojure -X:run/greet :team-name '"team name"'
+clojure -M:run/dev
 ```
 
 ## Development
