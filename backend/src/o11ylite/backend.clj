@@ -1,13 +1,14 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.backend
 ;;
-;; TODO: Provide a meaningful description of the project
+;; Main entry point for the o11ylite backend service
 ;; ---------------------------------------------------------
 
 (ns o11ylite.backend
   (:gen-class)
   (:require
-   [com.brunobonacci.mulog :as mulog]))
+   [com.brunobonacci.mulog :as mulog]
+   [o11ylite.system :as system]))
 
 ;; ---------------------------------------------------------
 ;; Application
@@ -18,27 +19,39 @@
   ([{:keys [team-name]}]
    (str "o11ylite backend service developed by the " team-name " team")))
 
-
 (defn -main
   "Entry point into the application via clojure.main -M"
-  [& args]
-  (let [team (first args)]
-    (mulog/set-global-context!
-     {:app-name "o11ylite backend" :version  "0.1.0-SNAPSHOT"})
-    (mulog/log ::application-starup :arguments args)
-    (if team
-      (println (greet team))
-      (println (greet)))))
+  [& _args]
+  (mulog/set-global-context!
+   {:app-name "o11ylite backend" :version "0.1.0-SNAPSHOT"})
+  (mulog/log ::application-startup)
+  (println (greet))
+
+  ;; Start the system
+  (let [sys (system/start)]
+    ;; Add shutdown hook for graceful shutdown
+    (.addShutdownHook
+     (Runtime/getRuntime)
+     (Thread. ^Runnable (fn []
+                          (mulog/log ::shutdown-initiated)
+                          (system/stop sys))))
+    ;; Keep the main thread alive
+    @(promise)))
 
 ;; ---------------------------------------------------------
 
 
 ;; ---------------------------------------------------------
-;; Rick Comment
+;; Rich Comment
 (comment
 
   (-main)
-  (-main {:team-name "Clojure Engineering"})
+  (greet)
+  (greet {:team-name "Clojure Engineering"})
+
+  ;; Start/stop system manually
+  (def sys (system/start))
+  (system/stop sys)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
