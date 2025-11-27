@@ -11,6 +11,7 @@
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
    ;; Load component namespaces for ig/init-key methods
+   [o11ylite.components.inertia]
    [o11ylite.components.router]
    [o11ylite.components.server]))
 

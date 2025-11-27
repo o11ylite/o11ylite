@@ -12,11 +12,12 @@
    [reitit.ring :as ring]
    [reitit.ring.middleware.exception :as exception]
    [o11ylite.util.response :as response]
+   [o11ylite.inertia.middleware :as inertia]
    [o11ylite.routes.home :as home]
    [o11ylite.routes.health :as health]))
 
 ;; ---------------------------------------------------------
-;; Middleware
+;; Middleware Factories
 
 (defn wrap-api-defaults
   "Wrap handler with api-defaults middleware."
@@ -28,21 +29,29 @@
   [handler]
   (wrap-defaults handler site-defaults))
 
+(defn make-wrap-inertia
+  "Create Inertia middleware with config."
+  [inertia-config]
+  (fn [handler]
+    (inertia/wrap-inertia handler inertia-config)))
+
 ;; ---------------------------------------------------------
 ;; Routes
 
 (defn api-routes
   "API routes - no CSRF, no sessions."
-  [opts]
-  [["/api" {:middleware [wrap-api-defaults]}
-    ["/status" {:get {:handler health/handler}}]]])
+  [_opts]
+  ["/api" {:middleware [wrap-api-defaults]}
+   ["/status" {:get {:handler health/handler}}]])
 
 (defn page-routes
-  "Page routes - CSRF protection, sessions enabled."
-  [opts]
-  [["" {:middleware [wrap-site-defaults]}
-    (home/routes opts)
-    (health/routes opts)]])
+  "Page routes - site defaults + Inertia middleware."
+  [{:keys [inertia]}]
+  ["" {:middleware [wrap-site-defaults
+                    inertia/wrap-csrf-cookie
+                    (make-wrap-inertia inertia)]}
+   (home/routes {})
+   (health/routes {})])
 
 ;; ---------------------------------------------------------
 ;; Router Component

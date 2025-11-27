@@ -3,5 +3,12 @@
   :port #long #or [#env PORT 3000]
   :handler #ig/ref :router/routes}
 
+ :inertia/config
+ {:dev? #profile {:dev true :default false}
+  :vite-dev-url "http://localhost:5173"
+  :manifest-path ".vite/manifest.json"
+  :asset-base-url #or [#env ASSET_BASE_URL "/"]
+  :entry-point "src/main.tsx"}
+
  :router/routes
- {}}
+ {:inertia #ig/ref :inertia/config}}
