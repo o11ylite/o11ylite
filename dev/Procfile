@@ -1,0 +1,3 @@
+caddy: cd dev && caddy run
+frontend: cd frontend && npm run dev -- --no-clearScreen
+backend: cd backend && $BACKEND_CMD

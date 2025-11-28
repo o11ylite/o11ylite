@@ -11,7 +11,7 @@
 (defn handler
   "Home page handler - renders Inertia Home component."
   [_request]
-  (response/inertia "Home" {:greeting "Welcome to o11ylite"}))
+  (response/inertia "Home" {:greeting "Welcome to O11yLite"}))
 
 (defn routes
   "Home routes."

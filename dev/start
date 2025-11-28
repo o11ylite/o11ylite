@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+__dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+__root="$(cd "$(dirname "${__dir}")" && pwd)"
+
+export OVERMIND_NO_PORT=1
+
+# Default to repl mode, use server mode if any argument is passed
+if [[ $# -gt 0 ]]; then
+  export BACKEND_CMD="clojure -M:run/dev"
+else
+  export BACKEND_CMD="make reloaded"
+fi
+
+(cd "$__root" && exec overmind start --root "$__root" -f "$__dir"/Procfile)
