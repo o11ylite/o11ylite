@@ -13,7 +13,7 @@
    ;; Load component namespaces for ig/init-key methods
    [o11ylite.components.inertia]
    [o11ylite.components.router]
-   [o11ylite.components.server]))
+   [o11ylite.components.web-server]))
 
 ;; ---------------------------------------------------------
 ;; Configuration

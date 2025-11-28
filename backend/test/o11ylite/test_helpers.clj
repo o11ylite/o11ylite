@@ -34,8 +34,8 @@
   "Start the system with test configuration."
   []
   (let [config (-> (system/read-config :dev)
-                   (assoc-in [:server/http :port] test-port)
-                   (assoc-in [:server/http :host] "127.0.0.1"))]
+                   (assoc-in [:server/web :port] test-port)
+                   (assoc-in [:server/web :host] "127.0.0.1"))]
     (ig/init config)))
 
 (defn stop-test-system!
