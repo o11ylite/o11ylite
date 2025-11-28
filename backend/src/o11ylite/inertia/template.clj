@@ -26,6 +26,9 @@
   [manifest entry-point]
   (get manifest (keyword entry-point)))
 
+;; ---------------------------------------------------------
+;; Asset Loading
+
 ;; Prod: Vite extracts CSS to separate files, listed in manifest.
 ;; Must be loaded via <link> tags.
 (defn- load-prod-assets
@@ -33,20 +36,21 @@
   [manifest-path asset-base-url entry-point]
   (when-let [manifest (read-manifest manifest-path)]
     (when-let [entry (get-manifest-entry manifest entry-point)]
-      (let [base (or asset-base-url "/")]
-        {:js (str base (:file entry))
-         :css (mapv #(str base %) (:css entry))
-         :version (str (hash manifest))}))))
+      {:js (str asset-base-url "/" (:file entry))
+       :css (mapv #(str asset-base-url "/" %) (:css entry))
+       :favicon (str asset-base-url "/favicon.svg")
+       :version (str (hash manifest))})))
 
 ;; Dev: Vite injects CSS via JS as <style> tags (enables HMR).
 ;; No <link> tags needed - CSS comes through the entry point module.
-;; React Refresh preamble is required for HMR to work when serving from backend.
+;; With Caddy proxy, all assets go through /frontend/* path.
 (defn- load-dev-assets
-  "Asset paths for development mode (Vite dev server)."
-  [vite-dev-url entry-point]
-  {:js (str vite-dev-url "/" entry-point)
-   :vite-client (str vite-dev-url "/@vite/client")
-   :vite-url vite-dev-url
+  "Asset paths for development mode (via Caddy proxy to Vite)."
+  [asset-base-url entry-point]
+  {:js (str asset-base-url "/" entry-point)
+   :vite-client (str asset-base-url "/@vite/client")
+   :react-refresh (str asset-base-url "/@react-refresh")
+   :favicon (str asset-base-url "/favicon.svg")
    :css []
    :version "dev"})
 
@@ -57,16 +61,16 @@
   "Load assets based on config. Called once at startup.
 
    Config:
-   - :dev?          - Development mode flag
-   - :vite-dev-url  - Vite dev server URL (dev only)
-   - :manifest-path - Path to manifest.json in resources (prod only)
-   - :asset-base-url - Base URL for assets (prod only)
-   - :entry-point   - Entry point file path"
-  [{:keys [dev? vite-dev-url manifest-path asset-base-url entry-point]
+   - :dev?           - Development mode flag
+   - :asset-base-url - Base URL for assets (e.g. '/frontend' or CDN URL)
+   - :manifest-path  - Path to manifest.json in resources (prod only)
+   - :entry-point    - Entry point file path"
+  [{:keys [dev? manifest-path asset-base-url entry-point]
     :or {entry-point "src/main.tsx"
-         manifest-path ".vite/manifest.json"}}]
+         manifest-path ".vite/manifest.json"
+         asset-base-url "/frontend"}}]
   (if dev?
-    (load-dev-assets vite-dev-url entry-point)
+    (load-dev-assets asset-base-url entry-point)
     (let [assets (load-prod-assets manifest-path asset-base-url entry-point)]
       (when-not assets
         (mulog/log ::manifest-not-found :path manifest-path))
@@ -75,10 +79,11 @@
 ;; ---------------------------------------------------------
 ;; HTML Template
 
-;; This is only needed in dev
+;; React Refresh preamble - required for HMR when serving HTML from backend.
+;; Sets up window.$RefreshReg$ and $RefreshSig$ before any React code loads.
 ;; Per: https://vite.dev/guide/backend-integration.html
-(defn- react-refresh-preamble [vite-url]
-  (str "import RefreshRuntime from '" vite-url "/@react-refresh';
+(defn- react-refresh-preamble [react-refresh-url]
+  (str "import RefreshRuntime from '" react-refresh-url "';
 RefreshRuntime.injectIntoGlobalHook(window);
 window.$RefreshReg$ = () => {};
 window.$RefreshSig$ = () => (type) => type;
@@ -95,16 +100,17 @@ window.__vite_plugin_react_preamble_installed__ = true;"))
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
       [:title (or title "o11ylite")]
-      ;; CSS (prod only)
+      [:link {:rel "icon" :href (:favicon assets) :type "image/svg+xml"}]
+      ;; CSS (prod only - dev injects via JS)
       (for [css-path (:css assets)]
         [:link {:rel "stylesheet" :href css-path}])
       ;; Vite client (dev only)
       (when-let [vite-client (:vite-client assets)]
         [:script {:type "module" :src vite-client}])
       ;; React Refresh preamble (dev only) - must run before app code
-      (when-let [vite-url (:vite-url assets)]
+      (when-let [react-refresh (:react-refresh assets)]
         [:script {:type "module"}
-         (raw-string (react-refresh-preamble vite-url))])]
+         (raw-string (react-refresh-preamble react-refresh))])]
      [:body.h-full
       [:div#app {:data-page page-data}]
       [:script {:type "module" :src (:js assets)}]]])))
