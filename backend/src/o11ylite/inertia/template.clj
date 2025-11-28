@@ -40,11 +40,13 @@
 
 ;; Dev: Vite injects CSS via JS as <style> tags (enables HMR).
 ;; No <link> tags needed - CSS comes through the entry point module.
+;; React Refresh preamble is required for HMR to work when serving from backend.
 (defn- load-dev-assets
   "Asset paths for development mode (Vite dev server)."
   [vite-dev-url entry-point]
   {:js (str vite-dev-url "/" entry-point)
    :vite-client (str vite-dev-url "/@vite/client")
+   :vite-url vite-dev-url
    :css []
    :version "dev"})
 
@@ -53,7 +55,7 @@
 
 (defn load-assets
   "Load assets based on config. Called once at startup.
-   
+
    Config:
    - :dev?          - Development mode flag
    - :vite-dev-url  - Vite dev server URL (dev only)
@@ -73,6 +75,15 @@
 ;; ---------------------------------------------------------
 ;; HTML Template
 
+;; This is only needed in dev
+;; Per: https://vite.dev/guide/backend-integration.html
+(defn- react-refresh-preamble [vite-url]
+  (str "import RefreshRuntime from '" vite-url "/@react-refresh';
+RefreshRuntime.injectIntoGlobalHook(window);
+window.$RefreshReg$ = () => {};
+window.$RefreshSig$ = () => (type) => type;
+window.__vite_plugin_react_preamble_installed__ = true;"))
+
 (defn- render-html
   "Generate the HTML template for Inertia."
   [{:keys [title assets page-data]}]
@@ -84,12 +95,16 @@
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
       [:title (or title "o11ylite")]
-      ;; CSS
+      ;; CSS (prod only)
       (for [css-path (:css assets)]
         [:link {:rel "stylesheet" :href css-path}])
       ;; Vite client (dev only)
       (when-let [vite-client (:vite-client assets)]
-        [:script {:type "module" :src vite-client}])]
+        [:script {:type "module" :src vite-client}])
+      ;; React Refresh preamble (dev only) - must run before app code
+      (when-let [vite-url (:vite-url assets)]
+        [:script {:type "module"}
+         (raw-string (react-refresh-preamble vite-url))])]
      [:body.h-full
       [:div#app {:data-page page-data}]
       [:script {:type "module" :src (:js assets)}]]])))
