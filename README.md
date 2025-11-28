@@ -22,3 +22,10 @@ An InertiaJS React frontend.
 ## Distributions
 
 We bundle everything to a single docker image, using s6 overlay.
+
+## Development
+
+To start all services locally, run `dev/start all` and visit `https://o11ylite.localhost`. This is useful for quick test, or doing frontend only development.
+
+For backend, REPL driven development, start all services except backend being just a REPL, run `dev/start` without arg.
+Afterwords, in REPL or via your REPL connected editors, you can use various tools in backend/dev/user.clj to start the system.

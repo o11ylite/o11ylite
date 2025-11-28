@@ -3,7 +3,6 @@
    ;; Data inspector
    [portal.api :as inspect]))
 
-
 ;; ---------------------------------------------------------
 ;; Start Portal and capture all evaluation results
 
@@ -17,7 +16,7 @@
   "Open portal window if no portal sessions have been created.
    A portal session is created when opening a portal window"
   (or (seq (inspect/sessions))
-      (inspect/open {:portal.colors/theme :portal.colors/gruvbox})))
+      (inspect/open {:portal.colors/theme :portal.colors/gruvbox :app false})))
 
 ;; Add portal as tapsource (add to clojure.core/tapset)
 (add-tap #'portal.api/submit)
