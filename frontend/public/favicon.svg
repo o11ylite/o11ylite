@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="fg" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#EAB308"/>
+    </linearGradient>
+  </defs>
+  <!-- Quill feather - asymmetric classic shape -->
+  <path d="M12 60
+           C14 56, 16 50, 18 44
+           C20 36, 24 28, 30 20
+           C36 12, 44 6, 54 4
+           C52 8, 48 12, 44 18
+           C40 24, 36 30, 34 36
+           C38 32, 44 26, 52 22
+           C46 28, 38 36, 32 44
+           C36 40, 42 34, 50 30
+           C44 36, 36 44, 30 50
+           C26 54, 20 58, 12 60Z"
+        fill="url(#fg)"/>
+  <!-- Quill spine -->
+  <path d="M12 60 Q30 40, 54 4"
+        stroke="#A16207" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>

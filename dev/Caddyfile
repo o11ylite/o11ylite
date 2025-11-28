@@ -1,0 +1,12 @@
+# This is dev only!
+o11ylite.localhost {
+	encode zstd gzip
+
+	handle /frontend/* {
+		reverse_proxy 127.0.0.1:5173
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
