@@ -9,7 +9,13 @@ export default defineConfig({
     manifest: true,
     outDir: 'dist',
     rollupOptions: {
+      // overwrite default .html entry
       input: 'src/main.tsx',
     },
+  },
+  // Required for backend integration - ensures HMR works when served from Clojure
+  server: {
+    origin: 'http://localhost:5173',
+    cors: true,
   },
 })
