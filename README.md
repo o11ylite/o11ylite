@@ -139,6 +139,11 @@ caddy run --config dev/Caddyfile
 | `HOST` | 0.0.0.0 | Backend server host |
 | `ASSET_BASE_URL` | /frontend | Base URL for frontend assets |
 
+
+### Running Testings
+
+Please read `backend/README.md` and `frontend/README.md`
+
 ### Building for Production
 
 ```bash

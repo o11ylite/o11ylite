@@ -88,6 +88,8 @@
   (add-libs '{domain/library-name {:mvn/version "1.0.0"}})
 
   ;; Clojure 1.12.x only
+  (add-lib 'org.babashka/http-client)
+  (sync-deps :as :test/env)
   #_(add-lib 'library-name)   ; find and add library
   #_(sync-deps)               ; load dependencies in deps.edn (if not yet loaded)
   #_()) ; End of rich comment
