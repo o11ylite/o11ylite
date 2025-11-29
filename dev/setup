@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+echo "Updating /etc/hosts..."
+hosts --auto-sudo add 127.0.0.1 o11ylite.localhost || true
