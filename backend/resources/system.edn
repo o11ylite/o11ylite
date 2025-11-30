@@ -3,6 +3,9 @@
   :port #long #or [#env PORT 3000]
   :handler #ig/ref :router/routes}
 
+ :server/otel-grpc
+ {:port #long #or [#env OTEL_GRPC_PORT 4317]}
+
  :inertia/config
  {;; Dev mode uses Vite dev server, prod reads from manifest
   :dev? #profile {:dev true :default false}
