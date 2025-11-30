@@ -6,3 +6,9 @@ set -o nounset
 
 echo "Updating /etc/hosts..."
 hosts --auto-sudo add 127.0.0.1 o11ylite.localhost || true
+
+echo "Downloading OpenTelemetry protos..."
+(cd backend && make otel-proto-download)
+
+echo "Compiling protobuf classes..."
+(cd backend && make proto-compile)

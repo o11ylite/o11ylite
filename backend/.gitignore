@@ -27,6 +27,15 @@
 !test/
 
 # ------------------------
+# Include Protobuf source definitions
+!proto/
+
+# Exclude downloaded OpenTelemetry protos (run `make otel-proto-download`)
+proto/opentelemetry/
+
+# Note: java-src/, classes/, and .bin/ are NOT included (generated, run `dev/setup`)
+
+# ------------------------
 # Include Clojure tools
 !.cljstyle
 !.dir-locals.el

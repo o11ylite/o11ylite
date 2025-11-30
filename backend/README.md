@@ -1,5 +1,17 @@
 # O11yLite Backend
 
+## Prerequisites
+
+Before running the backend, you must run the setup script from the project root:
+
+```shell
+./dev/setup
+```
+
+This downloads OpenTelemetry proto definitions and compiles them to Java classes. Requires:
+- `protoc` - Protocol buffer compiler (`brew install protobuf`)
+- Java 21+
+
 ## Run the dev service
 
 Run the service (clojure.main)
@@ -62,6 +74,115 @@ make test
 > If additional libraries are required to support tests, add them to the `:test/env` alias definition in `deps.edn`
 
 `make test-watch` will run tests on file save, stopping the current test run on the first failing test.  Tests will continue to be watched until `Ctrl-c` is pressed.
+
+## Protocol Buffers & gRPC
+
+The backend includes a gRPC server for receiving OpenTelemetry data. Protocol buffer definitions are compiled to Java classes using `protoc` and the grpc-java plugin.
+
+### Directory Structure
+
+```
+backend/
+├── proto/                    # .proto source files
+│   └── o11ylite/proto/
+│       └── echo.proto        # Example service definition
+├── java-src/                 # Generated Java source (committed)
+│   └── o11ylite/proto/echo/
+│       ├── EchoRequest.java
+│       ├── EchoResponse.java
+│       └── DummyServiceGrpc.java
+├── classes/                  # Compiled .class files (not committed)
+└── .bin/                     # Downloaded protoc plugins (not committed)
+```
+
+### Workflow
+
+1. **Edit `.proto` files** in `proto/` directory
+
+2. **Generate and compile** Java classes:
+   ```shell
+   make proto-compile
+   ```
+   This will:
+   - Download `protoc-gen-grpc-java` plugin (first time only)
+   - Generate Java source files to `java-src/`
+   - Compile to `.class` files in `classes/`
+
+3. **Use in Clojure** - import the generated classes:
+   ```clojure
+   (:import [o11ylite.proto.echo EchoRequest EchoResponse DummyServiceGrpc$DummyServiceImplBase])
+   ```
+
+### Make Targets
+
+| Target | Description |
+|--------|-------------|
+| `make proto-gen` | Generate Java source from .proto files |
+| `make proto-compile` | Generate + compile to .class files |
+| `make proto-clean` | Remove generated files |
+| `make proto-rebuild` | Clean and regenerate everything |
+| `make otel-proto-download` | Download OpenTelemetry proto definitions |
+| `make otel-proto-clean` | Remove downloaded OpenTelemetry protos |
+
+### Requirements
+
+- **protoc** - Protocol buffer compiler
+  ```shell
+  brew install protobuf
+  ```
+- **Java 21+** - For compilation (virtual threads support)
+
+The `protoc-gen-grpc-java` plugin is downloaded automatically by the Makefile.
+
+### Version Compatibility
+
+The `protoc` version must match the `protobuf-java` dependency in `deps.edn`:
+
+| protoc version | protobuf-java version |
+|----------------|----------------------|
+| 33.x | 4.33.x |
+| 32.x | 4.32.x |
+
+Check your protoc version: `protoc --version`
+
+### Adding New Proto Files
+
+1. Create `.proto` file in `proto/` with appropriate package:
+   ```protobuf
+   syntax = "proto3";
+   package o11ylite.proto.myservice;
+   
+   option java_multiple_files = true;
+   option java_package = "o11ylite.proto.myservice";
+   ```
+
+2. Run `make proto-compile`
+
+3. Import generated classes in Clojure code
+
+### OpenTelemetry Protos
+
+Download the official OpenTelemetry protocol buffer definitions:
+
+```shell
+make otel-proto-download
+```
+
+This downloads OTLP proto files (v1.9.0) for:
+- `common/v1` - Common types (KeyValue, AnyValue, etc.)
+- `resource/v1` - Resource definition
+- `trace/v1` - Trace/Span data model
+- `metrics/v1` - Metrics data model  
+- `logs/v1` - Logs data model
+- `collector/*/v1` - OTLP service definitions
+
+The downloaded files are gitignored and must be downloaded locally.
+
+### Notes
+
+- All generated files are gitignored: `java-src/`, `classes/`, `.bin/`, `proto/opentelemetry/`
+- Run `./dev/setup` after cloning or when proto definitions change
+- The setup script handles both downloading OTel protos and compiling all Java classes
 
 ## Format Code
 
