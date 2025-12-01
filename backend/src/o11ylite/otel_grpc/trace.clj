@@ -7,7 +7,7 @@
 (ns o11ylite.otel-grpc.trace
   (:require
    [com.brunobonacci.mulog :as mulog]
-   [o11ylite.otel-grpc.otel-proto :as otel-proto])
+   [o11ylite.otel-grpc.trace-events :as trace-events])
   (:import
    [io.grpc.stub StreamObserver]
    [io.opentelemetry.proto.collector.trace.v1
@@ -19,14 +19,18 @@
 
 (defn- -trace-handler
   "Handle incoming trace export request.
-   Logs received spans and accepts all."
-  [request]
-  (let [span-count (->> (:resource-spans request)
-                        (mapcat :scope-spans)
-                        (mapcat :spans)
-                        count)]
-    (mulog/log ::traces-received :span-count span-count)
-    {:rejected-spans 0}))
+   Converts spans to unified events and accepts all with valid service.name."
+  [^ExportTraceServiceRequest request]
+  (let [events (trace-events/trace-request->events request)
+        rejected-spans (trace-events/count-rejected-spans request)
+        span-count (count (filter #(= :span (:meta/signal-type %)) events))
+        span-event-count (count (filter #(= :span-event (:meta/signal-type %)) events))]
+    (mulog/log ::traces-received
+               :span-count span-count
+               :span-event-count span-event-count
+               :rejected-spans rejected-spans)
+    ;; TODO: persist events
+    {:rejected-span-count rejected-spans}))
 
 ;; ---------------------------------------------------------
 ;; Service factory
@@ -37,9 +41,8 @@
   (proxy [TraceServiceGrpc$TraceServiceImplBase] []
     (export [^ExportTraceServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [request-map (otel-proto/trace-request->clj request)
-              response-map (-trace-handler request-map)
-              response (otel-proto/trace-response->proto (or response-map {}))]
+        (let [response-map (-trace-handler request)
+              response (trace-events/trace-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))
         (catch Exception e

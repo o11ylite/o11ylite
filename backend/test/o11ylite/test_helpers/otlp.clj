@@ -10,7 +10,7 @@
    [io.grpc ManagedChannelBuilder]
    [io.opentelemetry.proto.common.v1 AnyValue KeyValue InstrumentationScope]
    [io.opentelemetry.proto.resource.v1 Resource]
-   [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Status Status$StatusCode ResourceSpans ScopeSpans]
+   [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
    [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
    [java.util.concurrent TimeUnit]))
 
@@ -77,6 +77,16 @@
   [m]
   (map -key-value m))
 
+(defn- -build-span-event
+  "Build a Span.Event protobuf from a map."
+  [{:keys [name time-ns attributes]
+    :or {attributes {}}}]
+  (-> (Span$Event/newBuilder)
+      (.setName name)
+      (.setTimeUnixNano time-ns)
+      (.addAllAttributes (-attributes attributes))
+      (.build)))
+
 ;; ---------------------------------------------------------
 ;; Public Builders
 
@@ -94,14 +104,16 @@
    - :start-time-ns   - start time in nanoseconds (default: now)
    - :end-time-ns     - end time in nanoseconds (default: now)
    - :attributes      - map of attributes
-   - :status          - :ok :error :unset"
+   - :status          - :ok :error :unset
+   - :events          - vector of span event maps with :name, :time-ns, :attributes"
   [{:keys [trace-id span-id parent-span-id name kind
-           start-time-ns end-time-ns attributes status]
+           start-time-ns end-time-ns attributes status events]
     :or {kind :internal
          start-time-ns (System/nanoTime)
          end-time-ns (System/nanoTime)
          attributes {}
-         status :unset}}]
+         status :unset
+         events []}}]
   (cond-> (Span/newBuilder)
     true (.setTraceId (-hex->bytes trace-id))
     true (.setSpanId (-hex->bytes span-id))
@@ -111,6 +123,7 @@
     true (.setStartTimeUnixNano start-time-ns)
     true (.setEndTimeUnixNano end-time-ns)
     true (.addAllAttributes (-attributes attributes))
+    (seq events) (.addAllEvents (map -build-span-event events))
     true (.setStatus (-> (Status/newBuilder)
                          (.setCode (-status-code status))
                          (.build)))
@@ -120,15 +133,15 @@
   "Build an ExportTraceServiceRequest from a flat map.
 
    Keys:
-   - :service-name   - resource service.name attribute
+   - :service-name   - resource service.name attribute (optional, omit to test rejection)
    - :tracer-name    - instrumentation scope name
    - :tracer-version - instrumentation scope version (optional)
    - :spans          - vector of span maps (see build-span)"
   [{:keys [service-name tracer-name tracer-version spans]
     :or {tracer-version ""}}]
-  (let [resource (-> (Resource/newBuilder)
-                     (.addAttributes (-key-value ["service.name" service-name]))
-                     (.build))
+  (let [resource (cond-> (Resource/newBuilder)
+                   service-name (.addAttributes (-key-value ["service.name" service-name]))
+                   true (.build))
         scope (cond-> (InstrumentationScope/newBuilder)
                 true (.setName tracer-name)
                 (seq tracer-version) (.setVersion tracer-version)
