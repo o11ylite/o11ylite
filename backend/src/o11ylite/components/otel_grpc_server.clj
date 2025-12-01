@@ -9,7 +9,8 @@
   (:require
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
-   [o11ylite.otel-grpc.trace :as trace])
+   [o11ylite.otel-grpc.trace :as trace]
+   [o11ylite.otel-grpc.log :as log])
   (:import
    [io.grpc Server ServerBuilder]
    [java.util.concurrent Executors TimeUnit]))
@@ -24,6 +25,7 @@
         server (-> (ServerBuilder/forPort port)
                    (.executor executor)
                    (.addService (trace/create-service))
+                   (.addService (log/create-service))
                    (.build)
                    (.start))]
     (mulog/log ::otel-grpc-server-started :port port)

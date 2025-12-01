@@ -74,3 +74,7 @@
 (def build-span otlp/build-span)
 (def build-trace-request otlp/build-trace-request)
 (def export-traces! otlp/export-traces!)
+
+(def build-log-record otlp/build-log-record)
+(def build-logs-request otlp/build-logs-request)
+(def export-logs! otlp/export-logs!)

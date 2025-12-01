@@ -11,7 +11,9 @@
    [io.opentelemetry.proto.common.v1 AnyValue KeyValue InstrumentationScope]
    [io.opentelemetry.proto.resource.v1 Resource]
    [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
+   [io.opentelemetry.proto.logs.v1 LogRecord SeverityNumber ResourceLogs ScopeLogs]
    [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
+   [io.opentelemetry.proto.collector.logs.v1 LogsServiceGrpc ExportLogsServiceRequest]
    [java.util.concurrent TimeUnit]))
 
 ;; ---------------------------------------------------------
@@ -51,6 +53,18 @@
     :ok Status$StatusCode/STATUS_CODE_OK
     :error Status$StatusCode/STATUS_CODE_ERROR
     Status$StatusCode/STATUS_CODE_UNSET))
+
+(defn- -severity-number
+  "Convert keyword to SeverityNumber enum."
+  [severity]
+  (case severity
+    :trace SeverityNumber/SEVERITY_NUMBER_TRACE
+    :debug SeverityNumber/SEVERITY_NUMBER_DEBUG
+    :info SeverityNumber/SEVERITY_NUMBER_INFO
+    :warn SeverityNumber/SEVERITY_NUMBER_WARN
+    :error SeverityNumber/SEVERITY_NUMBER_ERROR
+    :fatal SeverityNumber/SEVERITY_NUMBER_FATAL
+    SeverityNumber/SEVERITY_NUMBER_UNSPECIFIED))
 
 (defn- -any-value
   "Convert Clojure value to AnyValue."
@@ -173,6 +187,84 @@
                     (.build))
         stub (TraceServiceGrpc/newBlockingStub channel)
         request (build-trace-request request-map)]
+    (try
+      (.export stub request)
+      (finally
+        (.shutdown channel)
+        (.awaitTermination channel 5 TimeUnit/SECONDS)))))
+
+;; ---------------------------------------------------------
+;; Log Builders
+
+(defn build-log-record
+  "Build a LogRecord protobuf from a flat map.
+
+   Required keys:
+   - :body        - log message body (string or any value)
+
+   Optional keys:
+   - :time-ns          - event time in nanoseconds (default: now)
+   - :severity         - :trace :debug :info :warn :error :fatal
+   - :severity-text    - string severity (e.g. \"INFO\")
+   - :attributes       - map of attributes
+   - :trace-id         - 32 char hex string (optional trace context)
+   - :span-id          - 16 char hex string (optional trace context)"
+  [{:keys [body time-ns severity severity-text attributes trace-id span-id]
+    :or {time-ns (System/nanoTime)
+         severity :unspecified
+         severity-text ""
+         attributes {}}}]
+  (cond-> (LogRecord/newBuilder)
+    true (.setTimeUnixNano time-ns)
+    true (.setSeverityNumber (-severity-number severity))
+    (seq severity-text) (.setSeverityText severity-text)
+    true (.setBody (-any-value body))
+    true (.addAllAttributes (-attributes attributes))
+    trace-id (.setTraceId (-hex->bytes trace-id))
+    span-id (.setSpanId (-hex->bytes span-id))
+    true (.build)))
+
+(defn build-logs-request
+  "Build an ExportLogsServiceRequest from a flat map.
+
+   Keys:
+   - :service-name   - resource service.name attribute (optional, omit to test rejection)
+   - :logger-name    - instrumentation scope name
+   - :logger-version - instrumentation scope version (optional)
+   - :logs           - vector of log record maps (see build-log-record)"
+  [{:keys [service-name logger-name logger-version logs]
+    :or {logger-version ""}}]
+  (let [resource (cond-> (Resource/newBuilder)
+                   service-name (.addAttributes (-key-value ["service.name" service-name]))
+                   true (.build))
+        scope (cond-> (InstrumentationScope/newBuilder)
+                true (.setName logger-name)
+                (seq logger-version) (.setVersion logger-version)
+                true (.build))
+        built-logs (map build-log-record logs)
+        scope-logs (-> (ScopeLogs/newBuilder)
+                       (.setScope scope)
+                       (.addAllLogRecords built-logs)
+                       (.build))
+        resource-logs (-> (ResourceLogs/newBuilder)
+                          (.setResource resource)
+                          (.addScopeLogs scope-logs)
+                          (.build))]
+    (-> (ExportLogsServiceRequest/newBuilder)
+        (.addResourceLogs resource-logs)
+        (.build))))
+
+(defn export-logs!
+  "Export logs to the test gRPC server.
+
+   Takes a map with :service-name, :logger-name, :logs etc.
+   Returns the ExportLogsServiceResponse."
+  [request-map]
+  (let [channel (-> (ManagedChannelBuilder/forAddress "localhost" test-port)
+                    (.usePlaintext)
+                    (.build))
+        stub (LogsServiceGrpc/newBlockingStub channel)
+        request (build-logs-request request-map)]
     (try
       (.export stub request)
       (finally
