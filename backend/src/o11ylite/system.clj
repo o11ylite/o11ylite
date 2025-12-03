@@ -14,7 +14,14 @@
    [o11ylite.components.otel-grpc-server]
    [o11ylite.components.inertia]
    [o11ylite.components.router]
-   [o11ylite.components.web-server]))
+   [o11ylite.components.web-server])
+  (:import
+   [java.util.concurrent Executors]))
+
+;; Make futures use virtual threads
+;; How I know? Reading the source code found future use the same executor with agent
+(set-agent-send-executor! (Executors/newVirtualThreadPerTaskExecutor))
+(set-agent-send-off-executor! (Executors/newVirtualThreadPerTaskExecutor))
 
 ;; ---------------------------------------------------------
 ;; Configuration
