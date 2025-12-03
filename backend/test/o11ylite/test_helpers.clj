@@ -10,7 +10,9 @@
    [integrant.core :as ig]
    [o11ylite.system :as system]
    [o11ylite.test-helpers.http :as http]
-   [o11ylite.test-helpers.otlp :as otlp]))
+   [o11ylite.test-helpers.otlp :as otlp])
+  (:import
+   [java.io File]))
 
 ;; ---------------------------------------------------------
 ;; Test Configuration
@@ -25,13 +27,23 @@
   "Dynamic var holding the running test system"
   nil)
 
+(defn- create-temp-data-path
+  "Create a unique temporary directory for test data."
+  []
+  (let [dir (File/createTempFile "o11ylite-test-" "")]
+    (.delete dir)
+    (.mkdirs dir)
+    (.getAbsolutePath dir)))
+
 (defn start-test-system!
-  "Start the system with test configuration."
+  "Start the system with test configuration.
+   Uses a unique temporary directory for data-path to isolate tests."
   []
   (let [config (-> (system/read-config :dev)
                    (assoc-in [:server/web :port] test-http-port)
                    (assoc-in [:server/web :host] "127.0.0.1")
-                   (assoc-in [:server/otel-grpc :port] test-grpc-port))]
+                   (assoc-in [:server/otel-grpc :port] test-grpc-port)
+                   (assoc-in [:db/duckdb :data-path] (create-temp-data-path)))]
     (ig/init config)))
 
 (defn stop-test-system!
