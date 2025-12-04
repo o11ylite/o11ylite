@@ -4,6 +4,10 @@
  :db/sqlite
  {:data-path #or [#env DATA_PATH "./.tmp"]}
 
+ :storage/init
+ {:sqlite #ig/ref :db/sqlite
+  :duckdb #ig/ref :db/duckdb}
+
  :server/web
  {:host #or [#env HOST "0.0.0.0"]
   :port #long #or [#env PORT 3000]
