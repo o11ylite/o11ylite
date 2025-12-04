@@ -1,6 +1,9 @@
 {:db/duckdb
  {:data-path #or [#env DATA_PATH "./.tmp"]}
 
+ :db/sqlite
+ {:data-path #or [#env DATA_PATH "./.tmp"]}
+
  :server/web
  {:host #or [#env HOST "0.0.0.0"]
   :port #long #or [#env PORT 3000]
