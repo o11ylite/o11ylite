@@ -63,7 +63,7 @@ dist: build-uberjar ## Build and package Clojure service
 
 clean:  ## Clean Clojure tooling temporary files
 	$(info -- Clean Clojure temporary files ---------)
-	- rm -rf ./.cpcache ./.clj-kondo/cache ./.lsp
+	- rm -rf ./.cpcache ./.clj-kondo/cache ./.lsp ./.tmp
 
 run:  ## Run Service using clojure.main
 	$(info -- Download test and service libraries ---)
