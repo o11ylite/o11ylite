@@ -10,7 +10,8 @@
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
    [migratus.core :as migratus]
-   [next.jdbc :as jdbc]))
+   [next.jdbc :as jdbc]
+   [o11ylite.ducklake.init :as ducklake]))
 
 ;; ---------------------------------------------------------
 ;; Constants
@@ -45,24 +46,40 @@
                   migrations-table])]
     (some? result)))
 
-(defn- init-storage
-  "Initialize storage for a fresh installation.
+(defn- init-sqlite
+  "Initialize SQLite for a fresh installation.
    Runs migratus/init to execute init.sql, then runs all migrations."
-  [sqlite-ds _duckdb-ds]
-  (mulog/log ::init-storage-starting)
+  [sqlite-ds]
+  (mulog/log ::init-sqlite-starting)
   (let [config (migratus-config sqlite-ds)]
     (migratus/init config)
     (mulog/log ::migratus-init-completed)
     (migratus/migrate config)
-    (mulog/log ::init-storage-completed)))
+    (mulog/log ::init-sqlite-completed)))
+
+(defn- init-ducklake
+  "Initialize DuckLake database schema."
+  [duckdb-ds]
+  (ducklake/init-ducklake! duckdb-ds))
+
+(defn- init-storage
+  "Initialize storage for a fresh installation."
+  [sqlite-ds duckdb-ds]
+  (mulog/log ::init-storage-starting)
+  (init-sqlite sqlite-ds)
+  (init-ducklake duckdb-ds)
+  (mulog/log ::init-storage-completed))
 
 (defn- pickup-migration
   "Run pending migrations for an existing installation."
-  [sqlite-ds _duckdb-ds]
+  [sqlite-ds duckdb-ds]
   (mulog/log ::pickup-migration-starting)
+  ;; SQLite migrations
   (let [config (migratus-config sqlite-ds)]
-    (migratus/migrate config)
-    (mulog/log ::pickup-migration-completed)))
+    (migratus/migrate config))
+  ;; DuckLake schema (idempotent, uses IF NOT EXISTS)
+  (init-ducklake duckdb-ds)
+  (mulog/log ::pickup-migration-completed))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
@@ -120,6 +137,10 @@
   ;; Start storage init component
   (def storage
     (ig/init-key :storage/init {:sqlite sqlite-ds :duckdb duckdb-ds}))
+
+  ;; Check DuckLake events table
+  (jdbc/execute! duckdb-ds ["SHOW TABLES"])
+  (jdbc/execute! duckdb-ds ["DESCRIBE events"])
 
   ;; Cleanup
   (ig/halt-key! :storage/init storage)
