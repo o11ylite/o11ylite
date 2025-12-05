@@ -20,6 +20,7 @@
 - Rich comment block `(comment ...)` at end of files for REPL experimentation
 - Formatting enforced by cljstyle (2-space indent, kebab-case naming)
 - Tests in `test/o11ylite/integration/` use fixture `(use-fixtures :each h/with-system)`
+- Backend is all-in Java virtual thread.
 
 **TypeScript/React:**
 - Functional components with default exports for pages
