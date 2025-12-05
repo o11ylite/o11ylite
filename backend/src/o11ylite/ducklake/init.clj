@@ -52,7 +52,7 @@
    )")
 
 (def ^:private set-events-partition-sql
-  "ALTER TABLE ducklake.events SET PARTITIONED BY (day(timestamp))")
+  "ALTER TABLE ducklake.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), service)")
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -90,7 +90,7 @@
 
   ;; Insert test event
   (jdbc/execute! ds
-                 ["INSERT INTO ducklake.events (service, timestamp, \"meta.signal_type\", \"meta.observed_time\")
+                 ["INSERT INTO events (service, timestamp, \"meta.signal_type\", \"meta.observed_time\")
                    VALUES (?, ?, ?, ?)"
                   "test-service"
                   (java.time.Instant/now)

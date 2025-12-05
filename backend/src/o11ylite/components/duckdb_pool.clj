@@ -34,7 +34,8 @@
 (ns o11ylite.components.duckdb-pool
   (:require
    [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog])
+   [com.brunobonacci.mulog :as mulog]
+   [next.jdbc :as jdbc])
   (:import
    [org.duckdb DuckDBConnection]
    [com.zaxxer.hikari HikariConfig HikariDataSource]
@@ -61,15 +62,15 @@
   "Create the root DuckDB connection with DuckLake attached.
    This connection is used as the basis for duplicate() calls.
 
-   Note: USE ducklake is run here but won't carry over to duplicate() connections
-   since USE is session-level state. We add connectionInitSql to HikariCP to run
-   USE on each pooled connection checkout."
+   Note: USE ducklake won't carry over to duplicate() connections since USE is
+   session-level state. We add connectionInitSql to HikariCP to run USE on each
+   pooled connection checkout."
   [ducklake-file]
-  (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")]
-    (with-open [stmt (.createStatement conn)]
-      (.execute stmt "INSTALL ducklake")
-      (.execute stmt "LOAD ducklake")
-      (.execute stmt (str "ATTACH 'ducklake:" ducklake-file "' AS ducklake")))
+  (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
+        attach-sql (format "ATTACH 'ducklake:%s' AS ducklake" ducklake-file)]
+    (jdbc/execute! conn ["INSTALL ducklake"])
+    (jdbc/execute! conn ["LOAD ducklake"])
+    (jdbc/execute! conn [attach-sql])
     (mulog/log ::root-connection-initialized :ducklake-file ducklake-file)
     conn))
 
