@@ -8,6 +8,12 @@
  {:sqlite #ig/ref :db/sqlite
   :duckdb #ig/ref :db/duckdb}
 
+ :cache/event-metadata
+ {:duckdb #ig/ref :db/duckdb
+  ;; _storage is not consumed, but ensures storage/init runs first
+  ;; so the events table exists before we DESCRIBE it
+  :_storage #ig/ref :storage/init}
+
  :server/web
  {:host #or [#env HOST "0.0.0.0"]
   :port #long #or [#env PORT 3000]
