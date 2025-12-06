@@ -14,6 +14,14 @@
   ;; so the events table exists before we DESCRIBE it
   :_storage #ig/ref :storage/init}
 
+ :ingest/batcher
+ {:duckdb #ig/ref :db/duckdb
+  ;; _storage is not consumed, but ensures storage/init runs first
+  ;; so the events table exists before we insert into it
+  :_storage #ig/ref :storage/init
+  ;; Flush interval in milliseconds (default: 1 second)
+  :flush-interval-ms #long #or [#env INGEST_FLUSH_INTERVAL_MS 1000]}
+
  :server/web
  {:host #or [#env HOST "0.0.0.0"]
   :port #long #or [#env PORT 3000]
