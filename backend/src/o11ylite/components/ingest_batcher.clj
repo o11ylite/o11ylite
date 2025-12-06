@@ -6,7 +6,7 @@
 ;;
 ;; Backpressure & Delivery Guarantees:
 ;; -----------------------------------
-;; Callers of ingest! block until their event is successfully flushed to
+;; Callers of ingest! block until their events are successfully flushed to
 ;; storage. This provides:
 ;;   1. Backpressure - if storage is slow, callers slow down naturally
 ;;   2. Delivery guarantee - when ingest! returns true, data is persisted
@@ -19,6 +19,14 @@
 ;;   - Partial failure handling would add significant complexity
 ;;   - Validation should happen at the caller side before ingest!
 ;;   - On flush failure, all callers receive false and can decide to retry
+;;
+;; Batch Accumulation:
+;; -------------------
+;; Each ingest! call submits {:events [...] :fields {name {:type t} ...}}.
+;; The batcher accumulates:
+;;   - events: concatenated into a single vector
+;;   - fields: merged map of field-name -> {:type ...}
+;;   - promises: tracked to notify callers on flush
 ;; ---------------------------------------------------------
 
 (ns o11ylite.components.ingest-batcher
@@ -26,39 +34,49 @@
    [clojure.core.async :as a]
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.ducklake.events.ingest :as events.ingest]
    [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-; This number determines the theoretical max throughput per ingest cycle.
-; When number of messages were above this, the caller slows down until they got timeout.
-(def ingest-channel-size-limit 1000000)
+;; Max messages in channel before backpressure kicks in
+(def ^:private ingest-channel-size-limit 1000000)
 
 (defn- -flush!
   "Flush the batch to storage. Returns true on success, false on failure.
    On success, all pending promises are delivered true.
    On failure, all pending promises are delivered false.
    Only called from the single event loop thread - no contention."
-  [_duckdb batch]
-  (let [items @batch]
-    (vreset! batch [])
-    (if (empty? items)
+  [duckdb event-metadata batch]
+  (let [{:keys [events fields promises]} @batch]
+    (vreset! batch {:events [] :fields {} :promises []})
+    (if (empty? events)
       true
       (try
-        ;; TODO: Implement actual flush logic (write to DuckLake)
-        ;; (ducklake/insert-events! duckdb (map :event items))
-        (mulog/log ::batch-flushed :event-count (count items))
+        (events.ingest/persist-batch! duckdb event-metadata events fields)
+        (mulog/log ::batch-flushed :event-count (count events)
+                   :field-count (count fields))
         ;; Notify all callers of success
-        (doseq [{:keys [done]} items]
+        (doseq [done promises]
           (deliver done true))
         true
         (catch Exception e
-          (mulog/log ::flush-error :error (.getMessage e) :event-count (count items))
+          (mulog/log ::flush-error :error (.getMessage e) :event-count (count events))
           ;; Notify all callers of failure
-          (doseq [{:keys [done]} items]
+          (doseq [done promises]
             (deliver done false))
           false)))))
+
+(defn- -accumulate!
+  "Accumulate an ingest message into the batch.
+   Concatenates events, merges fields, and tracks the promise."
+  [batch {:keys [events fields done]}]
+  (vswap! batch (fn [b]
+                  (-> b
+                      (update :events into events)
+                      (update :fields merge fields)
+                      (update :promises conj done)))))
 
 (defn- -drain-channel!
   "Drain remaining messages from channel into batch.
@@ -66,18 +84,18 @@
   [ch batch]
   (loop []
     (when-let [msg (a/poll! ch)]
-      (vswap! batch conj msg)
+      (-accumulate! batch msg)
       (recur))))
 
 (defn- -start-event-loop
   "Start the event loop that handles both ingest and periodic flush.
    Single thread owns the batch - no contention.
    Returns component state map."
-  [duckdb flush-interval-ms]
+  [duckdb event-metadata flush-interval-ms]
   (let [ingest-ch (a/chan ingest-channel-size-limit)
         ticker (ticker/ticker flush-interval-ms)
         ticker-ch (:ch ticker)
-        batch (volatile! [])
+        batch (volatile! {:events [] :fields {} :promises []})
         stopped? (promise)
         stop-called? (atom false)]
     ;; Start the event loop
@@ -95,13 +113,13 @@
             ;; Ticker fired - flush batch
             (= port ticker-ch)
             (do
-              (-flush! duckdb batch)
+              (-flush! duckdb event-metadata batch)
               (recur))
 
-            ;; Ingest message - add to batch
+            ;; Ingest message - accumulate into batch
             (= port ingest-ch)
             (do
-              (vswap! batch conj v)
+              (-accumulate! batch v)
               (recur))))))
     ;; Return component state
     {:ingest-ch ingest-ch
@@ -113,13 +131,13 @@
                 ;; Close ingest channel to signal loop to exit
                 (a/close! ingest-ch)
                 ;; Wait for loop to exit
-                ;; Note this stop fn can be called from another thread, therefore it's vital to
-                ;; ensure the event loop stops. (Remember volatile! isn't thread safe by design)
+                ;; Note: stop fn can be called from another thread, so we must
+                ;; ensure event loop stops before touching batch (volatile! isn't thread-safe)
                 (if (deref stopped? 5000 false)
                   (do
                     ;; Loop exited cleanly - drain and flush remaining
                     (-drain-channel! ingest-ch batch)
-                    (-flush! duckdb batch)
+                    (-flush! duckdb event-metadata batch)
                     (mulog/log ::ingest-batcher-stopped))
                   ;; Loop did not exit in time - log error, don't drain/flush
                   (mulog/log ::ingest-batcher-stop-timeout
@@ -129,14 +147,23 @@
 ;; Public API
 
 (defn ingest!
-  "Add an event to the batch. Blocks until the event is flushed to storage.
-   Returns true if event was persisted, false if flush failed.
-
+  "Add events to the batch. Blocks until the events are flushed to storage.
+   
+   Arguments:
+     batcher - The batcher component
+     payload - Map with :events (vector of event maps) and 
+               :fields (map of field-name -> {:type ...})
+   
+   Returns:
+     true if events were persisted, false if flush failed.
+   
    Callers should validate events before calling ingest! - the batcher
    treats flush as atomic and does not handle partial failures."
-  [batcher event]
+  [batcher {:keys [events fields]}]
   (let [done (promise)]
-    (a/>!! (:ingest-ch batcher) {:event event :done done})
+    (a/>!! (:ingest-ch batcher) {:events events
+                                 :fields (or fields {})
+                                 :done done})
     @done))
 
 (defn stop!
@@ -148,10 +175,10 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/batcher
-  [_ {:keys [duckdb flush-interval-ms]
+  [_ {:keys [duckdb event-metadata flush-interval-ms]
       :or {flush-interval-ms 60000}}]
   (mulog/log ::ingest-batcher-starting :flush-interval-ms flush-interval-ms)
-  (let [state (-start-event-loop duckdb flush-interval-ms)]
+  (let [state (-start-event-loop duckdb event-metadata flush-interval-ms)]
     (mulog/log ::ingest-batcher-started)
     state))
 
@@ -171,9 +198,12 @@
 
   ;; Ingest some events (will block until flushed!)
   ;; Run in separate threads to avoid blocking REPL
-  (future (println "ingest 1:" (ingest! batcher {:type :span :name "test-1"})))
-  (future (println "ingest 2:" (ingest! batcher {:type :span :name "test-2"})))
-  (future (println "ingest 3:" (ingest! batcher {:type :log :body "hello"})))
+  (future
+    (println "ingest result:"
+             (ingest! batcher {:events [{:service "test" :name "span-1"}
+                                        {:service "test" :name "span-2"}]
+                               :fields {"service" {:type :string}
+                                        "name" {:type :string}}})))
 
   ;; Check batch contents (for debugging only)
   @(:batch batcher)

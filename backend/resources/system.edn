@@ -16,9 +16,7 @@
 
  :ingest/batcher
  {:duckdb #ig/ref :db/duckdb
-  ;; _storage is not consumed, but ensures storage/init runs first
-  ;; so the events table exists before we insert into it
-  :_storage #ig/ref :storage/init
+  :event-metadata #ig/ref :cache/event-metadata
   ;; Flush interval in milliseconds (default: 1 second)
   :flush-interval-ms #long #or [#env INGEST_FLUSH_INTERVAL_MS 1000]}
 

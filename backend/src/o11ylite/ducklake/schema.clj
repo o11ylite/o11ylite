@@ -1,25 +1,32 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.ducklake.schema
 ;;
-;; DuckLake schema introspection utilities.
+;; DuckLake schema utilities: introspection, type inference, and type mapping.
 ;; Provides field metadata with normalized application-level types.
+;;
+;; Type System:
+;;   :string  - text data
+;;   :instant - timestamps
+;;   :integer - whole numbers
+;;   :float   - decimal numbers
+;;   :boolean - true/false
+;;
+;; Three type conversion functions:
+;;   normalize-type      - DuckDB type → app type (for introspection)
+;;   infer-type          - Clojure value → app type (for ingestion)
+;;   app-type->duckdb    - app type → DuckDB type (for ALTER TABLE)
 ;; ---------------------------------------------------------
 
 (ns o11ylite.ducklake.schema
   (:require
-   [next.jdbc :as jdbc]))
+   [next.jdbc :as jdbc])
+  (:import
+   [java.time Instant]))
 
 ;; ---------------------------------------------------------
-;; Type Normalization
-;;
-;; Maps DuckDB types to application-level types:
-;;   :string  - text data (VARCHAR, etc.)
-;;   :instant - timestamps (TIMESTAMP, TIMESTAMP_NS, etc.)
-;;   :integer - whole numbers (INTEGER, BIGINT, SMALLINT, etc.)
-;;   :float   - decimal numbers (FLOAT, DOUBLE, DECIMAL, etc.)
-;;   :boolean - true/false (BOOLEAN)
+;; Type Conversions
 
-(defn- normalize-type
+(defn- -normalize-type
   "Normalize a DuckDB column type to an application-level type."
   [duckdb-type]
   (let [t (-> duckdb-type str .toUpperCase)]
@@ -54,6 +61,35 @@
       :else
       :string)))
 
+(defn infer-type
+  "Infer normalized app type from a Clojure value.
+   Returns one of: :string, :instant, :integer, :float, :boolean"
+  [value]
+  (cond
+    (nil? value)                      :string  ; default to string for nil
+    (instance? Instant value)         :instant
+    (instance? java.util.Date value)  :instant
+    (boolean? value)                  :boolean
+    (int? value)                      :integer
+    (integer? value)                  :integer ; covers Long, BigInteger, etc.
+    (float? value)                    :float
+    (number? value)                   :float   ; covers Double, BigDecimal, etc.
+    :else                             :string))
+
+(def ^:private app-type->duckdb-type
+  "Maps application types to DuckDB column types."
+  {:string  "VARCHAR"
+   :instant "TIMESTAMP_NS"
+   :integer "BIGINT"
+   :float   "DOUBLE"
+   :boolean "BOOLEAN"})
+
+(defn app-type->duckdb
+  "Convert an application type to a DuckDB column type.
+   Returns DuckDB type string, or VARCHAR for unknown types."
+  [app-type]
+  (get app-type->duckdb-type app-type "VARCHAR"))
+
 ;; ---------------------------------------------------------
 ;; Public API
 
@@ -67,7 +103,7 @@
     (->> rows
          (map (fn [row]
                 [(:column_name row)
-                 {:type (normalize-type (:column_type row))}]))
+                 {:type (-normalize-type (:column_type row))}]))
          (into {}))))
 
 ;; ---------------------------------------------------------
@@ -86,14 +122,29 @@
   ;;     "span.duration_ns" {:type :integer}
   ;;     ...}
 
-  ;; Test type normalization
-  (normalize-type "VARCHAR")       ;; => :string
-  (normalize-type "TIMESTAMP_NS")  ;; => :instant
-  (normalize-type "BIGINT")        ;; => :integer
-  (normalize-type "DOUBLE")        ;; => :float
-  (normalize-type "BOOLEAN")       ;; => :boolean
-
   (ig/halt-key! :db/duckdb ds)
+
+  ;; Type inference from Clojure values
+  (infer-type "hello")           ;; => :string
+  (infer-type 42)                ;; => :integer
+  (infer-type 3.14)              ;; => :float
+  (infer-type true)              ;; => :boolean
+  (infer-type (Instant/now))     ;; => :instant
+  (infer-type nil)               ;; => :string
+
+  ;; App type to DuckDB type
+  (app-type->duckdb :string)     ;; => "VARCHAR"
+  (app-type->duckdb :instant)    ;; => "TIMESTAMP_NS"
+  (app-type->duckdb :integer)    ;; => "BIGINT"
+  (app-type->duckdb :float)      ;; => "DOUBLE"
+  (app-type->duckdb :boolean)    ;; => "BOOLEAN"
+
+  ;; DuckDB type normalization (internal)
+  (-normalize-type "VARCHAR")       ;; => :string
+  (-normalize-type "TIMESTAMP_NS")  ;; => :instant
+  (-normalize-type "BIGINT")        ;; => :integer
+  (-normalize-type "DOUBLE")        ;; => :float
+  (-normalize-type "BOOLEAN")       ;; => :boolean
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

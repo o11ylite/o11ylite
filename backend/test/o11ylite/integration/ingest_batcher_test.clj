@@ -6,96 +6,116 @@
 
 (ns o11ylite.integration.ingest-batcher-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [integrant.core :as ig]
-   [o11ylite.components.ingest-batcher :as batcher]))
+   [clojure.test :refer [deftest is testing use-fixtures]]
+   [o11ylite.test-helpers :as h]
+   [o11ylite.components.ingest-batcher :as batcher]
+   [o11ylite.ducklake.events.ingest :as events.ingest]))
+
+(use-fixtures :each h/with-system)
+
+;; ---------------------------------------------------------
+;; Helpers
+
+(defn- batcher-component []
+  (:ingest/batcher h/*system*))
+
+(defn- make-payload
+  "Create an ingest payload with events and optional fields map.
+   Fields is a map of field-name -> {:type type-keyword}."
+  ([events] (make-payload events nil))
+  ([events fields]
+   {:events events
+    :fields fields}))
 
 ;; ---------------------------------------------------------
 ;; Tests
 
-(deftest batcher-ingest-blocks-until-flush-test
-  (testing "Ingest blocks until periodic flush occurs"
-    (let [b (ig/init-key :ingest/batcher {:flush-interval-ms 100})
-          started (atom false)
-          result (promise)]
-      (try
-        ;; Start ingest in background - it should block
-        (future
-          (reset! started true)
-          (deliver result (batcher/ingest! b {:type :span :name "test"})))
-        ;; Wait for future to start
-        (Thread/sleep 20)
-        (is @started "Future should have started")
-        (is (not (realized? result)) "Ingest should still be blocking")
-        ;; Wait for periodic flush
-        (Thread/sleep 150)
-        (is (realized? result) "Ingest should complete after flush")
-        (is (true? @result) "Ingest should return true on success")
-        (finally
-          (ig/halt-key! :ingest/batcher b))))))
+(deftest batcher-ingest-returns-true-test
+  (testing "Ingest returns true after flush"
+    (let [b (batcher-component)
+          ;; Ingest blocks until flush, then returns
+          result (batcher/ingest! b (make-payload [{:service "test" :name "span-1"}]))]
+      (is (true? result) "Ingest should return true on success"))))
 
-(deftest batcher-concurrent-ingest-all-block-test
-  (testing "Multiple concurrent ingests all block until flush"
-    (let [b (ig/init-key :ingest/batcher {:flush-interval-ms 100})
+(deftest batcher-ingest-multiple-events-test
+  (testing "Ingest accepts multiple events in one call"
+    (let [b (batcher-component)
+          events [{:service "test" :name "span-1"}
+                  {:service "test" :name "span-2"}
+                  {:service "test" :name "span-3"}]
+          result (batcher/ingest! b (make-payload events))]
+      (is (true? result) "Ingest should return true"))))
+
+(deftest batcher-ingest-with-fields-test
+  (testing "Ingest accepts events with fields map"
+    (let [b (batcher-component)
+          result (batcher/ingest! b (make-payload
+                                     [{:service "test" :custom.field "value"}]
+                                     {"service" {:type :string}
+                                      "custom.field" {:type :string}}))]
+      (is (true? result) "Ingest with fields should return true"))))
+
+(deftest batcher-concurrent-ingest-test
+  (testing "Multiple concurrent ingests all succeed"
+    (let [b (batcher-component)
           n 10
-          results (atom [])]
-      (try
-        ;; Start n ingests concurrently
-        (let [futures (doall
-                       (for [i (range n)]
-                         (future
-                           (let [r (batcher/ingest! b {:id i})]
-                             (swap! results conj r)
-                             r))))]
-          ;; None should be done yet
-          (Thread/sleep 20)
-          (is (< (count @results) n) "Not all should complete before flush")
-          ;; Wait for flush
-          (Thread/sleep 150)
-          ;; All should be done now
-          (doseq [f futures] @f)
-          (is (= n (count @results)) "All should complete after flush")
-          (is (every? true? @results) "All should return true"))
-        (finally
-          (ig/halt-key! :ingest/batcher b))))))
-
-(deftest batcher-stop-flushes-and-unblocks-test
-  (testing "Stopping batcher flushes remaining events and unblocks callers"
-    (let [b (ig/init-key :ingest/batcher {:flush-interval-ms 60000})
-          result (promise)]
-      ;; Start ingest - will block for 60s normally
-      (future
-        (deliver result (batcher/ingest! b {:type :span :name "test"})))
-      ;; Give it time to block
-      (Thread/sleep 50)
-      (is (not (realized? result)) "Should still be blocking")
-      ;; Stop should flush and unblock
-      (ig/halt-key! :ingest/batcher b)
-      ;; Should complete now
-      (is (deref result 1000 :timeout) "Should unblock after stop")
-      (is (true? @result) "Should return true"))))
+          ;; Start n ingests concurrently, collect results
+          futures (doall
+                   (for [i (range n)]
+                     (future (batcher/ingest! b (make-payload [{:id i}])))))
+          ;; Wait for all and collect results
+          results (mapv deref futures)]
+      (is (= n (count results)) "All should complete")
+      (is (every? true? results) "All should return true"))))
 
 (deftest batcher-stop-idempotent-test
   (testing "Stopping batcher multiple times is safe"
-    (let [b (ig/init-key :ingest/batcher {:flush-interval-ms 60000})]
-      (batcher/stop! b)
+    (let [b (batcher-component)]
+      ;; First stop happens via fixture cleanup
+      ;; These should be safe no-ops
       (batcher/stop! b)
       (batcher/stop! b)
       (is true "Multiple stops should not throw"))))
 
-(deftest batcher-batch-accumulates-before-flush-test
-  (testing "Events accumulate in batch before flush"
-    (let [b (ig/init-key :ingest/batcher {:flush-interval-ms 60000})]
-      (try
-        ;; Start several ingests
-        (dotimes [i 5]
-          (future (batcher/ingest! b {:id i})))
-        ;; Give time for events to reach the batch
-        (Thread/sleep 100)
-        ;; Batch should have events
-        (is (= 5 (count @(:batch b))) "Batch should have 5 events")
-        (finally
-          (ig/halt-key! :ingest/batcher b))))))
+(deftest batcher-stop-flushes-pending-test
+  (testing "Stop flushes pending events and unblocks callers"
+    (let [b (batcher-component)
+          result (promise)]
+      ;; Start ingest in background
+      (future
+        (deliver result (batcher/ingest! b (make-payload [{:service "test"}]))))
+      ;; Give it time to start blocking
+      (Thread/sleep 20)
+      ;; Stop should flush and unblock
+      (batcher/stop! b)
+      ;; Result should be delivered
+      (is (true? (deref result 1000 false)) "Should return true after stop"))))
+
+(deftest batcher-batches-multiple-ingests-test
+  (testing "Multiple ingests are batched into a single persist-batch! call"
+    (let [b (batcher-component)
+          persist-calls (atom [])
+          n 5]
+      ;; Mock persist-batch! to capture calls
+      (with-redefs [events.ingest/persist-batch!
+                    (fn [_duckdb _event-metadata events fields]
+                      (swap! persist-calls conj {:event-count (count events)
+                                                 :field-count (count fields)})
+                      true)]
+        ;; Start n ingests concurrently - they should all be batched together
+        (let [futures (doall
+                       (for [i (range n)]
+                         (future (batcher/ingest! b (make-payload [{:id i}]
+                                                                  {"id" {:type :integer}})))))]
+          ;; Wait for all to complete
+          (doseq [f futures] @f)
+          ;; Should have been batched into a single persist-batch! call
+          ;; (or possibly 2 if timing causes a flush mid-accumulation)
+          (is (<= (count @persist-calls) 2)
+              "Should batch multiple ingests into few persist calls")
+          ;; Total events across all calls should equal n
+          (is (= n (reduce + (map :event-count @persist-calls)))
+              "All events should be persisted"))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

@@ -39,11 +39,15 @@
   "Start the system with test configuration.
    Uses a unique temporary directory for data-path to isolate tests."
   []
-  (let [config (-> (system/read-config :dev)
+  (let [temp-path (create-temp-data-path)
+        config (-> (system/read-config :dev)
                    (assoc-in [:server/web :port] test-http-port)
                    (assoc-in [:server/web :host] "127.0.0.1")
                    (assoc-in [:server/otel-grpc :port] test-grpc-port)
-                   (assoc-in [:db/duckdb :data-path] (create-temp-data-path)))]
+                   (assoc-in [:db/duckdb :data-path] temp-path)
+                   (assoc-in [:db/sqlite :data-path] temp-path)
+                   ;; Fast flush interval for tests (100ms)
+                   (assoc-in [:ingest/batcher :flush-interval-ms] 100))]
     (ig/init config)))
 
 (defn stop-test-system!
