@@ -96,7 +96,7 @@
 (defn fetch-event-fields
   "Fetch field metadata from the events table.
    Returns a map of field-name -> {:type normalized-type}.
-   
+
    Types are normalized to: :string, :instant, :integer, :float, :boolean"
   [duckdb-ds]
   (let [rows (jdbc/execute! duckdb-ds ["DESCRIBE ducklake.events"])]
@@ -105,6 +105,35 @@
                 [(:column_name row)
                  {:type (-normalize-type (:column_type row))}]))
          (into {}))))
+
+(defn add-fields!
+  "Add new fields (columns) to the events table for schema evolution.
+   Executes ALTER TABLE ADD COLUMN IF NOT EXISTS for each field.
+   All fields are added in a single transaction for atomicity.
+
+   Arguments:
+     duckdb-ds  - DuckDB datasource
+     fields     - Map of field-name -> {:type app-type}
+
+   Example:
+     (add-fields! ds {\"http.method\" {:type :string}
+                      \"http.status_code\" {:type :integer}})"
+  [duckdb-ds fields]
+  (jdbc/with-transaction [tx duckdb-ds]
+    (doseq [[field-name field-meta] fields]
+      (let [duckdb-type (app-type->duckdb (:type field-meta))
+            ; Notice the IF NOT EXISTS here.
+            ; There is a chance that we swallow a conflicting type error here.
+            ; It may cause the whole batch to fail. This a compromise.
+            ; But we anticipate this to be rare:
+            ; - 1. Conflicting data types from source are rare.
+            ; - 2. We had various prevention mechanism before this.
+            ; - 3. We anticipate client side to retry error. Retry would work because the metadata
+            ;      cache would've catch up, and reject only the bad seed retry.
+            sql (format "ALTER TABLE ducklake.events ADD COLUMN IF NOT EXISTS \"%s\" %s"
+                        field-name
+                        duckdb-type)]
+        (jdbc/execute! tx [sql])))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -145,6 +174,13 @@
   (-normalize-type "BIGINT")        ;; => :integer
   (-normalize-type "DOUBLE")        ;; => :float
   (-normalize-type "BOOLEAN")       ;; => :boolean
+
+  ;; Add fields to events table
+  (add-fields! ds {"http.method" {:type :string}
+                   "http.status_code" {:type :integer}})
+
+  ;; Verify columns were added
+  (fetch-event-fields ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
