@@ -130,21 +130,17 @@
      2. Recompute diff
      3. Retry ALTER TABLE + INSERT
      This handles race conditions when multiple batches add columns concurrently."
-  [_duckdb event-metadata events fields]
+  [duckdb event-metadata events fields]
   (let [new-fields (-compute-schema-diff event-metadata fields)]
     ;; Step 1: Schema evolution (if needed)
     (when new-fields
-      (mulog/log ::schema-evolution :new-fields new-fields))
-      ;; TODO: ALTER TABLE ADD COLUMN for each new field
-      ;; Use (schema/app-type->duckdb type) to get DuckDB column type
+      (mulog/log ::schema-evolution :new-fields new-fields)
+      (schema/add-fields! duckdb new-fields)
+      (event-metadata/refresh! event-metadata))
 
     ;; Step 2: Bulk INSERT
     ;; TODO: Implement bulk INSERT
     (mulog/log ::persist-batch :event-count (count events))
-
-    ;; Step 3: Refresh cache if schema changed
-    (when new-fields
-      (event-metadata/refresh! event-metadata))
 
     true))
 
