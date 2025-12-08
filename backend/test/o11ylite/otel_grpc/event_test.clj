@@ -62,8 +62,8 @@
 (deftest trace-request->events-basic-test
   (testing "Converts spans to events with correct structure"
     (let [events (trace-events/trace-request->events (build-sample-request))
-          span-events (filter #(= :span (:meta/signal-type %)) events)
-          span-event-events (filter #(= :span-event (:meta/signal-type %)) events)]
+          span-events (filter #(= :span (:meta.signal_type %)) events)
+          span-event-events (filter #(= :span_event (:meta.signal_type %)) events)]
       (is (= 3 (count events)) "Should have 2 spans + 1 span event")
       (is (= 2 (count span-events)))
       (is (= 1 (count span-event-events))))))
@@ -82,23 +82,23 @@
     (let [events (trace-events/trace-request->events (build-sample-request))
           parent-span (first (filter #(= "parent-span" (:name %)) events))]
       (is (= "test-service" (:service parent-span)))
-      (is (= "0af7651916cd43dd8448eb211c80319c" (:trace-id parent-span)))
-      (is (= "b7ad6b7169203331" (:span-id parent-span)))
-      (is (= "" (:parent-span-id parent-span))) ; Empty string for no parent (protobuf default)
-      (is (= :server (:span/kind parent-span)))
-      (is (= :ok (:span/status-code parent-span)))
-      (is (= 100000000000 (:span/duration-ns parent-span)))
-      (is (= "test-tracer" (:scope/name parent-span)))
-      (is (= "1.0.0" (:scope/version parent-span))))))
+      (is (= "0af7651916cd43dd8448eb211c80319c" (:trace_id parent-span)))
+      (is (= "b7ad6b7169203331" (:span_id parent-span)))
+      (is (= "" (:parent_span_id parent-span))) ; Empty string for no parent (protobuf default)
+      (is (= :server (:span.kind parent-span)))
+      (is (= :ok (:span.status_code parent-span)))
+      (is (= 100000000000 (:span.duration_ns parent-span)))
+      (is (= "test-tracer" (:scope.name parent-span)))
+      (is (= "1.0.0" (:scope.version parent-span))))))
 
 (deftest trace-request->events-span-event-test
   (testing "Span events are converted with inherited context"
     (let [events (trace-events/trace-request->events (build-sample-request))
-          span-event (first (filter #(= :span-event (:meta/signal-type %)) events))]
+          span-event (first (filter #(= :span_event (:meta.signal_type %)) events))]
       (is (= "event-1" (:name span-event)))
       (is (= "test-service" (:service span-event)))
-      (is (= "0af7651916cd43dd8448eb211c80319c" (:trace-id span-event)))
-      (is (= "b7ad6b7169203331" (:span-id span-event)))
+      (is (= "0af7651916cd43dd8448eb211c80319c" (:trace_id span-event)))
+      (is (= "b7ad6b7169203331" (:span_id span-event)))
       ;; Should have merged and prefixed attributes from resource + span + event
       (is (= "test-service" (get span-event "attr.service.name")))
       (is (= "GET" (get span-event "attr.http.method")))
