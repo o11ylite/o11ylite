@@ -1,4 +1,8 @@
-# AGENTS.md
+# O11yLite project rules
+
+## General Guidelines
+
+Read the following file as it's relevant to all workflows: @README.md.
 
 ## Build/Test Commands
 
@@ -21,6 +25,8 @@
 - Formatting enforced by cljstyle (2-space indent, kebab-case naming)
 - Tests in `test/o11ylite/integration/` use fixture `(use-fixtures :each h/with-system)`
 - Backend is all-in Java virtual thread.
+- Avoid parameter lists with more than three or four positional parameters.
+
 
 **TypeScript/React:**
 - Functional components with default exports for pages
