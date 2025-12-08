@@ -125,13 +125,11 @@
 ;;      SELECT * FROM events WHERE "attr.http.status_code" = 500
 ;;
 ;; 2. Why string keys for attributes vs keywords for core fields?
-;;    - Core fields (:span/kind, :meta/signal-type) are static and known
-;;      at compile time. Namespaced keywords are idiomatic Clojure, enable
-;;      destructuring, and provide self-documentation.
+;;    - Core fields (:span.kind, :meta.signal_type) are static and known
+;;      at compile time. Keywords are idiomatic Clojure, enable destructuring,
+;;      and provide self-documentation. Dots used as separator for consistency.
 ;;    - Attributes ("attr.http.method") are dynamic and user-defined.
 ;;      String keys avoid keyword interning for unbounded cardinality.
-;;    - At the storage boundary, keywords normalize to dot-separated strings
-;;      (e.g., :log/severity -> "log.severity") for consistent column naming.
 
 (defn prefix-attributes
   "Add 'attr.' prefix to attribute keys for storage.

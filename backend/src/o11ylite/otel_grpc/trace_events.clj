@@ -54,18 +54,18 @@
      {:service service-name
       :timestamp (proto/nanos->instant (.getTimeUnixNano span-event))
 
-      :trace-id trace-id
-      :span-id span-id
+      :trace_id trace-id
+      :span_id span-id
 
       :name (.getName span-event)
 
       ;; Instrumentation scope
-      :scope/name scope-name
-      :scope/version scope-version
+      :scope.name scope-name
+      :scope.version scope-version
 
       ;; Meta
-      :meta/observed-time observed-time
-      :meta/signal-type :span-event}
+      :meta.observed_time observed-time
+      :meta.signal_type :span_event}
      prefixed-attrs)))
 
 (defn- -span->event
@@ -81,26 +81,26 @@
      {:service service-name
       :timestamp (proto/nanos->instant start-nanos)
 
-      :trace-id (proto/bytestring->hex (.getTraceId span))
-      :span-id (proto/bytestring->hex (.getSpanId span))
-      :parent-span-id (proto/bytestring->hex (.getParentSpanId span))
+      :trace_id (proto/bytestring->hex (.getTraceId span))
+      :span_id (proto/bytestring->hex (.getSpanId span))
+      :parent_span_id (proto/bytestring->hex (.getParentSpanId span))
 
       :name (.getName span)
-      :span/kind (-span-kind->kw (.getKind span))
-      :span/status-code (-status-code->kw (.getCode status))
-      :span/status-message (.getMessage status)
-      :span/start-time (proto/nanos->instant start-nanos)
-      :span/end-time (proto/nanos->instant end-nanos)
-      :span/duration-ns (when (and (pos? end-nanos) (pos? start-nanos))
+      :span.kind (-span-kind->kw (.getKind span))
+      :span.status_code (-status-code->kw (.getCode status))
+      :span.status_message (.getMessage status)
+      :span.start_time (proto/nanos->instant start-nanos)
+      :span.end_time (proto/nanos->instant end-nanos)
+      :span.duration_ns (when (and (pos? end-nanos) (pos? start-nanos))
                           (- end-nanos start-nanos))
 
       ;; Instrumentation scope
-      :scope/name scope-name
-      :scope/version scope-version
+      :scope.name scope-name
+      :scope.version scope-version
 
       ;; Meta
-      :meta/observed-time observed-time
-      :meta/signal-type :span}
+      :meta.observed_time observed-time
+      :meta.signal_type :span}
      prefixed-attrs)))
 
 (defn- -span->events
@@ -169,19 +169,19 @@
   ;; Example event structure (attributes prefixed with attr.):
   {:service "my-service"
    :timestamp #inst "2024-01-15T10:30:00Z"
-   :trace-id "0af7651916cd43dd8448eb211c80319c"
-   :span-id "b7ad6b7169203331"
-   :parent-span-id "00f067aa0ba902b7"
+   :trace_id "0af7651916cd43dd8448eb211c80319c"
+   :span_id "b7ad6b7169203331"
+   :parent_span_id "00f067aa0ba902b7"
    :name "GET /api/users"
-   :span/kind :server
-   :span/status-code :ok
-   :span/start-time #inst "2024-01-15T10:30:00Z"
-   :span/end-time #inst "2024-01-15T10:30:00.100Z"
-   :span/duration-ns 100000000
-   :scope/name "http-server"
-   :scope/version "1.0.0"
-   :meta/observed-time #inst "2024-01-15T10:30:01Z"
-   :meta/signal-type :span
+   :span.kind :server
+   :span.status_code :ok
+   :span.start_time #inst "2024-01-15T10:30:00Z"
+   :span.end_time #inst "2024-01-15T10:30:00.100Z"
+   :span.duration_ns 100000000
+   :scope.name "http-server"
+   :scope.version "1.0.0"
+   :meta.observed_time #inst "2024-01-15T10:30:01Z"
+   :meta.signal_type :span
    ;; Prefixed attributes (from resource, scope, and span)
    "attr.http.method" "GET"
    "attr.http.status_code" 200
