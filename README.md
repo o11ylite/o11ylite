@@ -12,28 +12,72 @@ The analytics engine is powered by DuckDB and SQLite.
 
 A Clojure service, the core of O11yLite.
 
-* Handles telemetry ingestion, operates SQLite and DuckDB, manages Parquet files
+* Handles telemetry ingestion via OTLP/gRPC
+* Operates SQLite and DuckDB with automatic schema evolution
 * Functions as Inertia.js backend, serving HTML with embedded page data
 * Integrant component system for lifecycle management
+* Runs entirely on Java virtual threads
 
-Key directories:
+#### Ingestion Pipeline
+
+```mermaid
+sequenceDiagram
+    participant Client as OTLP Client
+    participant GRPC as otel_grpc_server
+    participant Ingest as ingest-events!
+    participant Batcher as ingest_batcher
+    participant DB as DuckDB
+
+    Client->>GRPC: ExportTraceServiceRequest
+    GRPC->>GRPC: Parse protobuf → flat event maps
+    GRPC->>Ingest: events
+    Ingest->>Ingest: Validate, infer field types
+    Ingest->>Batcher: Submit events + fields
+    Note over Ingest,Batcher: Caller blocks until flush
+
+    loop Periodic flush
+        Batcher->>Batcher: Accumulate batch
+    end
+
+    Batcher->>DB: Schema diff → ALTER TABLE
+    Batcher->>DB: INSERT events
+    Batcher-->>Ingest: Done
+    Ingest-->>GRPC: Success
+    GRPC-->>Client: ExportTraceServiceResponse
+```
+
+**Type System** (`ducklake/schema.clj`): Normalizes types between Clojure values, DuckDB columns, and the application layer (`:string`, `:instant`, `:integer`, `:float`, `:boolean`).
+
+**Schema Evolution**: New fields in events automatically create columns. The `event_metadata` cache tracks known fields; `persist-batch!` diffs incoming fields against the cache and runs `ALTER TABLE ADD COLUMN` as needed.
+
+#### Key Directories
+
 ```
 backend/
 ├── src/o11ylite/
 │   ├── system.clj           # Integrant system config & lifecycle
 │   ├── components/          # Integrant components
-│   │   ├── server.clj       #   Jetty HTTP server
-│   │   ├── router.clj       #   Reitit routes (assembles all routes)
-│   │   └── inertia.clj      #   Inertia.js config
-│   ├── routes/              # Route handlers
-│   │   ├── home.clj         #   Page routes (Inertia)
-│   │   └── health.clj       #   Health check endpoints
+│   │   ├── web_server.clj   #   Jetty HTTP server
+│   │   ├── router.clj       #   Reitit routes
+│   │   ├── inertia.clj      #   Inertia.js config
+│   │   ├── otel_grpc_server.clj  # OTLP/gRPC server
+│   │   ├── ingest_batcher.clj    # Batched ingestion with backpressure
+│   │   ├── event_metadata.clj    # Field metadata cache
+│   │   ├── duckdb_pool.clj       # DuckDB connection pool
+│   │   └── sqlite_pool.clj       # SQLite connection pool
+│   ├── ducklake/            # DuckDB storage layer
+│   │   ├── schema.clj       #   Type system & introspection
+│   │   ├── events/          #   Event ingestion & query
+│   │   └── metrics/         #   Metrics ingestion & query
+│   ├── otel_grpc/           # OTLP protocol handling
+│   │   ├── proto.clj        #   Protobuf utilities
+│   │   ├── trace.clj        #   Trace signal processing
+│   │   └── log.clj          #   Log signal processing
+│   ├── routes/              # HTTP route handlers
 │   ├── inertia/             # Inertia.js adapter
-│   │   ├── core.clj         #   Request handling, JSON encoding
-│   │   ├── template.clj     #   HTML template, Vite manifest
-│   │   └── middleware.clj   #   Ring middleware
 │   └── util/
-│       └── response.clj     # Response helpers (json, inertia)
+│       ├── response.clj     #   Response helpers
+│       └── ticker.clj       #   Go-style ticker for periodic tasks
 └── resources/
     └── system.edn           # System configuration (Aero)
 ```
