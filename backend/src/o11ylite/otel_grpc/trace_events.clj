@@ -42,64 +42,66 @@
 ;; Span -> Events (direct from protobuf)
 
 (defn- -span-event->event
-  "Convert Span.Event protobuf directly to unified event."
+  "Convert Span.Event protobuf directly to unified event.
+   Attributes are prefixed with 'attr.' and merged into the event map."
   [^Span$Event span-event ^Span span resource-attrs scope-attrs scope-name scope-version service-name observed-time]
   (let [trace-id (proto/bytestring->hex (.getTraceId span))
         span-id (proto/bytestring->hex (.getSpanId span))
         event-attrs (proto/extract-attributes (.getAttributesList span-event))
-        span-attrs (proto/extract-attributes (.getAttributesList span))]
-    {:service service-name
-     :timestamp (proto/nanos->instant (.getTimeUnixNano span-event))
-     
-     :trace-id trace-id
-     :span-id span-id
-     
-     :name (.getName span-event)
-     
-     ;; Instrumentation scope
-     :scope/name scope-name
-     :scope/version scope-version
-     
-     ;; Merged attributes: resource + scope + span + event
-     :attributes (merge resource-attrs scope-attrs span-attrs event-attrs)
-     
-     ;; Meta
-     :meta/observed-time observed-time
-     :meta/signal-type :span-event}))
+        span-attrs (proto/extract-attributes (.getAttributesList span))
+        prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs span-attrs event-attrs)]
+    (merge
+     {:service service-name
+      :timestamp (proto/nanos->instant (.getTimeUnixNano span-event))
+
+      :trace-id trace-id
+      :span-id span-id
+
+      :name (.getName span-event)
+
+      ;; Instrumentation scope
+      :scope/name scope-name
+      :scope/version scope-version
+
+      ;; Meta
+      :meta/observed-time observed-time
+      :meta/signal-type :span-event}
+     prefixed-attrs)))
 
 (defn- -span->event
-  "Convert Span protobuf directly to unified event."
+  "Convert Span protobuf directly to unified event.
+   Attributes are prefixed with 'attr.' and merged into the event map."
   [^Span span resource-attrs scope-attrs scope-name scope-version service-name observed-time]
   (let [start-nanos (.getStartTimeUnixNano span)
         end-nanos (.getEndTimeUnixNano span)
         ^Status status (.getStatus span)
-        span-attrs (proto/extract-attributes (.getAttributesList span))]
-    {:service service-name
-     :timestamp (proto/nanos->instant start-nanos)
-     
-     :trace-id (proto/bytestring->hex (.getTraceId span))
-     :span-id (proto/bytestring->hex (.getSpanId span))
-     :parent-span-id (proto/bytestring->hex (.getParentSpanId span))
-     
-     :name (.getName span)
-     :span/kind (-span-kind->kw (.getKind span))
-     :span/status-code (-status-code->kw (.getCode status))
-     :span/status-message (.getMessage status)
-     :span/start-time (proto/nanos->instant start-nanos)
-     :span/end-time (proto/nanos->instant end-nanos)
-     :span/duration-ns (when (and (pos? end-nanos) (pos? start-nanos))
-                         (- end-nanos start-nanos))
-     
-     ;; Instrumentation scope
-     :scope/name scope-name
-     :scope/version scope-version
-     
-     ;; Merged attributes: resource + scope + span
-     :attributes (merge resource-attrs scope-attrs span-attrs)
-     
-     ;; Meta
-     :meta/observed-time observed-time
-     :meta/signal-type :span}))
+        span-attrs (proto/extract-attributes (.getAttributesList span))
+        prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs span-attrs)]
+    (merge
+     {:service service-name
+      :timestamp (proto/nanos->instant start-nanos)
+
+      :trace-id (proto/bytestring->hex (.getTraceId span))
+      :span-id (proto/bytestring->hex (.getSpanId span))
+      :parent-span-id (proto/bytestring->hex (.getParentSpanId span))
+
+      :name (.getName span)
+      :span/kind (-span-kind->kw (.getKind span))
+      :span/status-code (-status-code->kw (.getCode status))
+      :span/status-message (.getMessage status)
+      :span/start-time (proto/nanos->instant start-nanos)
+      :span/end-time (proto/nanos->instant end-nanos)
+      :span/duration-ns (when (and (pos? end-nanos) (pos? start-nanos))
+                          (- end-nanos start-nanos))
+
+      ;; Instrumentation scope
+      :scope/name scope-name
+      :scope/version scope-version
+
+      ;; Meta
+      :meta/observed-time observed-time
+      :meta/signal-type :span}
+     prefixed-attrs)))
 
 (defn- -span->events
   "Convert Span protobuf to events (span + span events)."
@@ -114,11 +116,11 @@
 
 (defn trace-request->events
   "Convert ExportTraceServiceRequest protobuf directly to unified events.
-   
+
    A single span can produce multiple events:
    - One :span event for the span itself
    - Multiple :span-event events for span events
-   
+
    Returns a sequence of event maps. Rejects (skips) resource spans without service.name."
   [^ExportTraceServiceRequest request]
   (let [observed-time (Instant/now)]
@@ -147,7 +149,7 @@
 
 (defn trace-response->proto
   "Convert Clojure response map to ExportTraceServiceResponse.
-   
+
    Accepts:
    {:rejected-span-count 0
     :error-message \"\"} or nil for success"
@@ -164,25 +166,26 @@
 ;; Rich Comment
 (comment
 
-  ;; Example event structure:
-  ;; {:service "my-service"
-  ;;  :timestamp #inst "2024-01-15T10:30:00Z"
-  ;;  :trace-id "0af7651916cd43dd8448eb211c80319c"
-  ;;  :span-id "b7ad6b7169203331"
-  ;;  :parent-span-id "00f067aa0ba902b7"
-  ;;  :name "GET /api/users"
-  ;;  :span/kind :server
-  ;;  :span/status-code :ok
-  ;;  :span/start-time #inst "2024-01-15T10:30:00Z"
-  ;;  :span/end-time #inst "2024-01-15T10:30:00.100Z"
-  ;;  :span/duration-ns 100000000
-  ;;  :scope/name "http-server"
-  ;;  :scope/version "1.0.0"
-  ;;  :attributes {"http.method" "GET"
-  ;;               "http.status_code" 200
-  ;;               "service.name" "my-service"}
-  ;;  :meta/observed-time #inst "2024-01-15T10:30:01Z"
-  ;;  :meta/signal-type :span}
+  ;; Example event structure (attributes prefixed with attr.):
+  {:service "my-service"
+   :timestamp #inst "2024-01-15T10:30:00Z"
+   :trace-id "0af7651916cd43dd8448eb211c80319c"
+   :span-id "b7ad6b7169203331"
+   :parent-span-id "00f067aa0ba902b7"
+   :name "GET /api/users"
+   :span/kind :server
+   :span/status-code :ok
+   :span/start-time #inst "2024-01-15T10:30:00Z"
+   :span/end-time #inst "2024-01-15T10:30:00.100Z"
+   :span/duration-ns 100000000
+   :scope/name "http-server"
+   :scope/version "1.0.0"
+   :meta/observed-time #inst "2024-01-15T10:30:01Z"
+   :meta/signal-type :span
+   ;; Prefixed attributes (from resource, scope, and span)
+   "attr.http.method" "GET"
+   "attr.http.status_code" 200
+   "attr.service.name" "my-service"}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

@@ -42,43 +42,44 @@
 ;; LogRecord -> Event (direct from protobuf)
 
 (defn- -log-record->event
-  "Convert LogRecord protobuf directly to unified event."
+  "Convert LogRecord protobuf directly to unified event.
+   Attributes are prefixed with 'attr.' and merged into the event map."
   [^LogRecord log resource-attrs scope-attrs scope-name scope-version service-name observed-time]
   (let [time-nanos (.getTimeUnixNano log)
         log-attrs (proto/extract-attributes (.getAttributesList log))
-        body (proto/any-value->clj (.getBody log))]
-    {:service service-name
-     :timestamp (or (proto/nanos->instant time-nanos)
-                    (proto/nanos->instant (.getObservedTimeUnixNano log))
-                    observed-time)
-     
-     ;; Trace context (optional)
-     :trace-id (proto/bytestring->hex (.getTraceId log))
-     :span-id (proto/bytestring->hex (.getSpanId log))
-     
-     ;; Log-specific fields
-     :name (let [event-name (.getEventName log)]
-             (when (seq event-name) event-name))
-     :log/severity (-parse-severity (.getSeverityText log))
-     :log/body body
-     
-     ;; Instrumentation scope
-     :scope/name scope-name
-     :scope/version scope-version
-     
-     ;; Merged attributes: resource + scope + log
-     :attributes (merge resource-attrs scope-attrs log-attrs)
-     
-     ;; Meta
-     :meta/observed-time observed-time
-     :meta/signal-type :log}))
+        body (proto/any-value->clj (.getBody log))
+        prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs log-attrs)]
+    (merge
+     {:service service-name
+      :timestamp (or (proto/nanos->instant time-nanos)
+                     (proto/nanos->instant (.getObservedTimeUnixNano log))
+                     observed-time)
+
+       ;; Trace context (optional)
+      :trace-id (proto/bytestring->hex (.getTraceId log))
+      :span-id (proto/bytestring->hex (.getSpanId log))
+
+       ;; Log-specific fields
+      :name (let [event-name (.getEventName log)]
+              (when (seq event-name) event-name))
+      :log/severity (-parse-severity (.getSeverityText log))
+      :log/body body
+
+       ;; Instrumentation scope
+      :scope/name scope-name
+      :scope/version scope-version
+
+       ;; Meta
+      :meta/observed-time observed-time
+      :meta/signal-type :log}
+     prefixed-attrs)))
 
 ;; ---------------------------------------------------------
 ;; Public API
 
 (defn log-request->events
   "Convert ExportLogsServiceRequest protobuf directly to unified events.
-   
+
    Returns a sequence of event maps. Rejects (skips) resource logs without service.name."
   [^ExportLogsServiceRequest request]
   (let [observed-time (Instant/now)]
@@ -106,7 +107,7 @@
 
 (defn log-response->proto
   "Convert Clojure response map to ExportLogsServiceResponse.
-   
+
    Accepts:
    {:rejected-log-count 0
     :error-message \"\"} or nil for success"
@@ -123,20 +124,21 @@
 ;; Rich Comment
 (comment
 
-  ;; Example log event structure:
-  ;; {:service "my-service"
-  ;;  :timestamp #inst "2024-01-15T10:30:00Z"
-  ;;  :trace-id "0af7651916cd43dd8448eb211c80319c"  ; optional
-  ;;  :span-id "b7ad6b7169203331"                   ; optional
-  ;;  :name "user.login"                            ; event_name if present
-  ;;  :log/severity :info                           ; :trace :debug :info :warn :error :fatal
-  ;;  :log/body "User logged in successfully"
-  ;;  :scope/name "auth-service"
-  ;;  :scope/version "1.0.0"
-  ;;  :attributes {"user.id" "12345"
-  ;;               "service.name" "my-service"}
-  ;;  :meta/observed-time #inst "2024-01-15T10:30:01Z"
-  ;;  :meta/signal-type :log}
+  ;; Example log event structure (attributes prefixed with attr.):
+  {:service "my-service"
+   :timestamp #inst "2024-01-15T10:30:00Z"
+   :trace-id "0af7651916cd43dd8448eb211c80319c"  ; optional
+   :span-id "b7ad6b7169203331"                   ; optional
+   :name "user.login"                            ; event_name if present
+   :log/severity :info                           ; :trace :debug :info :warn :error :fatal
+   :log/body "User logged in successfully"
+   :scope/name "auth-service"
+   :scope/version "1.0.0"
+   :meta/observed-time #inst "2024-01-15T10:30:01Z"
+   :meta/signal-type :log
+   ;; Prefixed attributes (from resource, scope, and log)
+   "attr.user.id" "12345"
+   "attr.http.method" "GET"}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
