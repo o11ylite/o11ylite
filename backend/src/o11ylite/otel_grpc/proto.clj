@@ -6,6 +6,8 @@
 ;; ---------------------------------------------------------
 
 (ns o11ylite.otel-grpc.proto
+  (:require
+   [jsonista.core :as json])
   (:import
    [com.google.protobuf ByteString]
    [io.opentelemetry.proto.common.v1 AnyValue AnyValue$ValueCase KeyValue InstrumentationScope]
@@ -43,9 +45,14 @@
 
 ;; ---------------------------------------------------------
 ;; AnyValue / Attribute conversions
+;;
+;; - Primitives (string, bool, int, double, bytes) returned as-is
+;; - Arrays serialized to JSON strings (no natural flat representation)
+;; - Kvlists returned as maps (flattened by extract-attributes with dot notation)
 
-(defn any-value->clj
-  "Convert AnyValue protobuf to Clojure value."
+(defn- -any-value->clj-for-json
+  "Convert AnyValue to Clojure value for JSON serialization (arrays only).
+   Preserves nested structure for proper JSON output."
   [^AnyValue av]
   (when av
     (condp = (.getValueCase av)
@@ -54,18 +61,88 @@
       AnyValue$ValueCase/INT_VALUE (.getIntValue av)
       AnyValue$ValueCase/DOUBLE_VALUE (.getDoubleValue av)
       AnyValue$ValueCase/BYTES_VALUE (bytestring->hex (.getBytesValue av))
-      AnyValue$ValueCase/ARRAY_VALUE (mapv any-value->clj (.getValuesList (.getArrayValue av)))
+      AnyValue$ValueCase/ARRAY_VALUE (mapv -any-value->clj-for-json (.getValuesList (.getArrayValue av)))
+      AnyValue$ValueCase/KVLIST_VALUE (into {} (map (fn [^KeyValue kv]
+                                                      [(.getKey kv) (-any-value->clj-for-json (.getValue kv))])
+                                                    (.getValuesList (.getKvlistValue av))))
+      nil)))
+
+(defn any-value->clj
+  "Convert AnyValue protobuf to Clojure value.
+   - Primitives (string, bool, int, double, bytes) returned as-is
+   - Arrays serialized to JSON strings
+   - Kvlists returned as maps (will be flattened by extract-attributes)"
+  [^AnyValue av]
+  (when av
+    (condp = (.getValueCase av)
+      AnyValue$ValueCase/STRING_VALUE (.getStringValue av)
+      AnyValue$ValueCase/BOOL_VALUE (.getBoolValue av)
+      AnyValue$ValueCase/INT_VALUE (.getIntValue av)
+      AnyValue$ValueCase/DOUBLE_VALUE (.getDoubleValue av)
+      AnyValue$ValueCase/BYTES_VALUE (bytestring->hex (.getBytesValue av))
+      AnyValue$ValueCase/ARRAY_VALUE (json/write-value-as-string (mapv -any-value->clj-for-json (.getValuesList (.getArrayValue av))))
       AnyValue$ValueCase/KVLIST_VALUE (into {} (map (fn [^KeyValue kv]
                                                       [(.getKey kv) (any-value->clj (.getValue kv))])
                                                     (.getValuesList (.getKvlistValue av))))
       nil)))
 
+(defn- -flatten-nested
+  "Flatten a nested map with dot-separated keys.
+   {\"user\" {\"id\" 123}} -> {\"user.id\" 123}"
+  [prefix m]
+  (reduce-kv (fn [acc k v]
+               (let [key (if prefix (str prefix "." k) k)]
+                 (if (map? v)
+                   (merge acc (-flatten-nested key v))
+                   (assoc acc key v))))
+             {}
+             m))
+
 (defn extract-attributes
-  "Extract attributes from a list of KeyValue to a map."
+  "Extract attributes from a list of KeyValue to a map.
+   Nested kvlists are flattened with dot notation."
   [kvs]
-  (into {} (map (fn [^KeyValue kv]
-                  [(.getKey kv) (any-value->clj (.getValue kv))])
-                kvs)))
+  (reduce (fn [acc ^KeyValue kv]
+            (let [k (.getKey kv)
+                  v (any-value->clj (.getValue kv))]
+              (if (map? v)
+                (merge acc (-flatten-nested k v))
+                (assoc acc k v))))
+          {}
+          kvs))
+
+;; ---------------------------------------------------------
+;; Attribute prefixing
+;;
+;; Design decisions:
+;;
+;; 1. Why 'attr.' prefix?
+;;    OTLP semantic conventions namespace attributes (http.*, db.*, rpc.*),
+;;    but custom/user attributes may not (e.g., "successCount", "userId").
+;;    The prefix provides clear separation between core event fields and
+;;    dynamic attributes, preventing collisions with future core fields.
+;;    We chose 'attr.' over 'attributes.' for brevity in queries:
+;;      SELECT * FROM events WHERE "attr.http.status_code" = 500
+;;
+;; 2. Why string keys for attributes vs keywords for core fields?
+;;    - Core fields (:span/kind, :meta/signal-type) are static and known
+;;      at compile time. Namespaced keywords are idiomatic Clojure, enable
+;;      destructuring, and provide self-documentation.
+;;    - Attributes ("attr.http.method") are dynamic and user-defined.
+;;      String keys avoid keyword interning for unbounded cardinality.
+;;    - At the storage boundary, keywords normalize to dot-separated strings
+;;      (e.g., :log/severity -> "log.severity") for consistent column naming.
+
+(defn prefix-attributes
+  "Add 'attr.' prefix to attribute keys for storage.
+   Merges all attribute maps and prefixes each key.
+
+   Example: {\"http.method\" \"GET\"} -> {\"attr.http.method\" \"GET\"}"
+  [& attr-maps]
+  (reduce-kv (fn [acc k v]
+               (assoc acc (str "attr." k) v))
+             {}
+             (apply merge attr-maps)))
 
 ;; ---------------------------------------------------------
 ;; Resource helpers
@@ -101,8 +178,17 @@
   ;; Int -> 42
   ;; Double -> 3.14
   ;; Bytes -> "deadbeef" (hex)
-  ;; Array -> ["a" "b" "c"]
-  ;; KvList -> {"key" "value"}
+  ;; Array -> "[\"a\",\"b\",\"c\"]" (JSON string)
+  ;; KvList -> {"key" "value"} (map, flattened by extract-attributes)
+  
+  ;; Nested kvlist flattening example:
+  ;; Attribute "user" with kvlist {"id": 123, "name": "alice"}
+  ;; -> {"user.id" 123, "user.name" "alice"}
+
+  ;; Test attribute prefixing
+  (prefix-attributes {"http.method" "GET" "service.name" "my-svc"}
+                     {"custom.attr" 123})
+  ;; => {"attr.http.method" "GET", "attr.service.name" "my-svc", "attr.custom.attr" 123}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
