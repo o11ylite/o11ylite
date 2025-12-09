@@ -9,7 +9,9 @@
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]
    [o11ylite.components.ingest-batcher :as batcher]
-   [o11ylite.ducklake.events.ingest :as events.ingest]))
+   [o11ylite.ducklake.events.ingest :as events.ingest])
+  (:import
+   [java.time Instant]))
 
 (use-fixtures :each h/with-system)
 
@@ -19,13 +21,31 @@
 (defn- batcher-component []
   (:ingest/batcher h/*system*))
 
+(def ^:private base-fields
+  "Fields for the minimal valid event structure."
+  {"service" {:type :string}
+   "timestamp" {:type :instant}
+   "meta.signal_type" {:type :string}
+   "meta.observed_time" {:type :instant}
+   "name" {:type :string}})
+
+(defn- make-event
+  "Create a minimal valid event with required fields."
+  ([] (make-event {}))
+  ([overrides]
+   (merge {:service "test-service"
+           :timestamp (Instant/now)
+           :meta.signal_type :span
+           :meta.observed_time (Instant/now)}
+          overrides)))
+
 (defn- make-payload
-  "Create an ingest payload with events and optional fields map.
-   Fields is a map of field-name -> {:type type-keyword}."
-  ([events] (make-payload events nil))
-  ([events fields]
+  "Create an ingest payload with events and fields map.
+   Uses base-fields by default, merged with any extra fields."
+  ([events] (make-payload events {}))
+  ([events extra-fields]
    {:events events
-    :fields fields}))
+    :fields (merge base-fields extra-fields)}))
 
 ;; ---------------------------------------------------------
 ;; Tests
@@ -33,16 +53,15 @@
 (deftest batcher-ingest-returns-true-test
   (testing "Ingest returns true after flush"
     (let [b (batcher-component)
-          ;; Ingest blocks until flush, then returns
-          result (batcher/ingest! b (make-payload [{:service "test" :name "span-1"}]))]
+          result (batcher/ingest! b (make-payload [(make-event {:name "span-1"})]))]
       (is (true? result) "Ingest should return true on success"))))
 
 (deftest batcher-ingest-multiple-events-test
   (testing "Ingest accepts multiple events in one call"
     (let [b (batcher-component)
-          events [{:service "test" :name "span-1"}
-                  {:service "test" :name "span-2"}
-                  {:service "test" :name "span-3"}]
+          events [(make-event {:name "span-1"})
+                  (make-event {:name "span-2"})
+                  (make-event {:name "span-3"})]
           result (batcher/ingest! b (make-payload events))]
       (is (true? result) "Ingest should return true"))))
 
@@ -50,20 +69,18 @@
   (testing "Ingest accepts events with fields map"
     (let [b (batcher-component)
           result (batcher/ingest! b (make-payload
-                                     [{:service "test" :custom.field "value"}]
+                                     [(make-event {"attr.custom.field" "value"})]
                                      {"service" {:type :string}
-                                      "custom.field" {:type :string}}))]
+                                      "attr.custom.field" {:type :string}}))]
       (is (true? result) "Ingest with fields should return true"))))
 
 (deftest batcher-concurrent-ingest-test
   (testing "Multiple concurrent ingests all succeed"
     (let [b (batcher-component)
           n 10
-          ;; Start n ingests concurrently, collect results
           futures (doall
                    (for [i (range n)]
-                     (future (batcher/ingest! b (make-payload [{:id i}])))))
-          ;; Wait for all and collect results
+                     (future (batcher/ingest! b (make-payload [(make-event {:name (str "span-" i)})])))))
           results (mapv deref futures)]
       (is (= n (count results)) "All should complete")
       (is (every? true? results) "All should return true"))))
@@ -83,7 +100,7 @@
           result (promise)]
       ;; Start ingest in background
       (future
-        (deliver result (batcher/ingest! b (make-payload [{:service "test"}]))))
+        (deliver result (batcher/ingest! b (make-payload [(make-event)]))))
       ;; Give it time to start blocking
       (Thread/sleep 20)
       ;; Stop should flush and unblock
@@ -96,24 +113,19 @@
     (let [b (batcher-component)
           persist-calls (atom [])
           n 5]
-      ;; Mock persist-batch! to capture calls
+      ;; Mock persist-batch! to capture call counts (batching behavior test)
       (with-redefs [events.ingest/persist-batch!
                     (fn [_duckdb _event-metadata events fields]
                       (swap! persist-calls conj {:event-count (count events)
                                                  :field-count (count fields)})
                       true)]
-        ;; Start n ingests concurrently - they should all be batched together
         (let [futures (doall
                        (for [i (range n)]
-                         (future (batcher/ingest! b (make-payload [{:id i}]
-                                                                  {"id" {:type :integer}})))))]
-          ;; Wait for all to complete
+                         (future (batcher/ingest! b (make-payload [(make-event {:name (str "span-" i)})])))))]
           (doseq [f futures] @f)
-          ;; Should have been batched into a single persist-batch! call
-          ;; (or possibly 2 if timing causes a flush mid-accumulation)
+          ;; Should have been batched into few persist-batch! calls
           (is (<= (count @persist-calls) 2)
               "Should batch multiple ingests into few persist calls")
-          ;; Total events across all calls should equal n
           (is (= n (reduce + (map :event-count @persist-calls)))
               "All events should be persisted"))))))
 

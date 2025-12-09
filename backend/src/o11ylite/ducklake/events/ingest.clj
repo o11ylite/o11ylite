@@ -20,7 +20,10 @@
 (ns o11ylite.ducklake.events.ingest
   (:require
    [clojure.core.async :as a]
+   [clojure.string]
    [com.brunobonacci.mulog :as mulog]
+   [next.jdbc.sql :as sql]
+   [next.jdbc.quoted]
    [o11ylite.components.event-metadata :as event-metadata]
    [o11ylite.ducklake.schema :as schema]))
 
@@ -68,6 +71,16 @@
                               fields)]
     (when (seq new-fields)
       new-fields)))
+
+(defn- -coerce-values
+  "Coerce keyword values to strings for DuckDB compatibility.
+   Uses transients for performance on hot path."
+  [event]
+  (persistent!
+   (reduce-kv (fn [acc k v]
+                (assoc! acc k (if (keyword? v) (name v) v)))
+              (transient {})
+              event)))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -121,15 +134,8 @@
      true on success
 
    Throws:
-     Exception on failure (batcher will catch and notify callers)
-
-   Retry Strategy (TODO):
-     If schema changed between diff and INSERT (concurrent batch added columns),
-     the INSERT may fail. In this case:
-     1. Refresh event-metadata cache
-     2. Recompute diff
-     3. Retry ALTER TABLE + INSERT
-     This handles race conditions when multiple batches add columns concurrently."
+     Exception on failure (batcher will catch and notify callers).
+     OTLP clients are expected to retry on transient failures."
   [duckdb event-metadata events fields]
   (let [new-fields (-compute-schema-diff event-metadata fields)]
     ;; Step 1: Schema evolution (if needed)
@@ -139,8 +145,10 @@
       (event-metadata/refresh! event-metadata))
 
     ;; Step 2: Bulk INSERT
-    ;; TODO: Implement bulk INSERT
-    (mulog/log ::persist-batch :event-count (count events))
+    (let [coerced-events (mapv -coerce-values events)]
+      (sql/insert-multi! duckdb :ducklake.events coerced-events
+                         {:column-fn next.jdbc.quoted/ansi})
+      (mulog/log ::persist-batch :event-count (count events)))
 
     true))
 
@@ -148,26 +156,31 @@
 ;; Rich Comment
 (comment
 
-  ;; Example event structure
+  ;; Example event structure (from gRPC handler)
+  ;; Core fields use keywords, attributes use strings
   {:service "my-service"
    :timestamp #inst "2024-01-01T00:00:00Z"
    :trace_id "abc123"
    :span_id "def456"
    :name "HTTP GET /api/users"
-   :meta.signal_type "span"
-   :span.kind "server"
-   :span.status_code "ok"
+   :meta.signal_type :span
+   :span.kind :server
+   :span.status_code :ok
    :span.duration_ns 1234567
    :meta.observed_time #inst "2024-01-01T00:00:01Z"
-   ;; Dynamic attributes - will create new columns
-   :http.method "GET"
-   :http.status_code 200}
+   ;; Dynamic attributes (strings) - will create new columns
+   "attr.http.method" "GET"
+   "attr.http.status_code" 200}
 
   ;; Test field extraction (uses schema/infer-type internally)
   (-extract-fields [{:service "test" :count 42 :active true}])
   ;; => {"service" {:type :string}
   ;;     "count" {:type :integer}
   ;;     "active" {:type :boolean}}
+
+  ;; Test value coercion (keywords to strings)
+  (-coerce-values {:service "svc1" :meta.signal_type :span "attr.http.method" "GET"})
+  ;; => {:service "svc1", :meta.signal_type "span", "attr.http.method" "GET"}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
