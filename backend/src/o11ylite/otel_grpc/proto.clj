@@ -87,7 +87,7 @@
       nil)))
 
 (defn- -flatten-nested
-  "Flatten a nested map with dot-separated keys.
+  "Flatten a nested map with dot-separated string keys.
    {\"user\" {\"id\" 123}} -> {\"user.id\" 123}"
   [prefix m]
   (reduce-kv (fn [acc k v]
@@ -99,8 +99,9 @@
              m))
 
 (defn extract-attributes
-  "Extract attributes from a list of KeyValue to a map.
-   Nested kvlists are flattened with dot notation."
+  "Extract attributes from a list of KeyValue to a map with string keys.
+   Nested kvlists are flattened with dot notation.
+   Returns string keys (will be converted to keywords by prefix-attributes)."
   [kvs]
   (reduce (fn [acc ^KeyValue kv]
             (let [k (.getKey kv)
@@ -124,21 +125,21 @@
 ;;    We chose 'attr.' over 'attributes.' for brevity in queries:
 ;;      SELECT * FROM events WHERE "attr.http.status_code" = 500
 ;;
-;; 2. Why string keys for attributes vs keywords for core fields?
-;;    - Core fields (:span.kind, :meta.signal_type) are static and known
-;;      at compile time. Keywords are idiomatic Clojure, enable destructuring,
-;;      and provide self-documentation. Dots used as separator for consistency.
-;;    - Attributes ("attr.http.method") are dynamic and user-defined.
-;;      String keys avoid keyword interning for unbounded cardinality.
+;; 2. Why keyword keys throughout?
+;;    - JDBC returns keyword keys, so write/read are consistent
+;;    - Idiomatic Clojure map access: (:attr.http.method row)
+;;    - Keywords with dots are valid: :attr.http.status_code
+;;    - Keyword interning for dynamic attributes is acceptable -
+;;      high-cardinality values go in the value, not the key
 
 (defn prefix-attributes
-  "Add 'attr.' prefix to attribute keys for storage.
-   Merges all attribute maps and prefixes each key.
+  "Add 'attr.' prefix to attribute keys and convert to keywords.
+   Merges all attribute maps, prefixes each key, and returns keywords.
 
-   Example: {\"http.method\" \"GET\"} -> {\"attr.http.method\" \"GET\"}"
+   Example: {\"http.method\" \"GET\"} -> {:attr.http.method \"GET\"}"
   [& attr-maps]
   (reduce-kv (fn [acc k v]
-               (assoc acc (str "attr." k) v))
+               (assoc acc (keyword (str "attr." k)) v))
              {}
              (apply merge attr-maps)))
 
@@ -186,7 +187,7 @@
   ;; Test attribute prefixing
   (prefix-attributes {"http.method" "GET" "service.name" "my-svc"}
                      {"custom.attr" 123})
-  ;; => {"attr.http.method" "GET", "attr.service.name" "my-svc", "attr.custom.attr" 123}
+  ;; => {:attr.http.method "GET", :attr.service.name "my-svc", :attr.custom.attr 123}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

@@ -24,11 +24,11 @@
 (deftest add-fields-single-test
   (testing "add-fields! adds a single field for each app type"
     (let [ds (duckdb)
-          test-cases [{:type :string  :field "test.string.field"}
-                      {:type :integer :field "test.integer.field"}
-                      {:type :float   :field "test.float.field"}
-                      {:type :boolean :field "test.boolean.field"}
-                      {:type :instant :field "test.instant.field"}]]
+          test-cases [{:type :string  :field :test.string.field}
+                      {:type :integer :field :test.integer.field}
+                      {:type :float   :field :test.float.field}
+                      {:type :boolean :field :test.boolean.field}
+                      {:type :instant :field :test.instant.field}]]
       (doseq [{:keys [type field]} test-cases]
         (testing (str "type " type)
           (let [fields-before (schema/fetch-event-fields ds)]
@@ -40,17 +40,17 @@
 (deftest add-fields-multiple-test
   (testing "add-fields! adds multiple fields of different types"
     (let [ds (duckdb)
-          new-fields {"multi.string" {:type :string}
-                      "multi.integer" {:type :integer}
-                      "multi.float" {:type :float}}
+          new-fields {:multi.string {:type :string}
+                      :multi.integer {:type :integer}
+                      :multi.float {:type :float}}
           fields-before (schema/fetch-event-fields ds)]
-      (doseq [field-name (keys new-fields)]
-        (is (nil? (get fields-before field-name))))
+      (doseq [field-key (keys new-fields)]
+        (is (nil? (get fields-before field-key))))
       (schema/add-fields! ds new-fields)
       (let [fields-after (schema/fetch-event-fields ds)]
-        (is (= :string (:type (get fields-after "multi.string"))))
-        (is (= :integer (:type (get fields-after "multi.integer"))))
-        (is (= :float (:type (get fields-after "multi.float"))))))))
+        (is (= :string (:type (:multi.string fields-after))))
+        (is (= :integer (:type (:multi.integer fields-after))))
+        (is (= :float (:type (:multi.float fields-after))))))))
 
 (deftest add-fields-empty-map-test
   (testing "add-fields! with empty map is a no-op"
@@ -63,11 +63,11 @@
 (deftest add-fields-idempotent-test
   (testing "add-fields! is idempotent (IF NOT EXISTS)"
     (let [ds (duckdb)
-          field-name "test.idempotent.field"
-          fields {field-name {:type :string}}]
+          field-key :test.idempotent.field
+          fields {field-key {:type :string}}]
       (schema/add-fields! ds fields)
       (let [fields-after-first (schema/fetch-event-fields ds)]
-        (is (= :string (:type (get fields-after-first field-name))))
+        (is (= :string (:type (get fields-after-first field-key))))
         ;; Adding same field again should not throw
         (schema/add-fields! ds fields)
         (let [fields-after-second (schema/fetch-event-fields ds)]

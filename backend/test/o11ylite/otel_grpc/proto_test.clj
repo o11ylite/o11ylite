@@ -134,9 +134,9 @@
 ;; prefix-attributes Tests
 
 (deftest prefix-attributes-test
-  (testing "Adds attr. prefix and merges maps"
-    (is (= {"attr.http.method" "GET"
-            "attr.custom.field" 123}
+  (testing "Adds attr. prefix and converts to keywords"
+    (is (= {:attr.http.method "GET"
+            :attr.custom.field 123}
            (proto/prefix-attributes {"http.method" "GET"}
                                     {"custom.field" 123}))))
   (testing "Handles empty input"

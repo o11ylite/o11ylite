@@ -32,7 +32,7 @@
 
 (defn- -extract-fields
   "Extract all fields from a collection of events with inferred types.
-   Returns a map of field-name -> {:type normalized-type}.
+   Returns a map of keyword -> {:type normalized-type}.
 
    When the same field appears with different types across events,
    the last occurrence wins (merge behavior)."
@@ -40,7 +40,7 @@
   (->> events
        (mapcat (fn [event]
                  (map (fn [[k v]]
-                        [(name k) {:type (schema/infer-type v)}])
+                        [k {:type (schema/infer-type v)}])
                       event)))
        (into {})))
 
@@ -73,14 +73,27 @@
       new-fields)))
 
 (defn- -coerce-values
-  "Coerce keyword values to strings for DuckDB compatibility.
-   Uses transients for performance on hot path."
+  "Coerce keyword values to strings for DuckDB compatibility."
   [event]
   (persistent!
    (reduce-kv (fn [acc k v]
                 (assoc! acc k (if (keyword? v) (name v) v)))
               (transient {})
               event)))
+
+(defn- -normalize-events
+  "Normalize events to have consistent keys for insert-multi!.
+   Adds nil values for any missing keys across the batch."
+  [events all-keys]
+  (let [key-set (set all-keys)]
+    (mapv (fn [event]
+            (reduce (fn [acc k]
+                      (if (contains? acc k)
+                        acc
+                        (assoc acc k nil)))
+                    event
+                    key-set))
+          events)))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -145,7 +158,10 @@
       (event-metadata/refresh! event-metadata))
 
     ;; Step 2: Bulk INSERT
-    (let [coerced-events (mapv -coerce-values events)]
+    ;; Normalize events so all have the same keys (insert-multi! requirement)
+    (let [all-keys (keys fields)
+          normalized-events (-normalize-events events all-keys)
+          coerced-events (mapv -coerce-values normalized-events)]
       (sql/insert-multi! duckdb :ducklake.events coerced-events
                          {:column-fn next.jdbc.quoted/ansi})
       (mulog/log ::persist-batch :event-count (count events)))
@@ -157,7 +173,7 @@
 (comment
 
   ;; Example event structure (from gRPC handler)
-  ;; Core fields use keywords, attributes use strings
+  ;; All keys are keywords (core fields and attributes)
   {:service "my-service"
    :timestamp #inst "2024-01-01T00:00:00Z"
    :trace_id "abc123"
@@ -168,19 +184,19 @@
    :span.status_code :ok
    :span.duration_ns 1234567
    :meta.observed_time #inst "2024-01-01T00:00:01Z"
-   ;; Dynamic attributes (strings) - will create new columns
-   "attr.http.method" "GET"
-   "attr.http.status_code" 200}
+   ;; Dynamic attributes (also keywords)
+   :attr.http.method "GET"
+   :attr.http.status_code 200}
 
   ;; Test field extraction (uses schema/infer-type internally)
   (-extract-fields [{:service "test" :count 42 :active true}])
-  ;; => {"service" {:type :string}
-  ;;     "count" {:type :integer}
-  ;;     "active" {:type :boolean}}
+  ;; => {:service {:type :string}
+  ;;     :count {:type :integer}
+  ;;     :active {:type :boolean}}
 
   ;; Test value coercion (keywords to strings)
-  (-coerce-values {:service "svc1" :meta.signal_type :span "attr.http.method" "GET"})
-  ;; => {:service "svc1", :meta.signal_type "span", "attr.http.method" "GET"}
+  (-coerce-values {:service "svc1" :meta.signal_type :span :attr.http.method "GET"})
+  ;; => {:service "svc1", :meta.signal_type "span", :attr.http.method "GET"}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

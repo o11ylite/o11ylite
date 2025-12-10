@@ -23,11 +23,11 @@
 
 (def ^:private base-fields
   "Fields for the minimal valid event structure."
-  {"service" {:type :string}
-   "timestamp" {:type :instant}
-   "meta.signal_type" {:type :string}
-   "meta.observed_time" {:type :instant}
-   "name" {:type :string}})
+  {:service {:type :string}
+   :timestamp {:type :instant}
+   :meta.signal_type {:type :string}
+   :meta.observed_time {:type :instant}
+   :name {:type :string}})
 
 (defn- make-event
   "Create a minimal valid event with required fields."
@@ -69,9 +69,8 @@
   (testing "Ingest accepts events with fields map"
     (let [b (batcher-component)
           result (batcher/ingest! b (make-payload
-                                     [(make-event {"attr.custom.field" "value"})]
-                                     {"service" {:type :string}
-                                      "attr.custom.field" {:type :string}}))]
+                                     [(make-event {:attr.custom.field "value"})]
+                                     {:attr.custom.field {:type :string}}))]
       (is (true? result) "Ingest with fields should return true"))))
 
 (deftest batcher-concurrent-ingest-test
