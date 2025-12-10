@@ -1,13 +1,26 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.otel-grpc-test
+;; o11ylite.integration.otel-trace-test
 ;;
-;; Integration tests for OpenTelemetry gRPC endpoints.
+;; Integration tests for OpenTelemetry trace ingestion.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.otel-grpc-test
+(ns o11ylite.integration.otel-trace-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [next.jdbc :as jdbc]
    [o11ylite.test-helpers :as h]))
+
+;; ---------------------------------------------------------
+;; Helpers
+
+(defn- duckdb [] (:db/duckdb h/*system*))
+
+(defn- query-events-by-trace
+  "Query events from DuckLake by trace_id."
+  [trace-id]
+  (jdbc/execute! (duckdb)
+                 ["SELECT * FROM ducklake.events WHERE trace_id = ? ORDER BY name"
+                  trace-id]))
 
 (use-fixtures :each h/with-system)
 
@@ -15,25 +28,39 @@
 ;; Tests
 
 (deftest trace-export-single-span-test
-  (testing "TraceService/Export accepts a single span"
-    (let [response (h/export-traces!
+  (testing "TraceService/Export accepts a single span and persists to DuckDB"
+    (let [trace-id "0af7651916cd43dd8448eb211c80319c"
+          response (h/export-traces!
                     {:service-name "test-service"
                      :tracer-name "test-tracer"
-                     :spans [{:trace-id "0af7651916cd43dd8448eb211c80319c"
+                     :spans [{:trace-id trace-id
                               :span-id "b7ad6b7169203331"
                               :name "GET /api/users"
                               :kind :server
                               :start-time-ns 1000000000
                               :end-time-ns   1000100000
                               :attributes {"http.method" "GET"
-                                           "http.status_code" 200}
+                                           "http.status_code" 200
+                                           "http.enabled" true
+                                           "http.latency" 3.14}
                               :status :ok}]})]
       (is (some? response))
-      (is (= 0 (-> response .getPartialSuccess .getRejectedSpans))))))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedSpans)))
+      (let [rows (query-events-by-trace trace-id)
+            row (first rows)]
+        (is (= 1 (count rows)))
+        (is (= "GET /api/users" (:name row)))
+        (is (= "test-service" (:service row)))
+        (is (= "span" (:meta.signal_type row)))
+        ;; Verify various attribute types
+        (is (= "GET" (:attr.http.method row)))
+        (is (= 200 (:attr.http.status_code row)))
+        (is (= true (:attr.http.enabled row)))
+        (is (= 3.14 (:attr.http.latency row)))))))
 
 (deftest trace-export-multiple-spans-test
   (testing "TraceService/Export accepts multiple spans with parent-child relationship"
-    (let [trace-id "0af7651916cd43dd8448eb211c80319c"
+    (let [trace-id "1af7651916cd43dd8448eb211c80319c"
           parent-span-id "b7ad6b7169203331"
           child-span-id "00f067aa0ba902b7"
           response (h/export-traces!
@@ -55,22 +82,13 @@
                               :end-time-ns   1000150000
                               :status :ok}]})]
       (is (some? response))
-      (is (= 0 (-> response .getPartialSuccess .getRejectedSpans))))))
-
-(deftest trace-export-with-attributes-test
-  (testing "TraceService/Export accepts spans with various attribute types"
-    (let [response (h/export-traces!
-                    {:service-name "test-service"
-                     :tracer-name "test-tracer"
-                     :spans [{:trace-id "0af7651916cd43dd8448eb211c80319c"
-                              :span-id "b7ad6b7169203331"
-                              :name "test-span"
-                              :attributes {"string.attr" "value"
-                                           "int.attr" 42
-                                           "bool.attr" true
-                                           "float.attr" 3.14}}]})]
-      (is (some? response))
-      (is (= 0 (-> response .getPartialSuccess .getRejectedSpans))))))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedSpans)))
+      (let [rows (query-events-by-trace trace-id)]
+        (is (= 2 (count rows)))
+        ;; Rows ordered by name: child-operation, parent-operation
+        (is (= "child-operation" (:name (first rows))))
+        (is (= "parent-operation" (:name (second rows))))
+        (is (= parent-span-id (:parent_span_id (first rows))))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -78,7 +96,7 @@
 
   ;; Run tests manually
   (require '[clojure.test :refer [run-tests]])
-  (run-tests 'o11ylite.integration.otel-grpc-test)
+  (run-tests 'o11ylite.integration.otel-trace-test)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

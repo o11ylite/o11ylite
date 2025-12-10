@@ -19,13 +19,13 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :server/otel-grpc
-  [_ {:keys [port]}]
+  [_ {:keys [port event-metadata batcher]}]
   (mulog/log ::otel-grpc-server-starting :port port)
   (let [executor (Executors/newVirtualThreadPerTaskExecutor)
         server (-> (ServerBuilder/forPort port)
                    (.executor executor)
-                   (.addService (trace/create-service))
-                   (.addService (log/create-service))
+                   (.addService (trace/create-service event-metadata batcher))
+                   (.addService (log/create-service event-metadata batcher))
                    (.build)
                    (.start))]
     (mulog/log ::otel-grpc-server-started :port port)
