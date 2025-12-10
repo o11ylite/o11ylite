@@ -7,6 +7,7 @@
 (ns o11ylite.otel-grpc.trace
   (:require
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.ducklake.events.ingest :as events.ingest]
    [o11ylite.otel-grpc.trace-events :as trace-events])
   (:import
    [io.grpc.stub StreamObserver]
@@ -19,29 +20,34 @@
 
 (defn- -trace-handler
   "Handle incoming trace export request.
-   Converts spans to unified events and accepts all with valid service.name."
-  [^ExportTraceServiceRequest request]
+   Converts spans to unified events, persists them, and returns rejection count."
+  [event-metadata batcher ^ExportTraceServiceRequest request]
   (let [events (trace-events/trace-request->events request)
         rejected-spans (trace-events/count-rejected-spans request)
-        span-count (count (filter #(= :span (:meta/signal-type %)) events))
-        span-event-count (count (filter #(= :span-event (:meta/signal-type %)) events))]
+        span-count (count (filter #(= :span (:meta.signal_type %)) events))
+        span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
     (mulog/log ::traces-received
                :span-count span-count
                :span-event-count span-event-count
                :rejected-spans rejected-spans)
-    ;; TODO: persist events
+    (when (seq events)
+      (events.ingest/ingest-events! event-metadata batcher events))
     {:rejected-span-count rejected-spans}))
 
 ;; ---------------------------------------------------------
 ;; Service factory
 
 (defn create-service
-  "Create a TraceService gRPC implementation."
-  []
+  "Create a TraceService gRPC implementation.
+   
+   Arguments:
+     event-metadata - Event metadata cache component
+     batcher        - Ingest batcher component"
+  [event-metadata batcher]
   (proxy [TraceServiceGrpc$TraceServiceImplBase] []
     (export [^ExportTraceServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-trace-handler request)
+        (let [response-map (-trace-handler event-metadata batcher request)
               response (trace-events/trace-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))

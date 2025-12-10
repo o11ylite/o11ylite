@@ -7,6 +7,7 @@
 (ns o11ylite.otel-grpc.log
   (:require
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.ducklake.events.ingest :as events.ingest]
    [o11ylite.otel-grpc.log-events :as log-events])
   (:import
    [io.grpc.stub StreamObserver]
@@ -19,27 +20,32 @@
 
 (defn- -log-handler
   "Handle incoming log export request.
-   Converts log records to unified events and accepts all with valid service.name."
-  [^ExportLogsServiceRequest request]
+   Converts log records to unified events, persists them, and returns rejection count."
+  [event-metadata batcher ^ExportLogsServiceRequest request]
   (let [events (log-events/log-request->events request)
         rejected-log-count (log-events/count-rejected-logs request)
         log-count (count events)]
     (mulog/log ::logs-received
                :log-count log-count
                :rejected-log-count rejected-log-count)
-    ;; TODO: persist events
+    (when (seq events)
+      (events.ingest/ingest-events! event-metadata batcher events))
     {:rejected-log-count rejected-log-count}))
 
 ;; ---------------------------------------------------------
 ;; Service factory
 
 (defn create-service
-  "Create a LogsService gRPC implementation."
-  []
+  "Create a LogsService gRPC implementation.
+   
+   Arguments:
+     event-metadata - Event metadata cache component
+     batcher        - Ingest batcher component"
+  [event-metadata batcher]
   (proxy [LogsServiceGrpc$LogsServiceImplBase] []
     (export [^ExportLogsServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-log-handler request)
+        (let [response-map (-log-handler event-metadata batcher request)
               response (log-events/log-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))
