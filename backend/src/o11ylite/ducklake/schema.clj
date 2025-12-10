@@ -95,14 +95,14 @@
 
 (defn fetch-event-fields
   "Fetch field metadata from the events table.
-   Returns a map of field-name -> {:type normalized-type}.
+   Returns a map of keyword -> {:type normalized-type}.
 
    Types are normalized to: :string, :instant, :integer, :float, :boolean"
   [duckdb-ds]
   (let [rows (jdbc/execute! duckdb-ds ["DESCRIBE ducklake.events"])]
     (->> rows
          (map (fn [row]
-                [(:column_name row)
+                [(keyword (:column_name row))
                  {:type (-normalize-type (:column_type row))}]))
          (into {}))))
 
@@ -113,14 +113,14 @@
 
    Arguments:
      duckdb-ds  - DuckDB datasource
-     fields     - Map of field-name -> {:type app-type}
+     fields     - Map of keyword -> {:type app-type}
 
    Example:
-     (add-fields! ds {\"http.method\" {:type :string}
-                      \"http.status_code\" {:type :integer}})"
+     (add-fields! ds {:attr.http.method {:type :string}
+                      :attr.http.status_code {:type :integer}})"
   [duckdb-ds fields]
   (jdbc/with-transaction [tx duckdb-ds]
-    (doseq [[field-name field-meta] fields]
+    (doseq [[field-key field-meta] fields]
       (let [duckdb-type (app-type->duckdb (:type field-meta))
             ; Notice the IF NOT EXISTS here.
             ; There is a chance that we swallow a conflicting type error here.
@@ -131,7 +131,7 @@
             ; - 3. We anticipate client side to retry error. Retry would work because the metadata
             ;      cache would've catch up, and reject only the bad seed retry.
             sql (format "ALTER TABLE ducklake.events ADD COLUMN IF NOT EXISTS \"%s\" %s"
-                        field-name
+                        (name field-key)
                         duckdb-type)]
         (jdbc/execute! tx [sql])))))
 
@@ -146,9 +146,9 @@
 
   ;; Fetch fields with normalized types
   (fetch-event-fields ds)
-  ;; => {"service" {:type :string}
-  ;;     "timestamp" {:type :instant}
-  ;;     "span.duration_ns" {:type :integer}
+  ;; => {:service {:type :string}
+  ;;     :timestamp {:type :instant}
+  ;;     :span.duration_ns {:type :integer}
   ;;     ...}
 
   (ig/halt-key! :db/duckdb ds)
@@ -176,8 +176,8 @@
   (-normalize-type "BOOLEAN")       ;; => :boolean
 
   ;; Add fields to events table
-  (add-fields! ds {"http.method" {:type :string}
-                   "http.status_code" {:type :integer}})
+  (add-fields! ds {:attr.http.method {:type :string}
+                   :attr.http.status_code {:type :integer}})
 
   ;; Verify columns were added
   (fetch-event-fields ds)

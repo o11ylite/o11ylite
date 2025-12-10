@@ -72,10 +72,10 @@
   (testing "Merges and prefixes resource, scope, and span attributes"
     (let [events (trace-events/trace-request->events (build-sample-request))
           parent-span (first (filter #(= "parent-span" (:name %)) events))]
-      ;; Resource attributes (prefixed)
-      (is (= "test-service" (get parent-span "attr.service.name")))
-      ;; Span attributes (prefixed)
-      (is (= "GET" (get parent-span "attr.http.method"))))))
+      ;; Resource attributes (prefixed with keyword keys)
+      (is (= "test-service" (:attr.service.name parent-span)))
+      ;; Span attributes (prefixed with keyword keys)
+      (is (= "GET" (:attr.http.method parent-span))))))
 
 (deftest trace-request->events-span-fields-test
   (testing "Span events have correct span-specific fields"
@@ -100,9 +100,9 @@
       (is (= "0af7651916cd43dd8448eb211c80319c" (:trace_id span-event)))
       (is (= "b7ad6b7169203331" (:span_id span-event)))
       ;; Should have merged and prefixed attributes from resource + span + event
-      (is (= "test-service" (get span-event "attr.service.name")))
-      (is (= "GET" (get span-event "attr.http.method")))
-      (is (= "event-value" (get span-event "attr.event.attr"))))))
+      (is (= "test-service" (:attr.service.name span-event)))
+      (is (= "GET" (:attr.http.method span-event)))
+      (is (= "event-value" (:attr.event.attr span-event))))))
 
 (deftest trace-request->events-rejects-without-service-test
   (testing "Rejects spans without service.name"

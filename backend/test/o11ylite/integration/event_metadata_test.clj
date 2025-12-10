@@ -32,20 +32,20 @@
   (testing "Event metadata contains expected core fields"
     (let [em (event-metadata-component)]
       ;; Core identity fields
-      (is (some? (event-metadata/get-field em "service")))
-      (is (some? (event-metadata/get-field em "timestamp")))
+      (is (some? (event-metadata/get-field em :service)))
+      (is (some? (event-metadata/get-field em :timestamp)))
       ;; Trace context
-      (is (some? (event-metadata/get-field em "trace_id")))
-      (is (some? (event-metadata/get-field em "span_id")))
+      (is (some? (event-metadata/get-field em :trace_id)))
+      (is (some? (event-metadata/get-field em :span_id)))
       ;; Signal type
-      (is (some? (event-metadata/get-field em "meta.signal_type"))))))
+      (is (some? (event-metadata/get-field em :meta.signal_type))))))
 
 (deftest event-metadata-field-types-test
   (testing "Event metadata has normalized application-level types"
     (let [em (event-metadata-component)]
-      (is (= :string (:type (event-metadata/get-field em "service"))))
-      (is (= :instant (:type (event-metadata/get-field em "timestamp"))))
-      (is (= :integer (:type (event-metadata/get-field em "span.duration_ns")))))))
+      (is (= :string (:type (event-metadata/get-field em :service))))
+      (is (= :instant (:type (event-metadata/get-field em :timestamp))))
+      (is (= :integer (:type (event-metadata/get-field em :span.duration_ns)))))))
 
 (deftest event-metadata-refresh-async-test
   (testing "Async refresh returns promise with fields"
@@ -59,7 +59,7 @@
 (deftest event-metadata-get-nonexistent-field-test
   (testing "Getting nonexistent field returns nil"
     (let [em (event-metadata-component)]
-      (is (nil? (event-metadata/get-field em "nonexistent_field_xyz"))))))
+      (is (nil? (event-metadata/get-field em :nonexistent_field_xyz))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

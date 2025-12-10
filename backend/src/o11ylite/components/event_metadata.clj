@@ -17,7 +17,7 @@
 
 (defn get-fields
   "Get the current cached field metadata.
-   Returns a map of field-name -> {:type normalized-type}."
+   Returns a map of keyword -> {:type normalized-type}."
   [event-metadata]
   @(:state event-metadata))
 
@@ -98,15 +98,15 @@
 
   ;; Get all fields (now with normalized types)
   (get-fields em)
-  ;; => {"service" {:type :string}
-  ;;     "timestamp" {:type :instant}
-  ;;     "span.duration_ns" {:type :integer}
+  ;; => {:service {:type :string}
+  ;;     :timestamp {:type :instant}
+  ;;     :span.duration_ns {:type :integer}
   ;;     ...}
 
   ;; Get specific field
-  (get-field em "service")      ;; => {:type :string}
-  (get-field em "timestamp")    ;; => {:type :instant}
-  (get-field em "span.duration_ns")  ;; => {:type :integer}
+  (get-field em :service)           ;; => {:type :string}
+  (get-field em :timestamp)         ;; => {:type :instant}
+  (get-field em :span.duration_ns)  ;; => {:type :integer}
 
   ;; Async refresh
   @(refresh! em)

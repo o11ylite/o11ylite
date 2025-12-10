@@ -90,6 +90,41 @@
         (is (= "parent-operation" (:name (second rows))))
         (is (= parent-span-id (:parent_span_id (first rows))))))))
 
+(deftest trace-export-span-events-test
+  (testing "TraceService/Export collects span events attached to spans"
+    (let [trace-id "3af7651916cd43dd8448eb211c80319c"
+          span-id "c8ad6b7169203331"
+          response (h/export-traces!
+                    {:service-name "test-service"
+                     :tracer-name "test-tracer"
+                     :spans [{:trace-id trace-id
+                              :span-id span-id
+                              :name "http-request"
+                              :kind :server
+                              :start-time-ns 1000000000
+                              :end-time-ns   1000500000
+                              :status :ok
+                              :events [{:name "request.received"
+                                        :time-ns 1000100000
+                                        :attributes {"request.size" 1024}}
+                                       {:name "response.sent"
+                                        :time-ns 1000400000
+                                        :attributes {"response.size" 2048}}]}]})]
+      (is (some? response))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedSpans)))
+      (let [rows (query-events-by-trace trace-id)
+            by-type (group-by :meta.signal_type rows)]
+        ;; Should have 1 span + 2 span_events = 3 total events
+        (is (= 3 (count rows)))
+        (is (= 1 (count (get by-type "span"))))
+        (is (= 2 (count (get by-type "span_event"))))
+        ;; Verify span event details
+        (let [span-events (get by-type "span_event")]
+          (is (some #(= "request.received" (:name %)) span-events))
+          (is (some #(= "response.sent" (:name %)) span-events))
+          ;; Span events should reference the parent span
+          (is (every? #(= span-id (:span_id %)) span-events)))))))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment

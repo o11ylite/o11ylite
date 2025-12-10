@@ -43,12 +43,12 @@
   (testing "Events are inserted with correct field values"
     (let [events [(make-event {:name "span-1" :trace_id "abc123"})
                   (make-event {:name "span-2" :trace_id "def456"})]
-          fields {"service" {:type :string}
-                  "timestamp" {:type :instant}
-                  "meta.signal_type" {:type :string}
-                  "meta.observed_time" {:type :instant}
-                  "name" {:type :string}
-                  "trace_id" {:type :string}}]
+          fields {:service {:type :string}
+                  :timestamp {:type :instant}
+                  :meta.signal_type {:type :string}
+                  :meta.observed_time {:type :instant}
+                  :name {:type :string}
+                  :trace_id {:type :string}}]
       (events.ingest/persist-batch! (duckdb) (event-metadata) events fields)
       (let [rows (query-events)]
         (is (= 2 (count rows)))
@@ -60,20 +60,20 @@
 (deftest persist-batch-dynamic-fields-test
   (testing "Events with arbitrary dynamic fields are inserted correctly"
     (let [random-suffix (rand-int 100000)
-          custom-field (str "attr.custom.field_" random-suffix)
+          custom-field (keyword (str "attr.custom.field_" random-suffix))
           events [(make-event {:name "dynamic-span"
                                custom-field "dynamic-value"})]
-          fields {"service" {:type :string}
-                  "timestamp" {:type :instant}
-                  "meta.signal_type" {:type :string}
-                  "meta.observed_time" {:type :instant}
-                  "name" {:type :string}
+          fields {:service {:type :string}
+                  :timestamp {:type :instant}
+                  :meta.signal_type {:type :string}
+                  :meta.observed_time {:type :instant}
+                  :name {:type :string}
                   custom-field {:type :string}}]
       (events.ingest/persist-batch! (duckdb) (event-metadata) events fields)
       (let [rows (query-events)
             row (first rows)]
         (is (= 1 (count rows)))
-        (is (= "dynamic-value" (get row (keyword custom-field))))))))
+        (is (= "dynamic-value" (get row custom-field)))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
