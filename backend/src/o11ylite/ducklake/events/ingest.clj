@@ -72,28 +72,25 @@
     (when (seq new-fields)
       new-fields)))
 
-(defn- -coerce-values
-  "Coerce keyword values to strings for DuckDB compatibility."
-  [event]
-  (persistent!
-   (reduce-kv (fn [acc k v]
-                (assoc! acc k (if (keyword? v) (name v) v)))
-              (transient {})
-              event)))
+(defn- -event->row
+  "Convert event to a row vector for insert-multi!.
+   Values are ordered by columns, missing keys become nil,
+   keyword values are coerced to strings."
+  [event columns]
+  (mapv (fn [k]
+          (let [v (get event k)]
+            (if (keyword? v) (name v) v)))
+        columns))
 
-(defn- -normalize-events
-  "Normalize events to have consistent keys for insert-multi!.
-   Adds nil values for any missing keys across the batch."
-  [events all-keys]
-  (let [key-set (set all-keys)]
-    (mapv (fn [event]
-            (reduce (fn [acc k]
-                      (if (contains? acc k)
-                        acc
-                        (assoc acc k nil)))
-                    event
-                    key-set))
-          events)))
+(defn- -events->rows
+  "Convert events to row vectors for insert-multi!.
+   Returns a vector of value vectors ordered by columns.
+   
+   Performance: `(into [] (map ...))` with transducer is efficient.
+   If profiling shows this as a bottleneck, consider loop-recur with transient.
+   However, DuckDB INSERT is likely the real bottleneck, not this transformation."
+  [events columns]
+  (into [] (map #(-event->row % columns)) events))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -157,12 +154,11 @@
       (schema/add-fields! duckdb new-fields)
       (event-metadata/refresh! event-metadata))
 
-    ;; Step 2: Bulk INSERT
-    ;; Normalize events so all have the same keys (insert-multi! requirement)
-    (let [all-keys (keys fields)
-          normalized-events (-normalize-events events all-keys)
-          coerced-events (mapv -coerce-values normalized-events)]
-      (sql/insert-multi! duckdb :ducklake.events coerced-events
+    ;; Step 2: Bulk INSERT using [columns rows] form for efficiency
+    ;; (avoids next.jdbc decomposing hash maps)
+    (let [columns (vec (keys fields))
+          rows (-events->rows events columns)]
+      (sql/insert-multi! duckdb :ducklake.events columns rows
                          {:column-fn next.jdbc.quoted/ansi})
       (mulog/log ::persist-batch :event-count (count events)))
 
@@ -194,9 +190,10 @@
   ;;     :count {:type :integer}
   ;;     :active {:type :boolean}}
 
-  ;; Test value coercion (keywords to strings)
-  (-coerce-values {:service "svc1" :meta.signal_type :span :attr.http.method "GET"})
-  ;; => {:service "svc1", :meta.signal_type "span", :attr.http.method "GET"}
+  ;; Test event->row conversion (coerce + order by columns)
+  (-event->row {:service "svc1" :meta.signal_type :span}
+               [:service :meta.signal_type :missing_field])
+  ;; => ["svc1" "span" nil]
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
