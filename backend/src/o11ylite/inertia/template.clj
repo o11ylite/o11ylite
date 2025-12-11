@@ -95,7 +95,7 @@ window.__vite_plugin_react_preamble_installed__ = true;"))
   (str
    (h/html
     (raw-string "<!DOCTYPE html>")
-    [:html {:lang "en" :class "h-full"}
+    [:html {:lang "en" :class "h-full dark"}
      [:head
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]

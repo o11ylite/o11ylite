@@ -1,3 +1,4 @@
+// @ts-expect-error - vite/modulepreload-polyfill has no type definitions
 import 'vite/modulepreload-polyfill'
 import { createInertiaApp } from '@inertiajs/react'
 import { createRoot } from 'react-dom/client'

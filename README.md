@@ -84,16 +84,30 @@ backend/
 
 ### Frontend (`frontend/`)
 
-An Inertia.js React frontend built with Vite + TypeScript.
+An Inertia.js React frontend built with Vite + TypeScript + Tailwind CSS.
+
+Uses [shadcn/ui](https://ui.shadcn.com/) (New York style) for UI components with Lucide icons.
 
 ```
 frontend/
 ├── src/
 │   ├── main.tsx             # Inertia app entry point
-│   └── pages/               # Page components (matched by name)
-│       └── Home.tsx
+│   ├── index.css            # Global styles & Tailwind config
+│   ├── pages/               # Page components (matched by name)
+│   │   └── Home.tsx
+│   ├── components/
+│   │   ├── layouts/         # Page layout wrappers
+│   │   │   └── application-layout.tsx
+│   │   ├── ui/              # shadcn/ui primitives (don't modify, keep upstream-compatible)
+│   │   ├── app-sidebar.tsx  # Application sidebar
+│   │   └── search-form.tsx  # Search component
+│   ├── hooks/
+│   │   └── use-mobile.ts    # Mobile detection hook
+│   └── lib/
+│       └── utils.ts         # cn() helper for class merging
 ├── public/
 │   └── favicon.svg          # Static assets
+├── components.json          # shadcn/ui configuration
 └── vite.config.ts           # Vite config (base: /frontend)
 ```
 
