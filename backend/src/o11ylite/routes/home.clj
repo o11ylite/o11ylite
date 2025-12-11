@@ -1,17 +1,17 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.routes.home
 ;;
-;; Home page routes
+;; Home page routes - redirects to explore
 ;; ---------------------------------------------------------
 
 (ns o11ylite.routes.home
   (:require
-   [o11ylite.util.response :as response]))
+   [ring.util.response :as rr]))
 
 (defn handler
-  "Home page handler - renders Inertia Home component."
+  "Home page handler - redirects to explore."
   [_request]
-  (response/inertia "Home" {:greeting "Welcome to O11yLite"}))
+  (rr/redirect "/explore"))
 
 (defn routes
   "Home routes."
