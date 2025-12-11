@@ -14,7 +14,10 @@
    [o11ylite.util.response :as response]
    [o11ylite.inertia.middleware :as inertia]
    [o11ylite.routes.home :as home]
-   [o11ylite.routes.health :as health]))
+   [o11ylite.routes.health :as health]
+   [o11ylite.routes.explore :as explore]
+   [o11ylite.routes.dashboards :as dashboards]
+   [o11ylite.routes.monitors :as monitors]))
 
 ;; ---------------------------------------------------------
 ;; Middleware Factories
@@ -51,7 +54,10 @@
                     inertia/wrap-csrf-cookie
                     (make-wrap-inertia inertia)]}
    (home/routes {})
-   (health/routes {})])
+   (health/routes {})
+   (explore/routes {})
+   (dashboards/routes {})
+   (monitors/routes {})])
 
 ;; ---------------------------------------------------------
 ;; Router Component
