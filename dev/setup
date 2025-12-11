@@ -12,3 +12,6 @@ echo "Downloading OpenTelemetry protos..."
 
 echo "Compiling protobuf classes..."
 (cd backend && make proto-compile)
+
+echo "Setting up frontend..."
+(cd frontend && npm install)
