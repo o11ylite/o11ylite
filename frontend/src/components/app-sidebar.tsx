@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "@inertiajs/react"
+import { Link, usePage } from "@inertiajs/react"
 import {
   Search,
   LayoutDashboard,
@@ -53,6 +53,8 @@ const navigation: NavGroup[] = [
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { url } = usePage()
+
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -71,7 +73,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenu>
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton asChild isActive={url === item.url}>
                       <Link href={item.url}>
                         <item.icon />
                         <span>{item.title}</span>
