@@ -74,6 +74,7 @@
 (def url http/url)
 (def get-request http/get-request)
 (def get-json http/get-json)
+(def post-json http/post-json)
 (def inertia-headers http/inertia-headers)
 (def inertia-request http/inertia-request)
 (def inertia-json-request http/inertia-json-request)
