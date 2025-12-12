@@ -32,3 +32,4 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Functional components with default exports for pages
 - Inline object types for props (e.g., `{ greeting: string }`)
 - Imports: external libs first, then local, CSS last
+- Use Inertia `<Link href="...">` for internal navigation, not `<a href="...">`
