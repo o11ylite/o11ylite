@@ -79,6 +79,18 @@
                  (assoc :headers (merge (inertia-headers {:version version})
                                         (:headers opts)))))))
 
+(defn post-json
+  "Make a POST request with JSON body, expecting JSON response.
+   Body is automatically serialized to JSON."
+  ([path body] (post-json path body {}))
+  ([path body opts]
+   (let [response (http/post (url path)
+                             (merge {:throw false
+                                     :headers {"Content-Type" "application/json"}
+                                     :body (json/write-value-as-string body)}
+                                    opts))]
+     (assoc response :body (-parse-json-body (:body response))))))
+
 ;; ---------------------------------------------------------
 ;; Response Helpers
 

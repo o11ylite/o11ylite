@@ -48,4 +48,5 @@
   :entry-point "src/main.tsx"}
 
  :router/routes
- {:inertia #ig/ref :inertia/config}}
+ {:inertia #ig/ref :inertia/config
+  :duckdb #ig/ref :db/duckdb}}
