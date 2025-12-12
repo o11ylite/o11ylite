@@ -50,6 +50,13 @@ sequenceDiagram
 
 **Schema Evolution**: New fields in events automatically create columns. The `event_metadata` cache tracks known fields; `persist-batch!` diffs incoming fields against the cache and runs `ALTER TABLE ADD COLUMN` as needed.
 
+#### HTTP Routes
+
+The backend serves two types of HTTP routes:
+
+- **Page routes** (`routes/`) - Inertia.js responses for UI pages. Primary client-server interaction happens via Inertia, which handles page navigation, form submissions, and state management.
+- **API routes** (`api/`) - JSON endpoints for telemetry queries. Used by the frontend via Ajax (TanStack Query) for real-time data fetching where Inertia's request/response cycle isn't suitable.
+
 #### Key Directories
 
 ```
@@ -65,6 +72,13 @@ backend/
 │   │   ├── event_metadata.clj    # Field metadata cache
 │   │   ├── duckdb_pool.clj       # DuckDB connection pool
 │   │   └── sqlite_pool.clj       # SQLite connection pool
+│   ├── api/                 # JSON API endpoints
+│   │   └── health.clj       #   Health check endpoints
+│   ├── routes/              # Inertia page routes
+│   │   ├── home.clj         #   Home (redirects to /explore)
+│   │   ├── explore.clj      #   Explore page
+│   │   ├── dashboards.clj   #   Dashboards page
+│   │   └── monitors.clj     #   Monitor rules & notifications
 │   ├── ducklake/            # DuckDB storage layer
 │   │   ├── schema.clj       #   Type system & introspection
 │   │   ├── events/          #   Event ingestion & query
@@ -73,7 +87,6 @@ backend/
 │   │   ├── proto.clj        #   Protobuf utilities
 │   │   ├── trace.clj        #   Trace signal processing
 │   │   └── log.clj          #   Log signal processing
-│   ├── routes/              # HTTP route handlers
 │   ├── inertia/             # Inertia.js adapter
 │   └── util/
 │       ├── response.clj     #   Response helpers
