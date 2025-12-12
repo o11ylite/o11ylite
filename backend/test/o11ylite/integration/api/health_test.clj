@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.health-test
+;; o11ylite.integration.api.health-test
 ;;
-;; Integration tests for health check endpoints.
+;; Integration tests for health check API endpoints.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.health-test
+(ns o11ylite.integration.api.health-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]))
@@ -12,7 +12,7 @@
 (use-fixtures :each h/with-system)
 
 ;; ---------------------------------------------------------
-;; API Health Check
+;; API Health Checks
 
 (deftest api-status-test
   (testing "GET /api/status returns JSON with ok status"
@@ -21,12 +21,9 @@
       (is (h/json-response? response))
       (is (= "ok" (get-in response [:body :status]))))))
 
-;; ---------------------------------------------------------
-;; Page Health Check
-
-(deftest page-health-test
-  (testing "GET /health returns JSON health status"
-    (let [response (h/get-json "/health")]
+(deftest api-health-test
+  (testing "GET /api/health returns JSON with ok status"
+    (let [response (h/get-json "/api/health")]
       (is (= 200 (h/status response)))
       (is (h/json-response? response))
       (is (= "ok" (get-in response [:body :status]))))))

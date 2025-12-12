@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.routes.health
+;; o11ylite.api.health
 ;;
-;; Health check routes
+;; Health check API endpoints
 ;; ---------------------------------------------------------
 
-(ns o11ylite.routes.health
+(ns o11ylite.api.health
   (:require
    [o11ylite.util.response :as response]))
 
@@ -14,6 +14,7 @@
   (response/json 200 {:status "ok"}))
 
 (defn routes
-  "Health check routes."
+  "Health check API routes."
   [_opts]
-  ["/health" {:get {:handler handler}}])
+  [["/status" {:get {:handler handler}}]
+   ["/health" {:get {:handler handler}}]])

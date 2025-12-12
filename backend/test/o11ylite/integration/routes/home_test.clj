@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.home-test
+;; o11ylite.integration.routes.home-test
 ;;
 ;; Integration tests for the Home page redirect.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.home-test
+(ns o11ylite.integration.routes.home-test
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing use-fixtures]]

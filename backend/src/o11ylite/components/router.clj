@@ -13,8 +13,8 @@
    [reitit.ring.middleware.exception :as exception]
    [o11ylite.util.response :as response]
    [o11ylite.inertia.middleware :as inertia]
+   [o11ylite.api.health :as api.health]
    [o11ylite.routes.home :as home]
-   [o11ylite.routes.health :as health]
    [o11ylite.routes.explore :as explore]
    [o11ylite.routes.dashboards :as dashboards]
    [o11ylite.routes.monitors :as monitors]))
@@ -45,7 +45,7 @@
   "API routes - no CSRF, no sessions."
   [_opts]
   ["/api" {:middleware [wrap-api-defaults]}
-   ["/status" {:get {:handler health/handler}}]])
+   (api.health/routes {})])
 
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."
@@ -54,7 +54,6 @@
                     inertia/wrap-csrf-cookie
                     (make-wrap-inertia inertia)]}
    (home/routes {})
-   (health/routes {})
    (explore/routes {})
    (dashboards/routes {})
    (monitors/routes {})])
