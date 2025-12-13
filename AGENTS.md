@@ -26,6 +26,9 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Tests in `test/o11ylite/integration/` use fixture `(use-fixtures :each h/with-system)`
 - Backend is all-in Java virtual thread.
 - Avoid parameter lists with more than three or four positional parameters.
+- Namespace splitting patterns:
+  - **Child + facade** (`foo` → `foo.bar`): Parent re-exports child vars. Use for utility bags where consumers want one import (e.g., `test-helpers`).
+  - **Sibling** (`foo` ↔ `foo-impl`): Parent wraps/uses sibling internally. Use when sibling is implementation detail (e.g., `query` uses `query-schema`).
 
 
 **TypeScript/React:**
@@ -33,3 +36,5 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Inline object types for props (e.g., `{ greeting: string }`)
 - Imports: external libs first, then local, CSS last
 - Use Inertia `<Link href="...">` for internal navigation, not `<a href="...">`
+- Avoid unnecessary deep nesting in JSX, I believe the happy path is left-aligned.
+
