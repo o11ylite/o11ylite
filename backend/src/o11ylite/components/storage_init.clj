@@ -10,7 +10,6 @@
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
    [migratus.core :as migratus]
-   [next.jdbc :as jdbc]
    [o11ylite.store.init :as store]))
 
 ;; ---------------------------------------------------------
@@ -27,59 +26,26 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-(defn- migratus-config
+(defn- -migratus-config
   "Build migratus configuration using the SQLite datasource."
   [sqlite-ds]
   {:store :database
    :migration-dir migrations-dir
-   :init-script "init.sql"
-   :init-in-transaction? true
    :migration-table-name migrations-table
    :db {:datasource sqlite-ds}})
 
-(defn- migrations-table-exists?
-  "Check if the migrations table exists in SQLite."
+(defn- -run-migrations
+  "Run all pending SQLite migrations."
   [sqlite-ds]
-  (let [result (jdbc/execute-one! sqlite-ds
-                 ["SELECT name FROM sqlite_master
-                   WHERE type='table' AND name=?"
-                  migrations-table])]
-    (some? result)))
-
-(defn- init-sqlite
-  "Initialize SQLite for a fresh installation.
-   Runs migratus/init to execute init.sql, then runs all migrations."
-  [sqlite-ds]
-  (mulog/log ::init-sqlite-starting)
-  (let [config (migratus-config sqlite-ds)]
-    (migratus/init config)
-    (mulog/log ::migratus-init-completed)
+  (mulog/log ::run-migrations-starting)
+  (let [config (-migratus-config sqlite-ds)]
     (migratus/migrate config)
-    (mulog/log ::init-sqlite-completed)))
+    (mulog/log ::run-migrations-completed)))
 
-(defn- init-store
-  "Initialize DuckLake database schema."
+(defn- -init-duckdb
+  "Initialize DuckDB schema (idempotent)."
   [duckdb-ds]
   (store/init-store! duckdb-ds))
-
-(defn- init-storage
-  "Initialize storage for a fresh installation."
-  [sqlite-ds duckdb-ds]
-  (mulog/log ::init-storage-starting)
-  (init-sqlite sqlite-ds)
-  (init-store duckdb-ds)
-  (mulog/log ::init-storage-completed))
-
-(defn- pickup-migration
-  "Run pending migrations for an existing installation."
-  [sqlite-ds duckdb-ds]
-  (mulog/log ::pickup-migration-starting)
-  ;; SQLite migrations
-  (let [config (migratus-config sqlite-ds)]
-    (migratus/migrate config))
-  ;; DuckLake schema (idempotent, uses IF NOT EXISTS)
-  (init-store duckdb-ds)
-  (mulog/log ::pickup-migration-completed))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
@@ -87,16 +53,10 @@
 (defmethod ig/init-key :storage/init
   [_ {:keys [sqlite duckdb]}]
   (mulog/log ::storage-init-starting)
-  (let [fresh? (not (migrations-table-exists? sqlite))]
-    (if fresh?
-      (do
-        (mulog/log ::fresh-installation-detected)
-        (init-storage sqlite duckdb))
-      (do
-        (mulog/log ::existing-installation-detected)
-        (pickup-migration sqlite duckdb)))
-    (mulog/log ::storage-init-completed :fresh? fresh?)
-    {:fresh? fresh?}))
+  (-run-migrations sqlite)
+  (-init-duckdb duckdb)
+  (mulog/log ::storage-init-completed)
+  nil)
 
 (defmethod ig/halt-key! :storage/init
   [_ _]
@@ -113,20 +73,11 @@
            '[migratus.core :as migratus])
 
   ;; Start dependencies first
-  (def sqlite-ds
-    (ig/init-key :db/sqlite {:data-path "./.tmp"}))
-
-  (def duckdb-ds
-    (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-
-  ;; Check if migrations table exists
-  (migrations-table-exists? sqlite-ds)
+  (def sqlite-ds (ig/init-key :db/sqlite {:data-path "./.tmp"}))
+  (def duckdb-ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
 
   ;; Test migratus config
-  (def config (migratus-config sqlite-ds))
-
-  ;; Initialize (runs init.sql)
-  (migratus/init config)
+  (def config (-migratus-config sqlite-ds))
 
   ;; Run migrations
   (migratus/migrate config)
@@ -135,12 +86,14 @@
   (migratus/pending-list config)
 
   ;; Start storage init component
-  (def storage
-    (ig/init-key :storage/init {:sqlite sqlite-ds :duckdb duckdb-ds}))
+  (def storage (ig/init-key :storage/init {:sqlite sqlite-ds :duckdb duckdb-ds}))
 
-  ;; Check DuckLake events table
+  ;; Check SQLite tables
+  (jdbc/execute! sqlite-ds ["SELECT name FROM sqlite_master WHERE type='table'"])
+
+  ;; Check DuckDB events table
   (jdbc/execute! duckdb-ds ["SHOW TABLES"])
-  (jdbc/execute! duckdb-ds ["DESCRIBE events"])
+  (jdbc/execute! duckdb-ds ["DESCRIBE o11ylite.events"])
 
   ;; Cleanup
   (ig/halt-key! :storage/init storage)

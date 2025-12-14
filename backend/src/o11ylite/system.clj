@@ -15,6 +15,7 @@
    [o11ylite.components.sqlite-pool]
    [o11ylite.components.storage-init]
    [o11ylite.components.event-metadata]
+   [o11ylite.components.service-discovery]
    [o11ylite.components.ingest-batcher]
    [o11ylite.components.otel-grpc-server]
    [o11ylite.components.inertia]

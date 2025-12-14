@@ -47,7 +47,9 @@
                    (assoc-in [:db/duckdb :data-path] temp-path)
                    (assoc-in [:db/sqlite :data-path] temp-path)
                    ;; Fast flush interval for tests (100ms)
-                   (assoc-in [:ingest/batcher :flush-interval-ms] 100))]
+                   (assoc-in [:ingest/batcher :flush-interval-ms] 100)
+                   ;; Fast service discovery for tests (100ms)
+                   (assoc-in [:discovery/services :scan-interval-ms] 100))]
     (ig/init config)))
 
 (defn stop-test-system!
