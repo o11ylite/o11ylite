@@ -21,7 +21,7 @@
   "Query events from DuckLake by service name."
   [service-name]
   (jdbc/execute! (duckdb)
-                 ["SELECT * FROM ducklake.events WHERE service = ? ORDER BY name"
+                 ["SELECT * FROM o11ylite.events WHERE service = ? ORDER BY name"
                   service-name]))
 
 ;; ---------------------------------------------------------
@@ -75,7 +75,7 @@
       (is (= 1 (-> response .getPartialSuccess .getRejectedLogRecords)))
       ;; Verify rejected logs are not persisted
       (let [rows (jdbc/execute! (duckdb)
-                                ["SELECT * FROM ducklake.events WHERE \"log.body\" = ?"
+                                ["SELECT * FROM o11ylite.events WHERE \"log.body\" = ?"
                                  "Orphan log"])]
         (is (= 0 (count rows)))))))
 

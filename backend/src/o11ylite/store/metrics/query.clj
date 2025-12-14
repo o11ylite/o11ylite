@@ -1,5 +1,5 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.metrics.query
+;; o11ylite.store.metrics.query
 ;;
 ;; Metrics querying: retrieval and aggregation for time-series data.
 ;;
@@ -9,7 +9,7 @@
 ;;   - different metric will yield vastly different queries.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.metrics.query)
+(ns o11ylite.store.metrics.query)
 
 ;; TODO: Implement metrics query functions
 

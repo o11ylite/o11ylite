@@ -7,7 +7,7 @@
 (ns o11ylite.integration.schema-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.ducklake.schema :as schema]
+   [o11ylite.store.schema :as schema]
    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)

@@ -29,6 +29,9 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Namespace splitting patterns:
   - **Child + facade** (`foo` → `foo.bar`): Parent re-exports child vars. Use for utility bags where consumers want one import (e.g., `test-helpers`).
   - **Sibling** (`foo` ↔ `foo-impl`): Parent wraps/uses sibling internally. Use when sibling is implementation detail (e.g., `query` uses `query-schema`).
+- When using namespace alias, follow:
+  - Make the alias the same as the namespace name with the leading parts removed.
+  - Keep enough trailing parts to make each alias unique.
 
 
 **TypeScript/React:**

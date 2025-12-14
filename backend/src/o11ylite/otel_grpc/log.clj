@@ -7,7 +7,7 @@
 (ns o11ylite.otel-grpc.log
   (:require
    [com.brunobonacci.mulog :as mulog]
-   [o11ylite.ducklake.events.ingest :as events.ingest]
+   [o11ylite.store.events.ingest :as events.ingest]
    [o11ylite.otel-grpc.log-events :as log-events])
   (:import
    [io.grpc.stub StreamObserver]

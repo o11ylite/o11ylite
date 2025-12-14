@@ -34,7 +34,7 @@
    [clojure.core.async :as a]
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
-   [o11ylite.ducklake.events.ingest :as events.ingest]
+   [o11ylite.store.events.ingest :as events.ingest]
    [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------

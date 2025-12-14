@@ -46,7 +46,7 @@ sequenceDiagram
     GRPC-->>Client: ExportTraceServiceResponse
 ```
 
-**Type System** (`ducklake/schema.clj`): Normalizes types between Clojure values, DuckDB columns, and the application layer (`:string`, `:instant`, `:integer`, `:float`, `:boolean`).
+**Type System** (`store/schema.clj`): Normalizes types between Clojure values, DuckDB columns, and the application layer (`:string`, `:instant`, `:integer`, `:float`, `:boolean`).
 
 **Schema Evolution**: New fields in events automatically create columns. The `event_metadata` cache tracks known fields; `persist-batch!` diffs incoming fields against the cache and runs `ALTER TABLE ADD COLUMN` as needed.
 
@@ -79,7 +79,7 @@ backend/
 │   │   ├── explore.clj      #   Explore page
 │   │   ├── dashboards.clj   #   Dashboards page
 │   │   └── monitors.clj     #   Monitor rules & notifications
-│   ├── ducklake/            # DuckDB storage layer
+│   ├── store/               # Telemetry data storage layer
 │   │   ├── schema.clj       #   Type system & introspection
 │   │   ├── events/          #   Event ingestion & query
 │   │   └── metrics/         #   Metrics ingestion & query

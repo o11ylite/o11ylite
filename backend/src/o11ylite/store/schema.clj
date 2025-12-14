@@ -1,5 +1,5 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.schema
+;; o11ylite.store.schema
 ;;
 ;; DuckLake schema utilities: introspection, type inference, and type mapping.
 ;; Provides field metadata with normalized application-level types.
@@ -17,7 +17,7 @@
 ;;   app-type->duckdb    - app type → DuckDB type (for ALTER TABLE)
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.schema
+(ns o11ylite.store.schema
   (:require
    [next.jdbc :as jdbc])
   (:import
@@ -99,7 +99,7 @@
 
    Types are normalized to: :string, :instant, :integer, :float, :boolean"
   [duckdb-ds]
-  (let [rows (jdbc/execute! duckdb-ds ["DESCRIBE ducklake.events"])]
+  (let [rows (jdbc/execute! duckdb-ds ["DESCRIBE o11ylite.events"])]
     (->> rows
          (map (fn [row]
                 [(keyword (:column_name row))
@@ -130,7 +130,7 @@
             ; - 2. We had various prevention mechanism before this.
             ; - 3. We anticipate client side to retry error. Retry would work because the metadata
             ;      cache would've catch up, and reject only the bad seed retry.
-            sql (format "ALTER TABLE ducklake.events ADD COLUMN IF NOT EXISTS \"%s\" %s"
+            sql (format "ALTER TABLE o11ylite.events ADD COLUMN IF NOT EXISTS \"%s\" %s"
                         (name field-key)
                         duckdb-type)]
         (jdbc/execute! tx [sql])))))

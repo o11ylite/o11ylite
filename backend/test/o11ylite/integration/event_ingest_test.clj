@@ -10,7 +10,7 @@
    [clojure.test :refer [deftest is testing use-fixtures]]
    [next.jdbc :as jdbc]
    [o11ylite.test-helpers :as h]
-   [o11ylite.ducklake.events.ingest :as events.ingest])
+   [o11ylite.store.events.ingest :as events.ingest])
   (:import
    [java.time Instant]))
 
@@ -25,7 +25,7 @@
 (defn- query-events
   "Query all events from DuckLake, ordered by name."
   []
-  (jdbc/execute! (duckdb) ["SELECT * FROM ducklake.events ORDER BY name"]))
+  (jdbc/execute! (duckdb) ["SELECT * FROM o11ylite.events ORDER BY name"]))
 
 (defn- make-event
   "Create a valid event with required fields."

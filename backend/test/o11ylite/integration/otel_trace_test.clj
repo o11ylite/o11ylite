@@ -19,7 +19,7 @@
   "Query events from DuckLake by trace_id."
   [trace-id]
   (jdbc/execute! (duckdb)
-                 ["SELECT * FROM ducklake.events WHERE trace_id = ? ORDER BY name"
+                 ["SELECT * FROM o11ylite.events WHERE trace_id = ? ORDER BY name"
                   trace-id]))
 
 (use-fixtures :each h/with-system)
