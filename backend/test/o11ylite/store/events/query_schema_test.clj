@@ -1,13 +1,13 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.events.query-schema-test
+;; o11ylite.store.events.query-schema-test
 ;;
 ;; Unit tests for events query schema validation.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.events.query-schema-test
+(ns o11ylite.store.events.query-schema-test
   (:require
    [clojure.test :refer [deftest is testing]]
-   [o11ylite.ducklake.events.query-schema :as schema]))
+   [o11ylite.store.events.query-schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Helper

@@ -10,7 +10,7 @@
   (:require
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
-   [o11ylite.ducklake.schema :as schema]))
+   [o11ylite.store.schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Public API

@@ -1,5 +1,5 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.events.ingest
+;; o11ylite.store.events.ingest
 ;;
 ;; Event ingestion: validation and storage for observability events
 ;; (spans, span-events, logs).
@@ -17,7 +17,7 @@
 ;;   persist-batch! (diff fields vs cache, ALTER TABLE, INSERT, refresh cache)
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.events.ingest
+(ns o11ylite.store.events.ingest
   (:require
    [clojure.core.async :as a]
    [clojure.string]
@@ -25,7 +25,7 @@
    [next.jdbc.sql :as sql]
    [next.jdbc.quoted]
    [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.ducklake.schema :as schema]))
+   [o11ylite.store.schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -158,7 +158,7 @@
     ;; (avoids next.jdbc decomposing hash maps)
     (let [columns (vec (keys fields))
           rows (-events->rows events columns)]
-      (sql/insert-multi! duckdb :ducklake.events columns rows
+      (sql/insert-multi! duckdb :o11ylite.events columns rows
                          {:column-fn next.jdbc.quoted/ansi})
       (mulog/log ::persist-batch :event-count (count events)))
 

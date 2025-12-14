@@ -1,5 +1,5 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.events.query
+;; o11ylite.store.events.query
 ;;
 ;; Event querying: search and retrieval for observability events
 ;; (spans, span-events, logs).
@@ -9,9 +9,9 @@
 ;; - execute function for running queries against DuckDB
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.events.query
+(ns o11ylite.store.events.query
   (:require
-   [o11ylite.ducklake.events.query-schema :as schema]))
+   [o11ylite.store.events.query-schema :as query-schema]))
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -20,7 +20,7 @@
   "Validate an events query request.
    Returns nil if valid, or error map with :error key if invalid."
   [query]
-  (schema/validate schema/events-query query))
+  (query-schema/validate query-schema/events-query query))
 
 ;; ---------------------------------------------------------
 ;; Query Execution (Stubs)

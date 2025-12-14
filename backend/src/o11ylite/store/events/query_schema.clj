@@ -1,11 +1,11 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.events.query-schema
+;; o11ylite.store.events.query-schema
 ;;
 ;; Malli schemas for events query requests.
 ;; Defines the shape of query API requests and validation.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.events.query-schema
+(ns o11ylite.store.events.query-schema
   (:require
    [malli.core :as m]
    [malli.error :as me]))

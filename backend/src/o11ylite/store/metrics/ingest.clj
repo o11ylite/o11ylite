@@ -1,5 +1,5 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.metrics.ingest
+;; o11ylite.store.metrics.ingest
 ;;
 ;; Metrics ingestion: validation and storage for time-series metrics.
 ;;
@@ -16,7 +16,7 @@
 ;; type-aware flush logic. TBD based on requirements.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.metrics.ingest)
+(ns o11ylite.store.metrics.ingest)
 
 ;; TODO: Implement metrics ingestion
 

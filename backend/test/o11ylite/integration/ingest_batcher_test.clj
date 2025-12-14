@@ -9,7 +9,7 @@
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]
    [o11ylite.components.ingest-batcher :as batcher]
-   [o11ylite.ducklake.events.ingest :as events.ingest])
+   [o11ylite.store.events.ingest :as events.ingest])
   (:import
    [java.time Instant]))
 

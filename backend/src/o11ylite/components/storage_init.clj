@@ -11,7 +11,7 @@
    [com.brunobonacci.mulog :as mulog]
    [migratus.core :as migratus]
    [next.jdbc :as jdbc]
-   [o11ylite.ducklake.init :as ducklake]))
+   [o11ylite.store.init :as store]))
 
 ;; ---------------------------------------------------------
 ;; Constants
@@ -57,17 +57,17 @@
     (migratus/migrate config)
     (mulog/log ::init-sqlite-completed)))
 
-(defn- init-ducklake
+(defn- init-store
   "Initialize DuckLake database schema."
   [duckdb-ds]
-  (ducklake/init-ducklake! duckdb-ds))
+  (store/init-store! duckdb-ds))
 
 (defn- init-storage
   "Initialize storage for a fresh installation."
   [sqlite-ds duckdb-ds]
   (mulog/log ::init-storage-starting)
   (init-sqlite sqlite-ds)
-  (init-ducklake duckdb-ds)
+  (init-store duckdb-ds)
   (mulog/log ::init-storage-completed))
 
 (defn- pickup-migration
@@ -78,7 +78,7 @@
   (let [config (migratus-config sqlite-ds)]
     (migratus/migrate config))
   ;; DuckLake schema (idempotent, uses IF NOT EXISTS)
-  (init-ducklake duckdb-ds)
+  (init-store duckdb-ds)
   (mulog/log ::pickup-migration-completed))
 
 ;; ---------------------------------------------------------

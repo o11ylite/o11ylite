@@ -2,7 +2,7 @@
 ;; o11ylite.integration.api.query-test
 ;;
 ;; Integration tests for query API endpoints.
-;; Tests HTTP behavior, not schema details (see ducklake/events/query_test).
+;; Tests HTTP behavior, not schema details (see store/events/query_test).
 ;; ---------------------------------------------------------
 
 (ns o11ylite.integration.api.query-test

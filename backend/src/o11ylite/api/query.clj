@@ -3,12 +3,12 @@
 ;;
 ;; Query API endpoints for events and metrics.
 ;; Handles HTTP concerns: validation, request/response formatting.
-;; Delegates query execution to ducklake layer.
+;; Delegates query execution to store layer.
 ;; ---------------------------------------------------------
 
 (ns o11ylite.api.query
   (:require
-   [o11ylite.ducklake.events.query :as events.query]
+   [o11ylite.store.events.query :as events.query]
    [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------

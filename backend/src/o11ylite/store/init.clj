@@ -1,11 +1,11 @@
 ;; ---------------------------------------------------------
-;; o11ylite.ducklake.init
+;; o11ylite.store.init
 ;;
 ;; DuckLake database initialization
 ;; Creates the events table partitioned by day
 ;; ---------------------------------------------------------
 
-(ns o11ylite.ducklake.init
+(ns o11ylite.store.init
   (:require
    [com.brunobonacci.mulog :as mulog]
    [next.jdbc :as jdbc]
@@ -15,7 +15,7 @@
 ;; Schema
 
 (def ^:private create-events-table-sql
-  "CREATE TABLE IF NOT EXISTS ducklake.events (
+  "CREATE TABLE IF NOT EXISTS o11ylite.events (
      -- Core identity
      service VARCHAR NOT NULL,
      timestamp TIMESTAMP_NS NOT NULL,
@@ -52,19 +52,19 @@
    )")
 
 (def ^:private set-events-partition-sql
-  "ALTER TABLE ducklake.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), service)")
+  "ALTER TABLE o11ylite.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), service)")
 
 ;; ---------------------------------------------------------
 ;; Public API
 
-(defn init-ducklake!
+(defn init-store!
   "Initialize DuckLake database schema.
    Creates the events table if it doesn't exist, partitioned by day."
   [duckdb-ds]
-  (mulog/log ::init-ducklake-starting)
+  (mulog/log ::init-store-starting)
   (jdbc/execute! duckdb-ds [create-events-table-sql])
   (jdbc/execute! duckdb-ds [set-events-partition-sql])
-  (mulog/log ::init-ducklake-completed))
+  (mulog/log ::init-store-completed))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -80,7 +80,7 @@
     (ig/init-key :db/duckdb {:data-path "./.tmp"}))
 
   ;; Initialize schema
-  (init-ducklake! ds)
+  (init-store! ds)
 
   ;; Check table exists
   (jdbc/execute! ds ["SHOW TABLES"])
@@ -98,7 +98,7 @@
                   (java.time.Instant/now)])
 
   ;; Query events
-  (jdbc/execute! ds ["SELECT * FROM ducklake.events"])
+  (jdbc/execute! ds ["SELECT * FROM o11ylite.events"])
 
   ;; Cleanup
   (ig/halt-key! :db/duckdb ds)

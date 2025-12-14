@@ -62,12 +62,12 @@
   "Create the root DuckDB connection with DuckLake attached.
    This connection is used as the basis for duplicate() calls.
 
-   Note: USE ducklake won't carry over to duplicate() connections since USE is
+   Note: USE o11ylite won't carry over to duplicate() connections since USE is
    session-level state. We add connectionInitSql to HikariCP to run USE on each
    pooled connection checkout."
   [ducklake-file]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
-        attach-sql (format "ATTACH 'ducklake:%s' AS ducklake" ducklake-file)]
+        attach-sql (format "ATTACH 'ducklake:%s' AS o11ylite" ducklake-file)]
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
@@ -107,9 +107,9 @@
                  (.setDataSource (duplicating-datasource root-conn))
                  (.setMaximumPoolSize pool-size)
                  (.setMinimumIdle 2)
-                 (.setPoolName "duckdb-ducklake-pool")
+                 (.setPoolName "duckdb-pool")
                  (.setConnectionTestQuery "SELECT 1")
-                 (.setConnectionInitSql "USE ducklake"))
+                 (.setConnectionInitSql "USE o11ylite"))
         hikari-ds (HikariDataSource. config)]
     ;; Return a wrapper that closes both HikariCP and root connection
     (reify
@@ -169,7 +169,7 @@
   (jdbc/execute-one! ds ["SELECT 42 AS answer"])
   ;; => {:answer 42}
 
-  ;; Check current database (should be ducklake)
+  ;; Check current database (should be o11ylite)
   (jdbc/execute! ds ["SELECT current_database()"])
 
   ;; Check DuckLake is attached
