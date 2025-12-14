@@ -14,6 +14,13 @@
   ;; so the events table exists before we DESCRIBE it
   :_storage #ig/ref :storage/init}
 
+ :discovery/services
+ {:sqlite #ig/ref :db/sqlite
+  :duckdb #ig/ref :db/duckdb
+  ;; Scan interval in milliseconds (default: 5 minutes)
+  :scan-interval-ms #long #or [#env SERVICE_DISCOVERY_INTERVAL_MS 300000]
+  :_storage #ig/ref :storage/init}
+
  :ingest/batcher
  {:duckdb #ig/ref :db/duckdb
   :event-metadata #ig/ref :cache/event-metadata
@@ -49,4 +56,6 @@
 
  :router/routes
  {:inertia #ig/ref :inertia/config
-  :duckdb #ig/ref :db/duckdb}}
+  :duckdb #ig/ref :db/duckdb
+  ;; _storage ensures storage/init runs first so DuckDB tables exist
+  :_storage #ig/ref :storage/init}}
