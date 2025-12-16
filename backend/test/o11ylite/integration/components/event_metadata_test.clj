@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.event-metadata-test
+;; o11ylite.integration.components.event-metadata-test
 ;;
 ;; Integration tests for the event metadata cache component.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.event-metadata-test
+(ns o11ylite.integration.components.event-metadata-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]

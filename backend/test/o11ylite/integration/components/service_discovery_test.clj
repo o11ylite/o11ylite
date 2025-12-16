@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.service-discovery-test
+;; o11ylite.integration.components.service-discovery-test
 ;;
 ;; Integration tests for service discovery component.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.service-discovery-test
+(ns o11ylite.integration.components.service-discovery-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.store.events.ingest :as events.ingest]
