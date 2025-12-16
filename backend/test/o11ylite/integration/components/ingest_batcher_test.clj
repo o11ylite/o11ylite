@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.ingest-batcher-test
+;; o11ylite.integration.components.ingest-batcher-test
 ;;
 ;; Integration tests for the ingest batcher component.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.ingest-batcher-test
+(ns o11ylite.integration.components.ingest-batcher-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]
