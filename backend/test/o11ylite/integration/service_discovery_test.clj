@@ -13,7 +13,8 @@
   (:import
    [java.time Instant]))
 
-(use-fixtures :each h/with-system)
+;; Only start components needed for service discovery
+(use-fixtures :each (h/with-partial-system [:discovery/services :cache/event-metadata]))
 
 ;; ---------------------------------------------------------
 ;; Helpers

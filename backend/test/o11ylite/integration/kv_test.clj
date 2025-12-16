@@ -10,7 +10,8 @@
    [o11ylite.test-helpers :as h]
    [o11ylite.kv :as kv]))
 
-(use-fixtures :each h/with-system)
+;; Only start storage (creates kv table) and sqlite
+(use-fixtures :each (h/with-partial-system [:storage/init]))
 
 ;; ---------------------------------------------------------
 ;; Helpers

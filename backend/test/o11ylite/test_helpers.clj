@@ -35,40 +35,66 @@
     (.mkdirs dir)
     (.getAbsolutePath dir)))
 
-(defn start-test-system!
-  "Start the system with test configuration.
-   Uses a unique temporary directory for data-path to isolate tests."
+(defn test-config
+  "Build test configuration with test-specific overrides."
   []
-  (let [temp-path (create-temp-data-path)
-        config (-> (system/read-config :dev)
-                   (assoc-in [:server/web :port] test-http-port)
-                   (assoc-in [:server/web :host] "127.0.0.1")
-                   (assoc-in [:server/otel-grpc :port] test-grpc-port)
-                   (assoc-in [:db/duckdb :data-path] temp-path)
-                   (assoc-in [:db/sqlite :data-path] temp-path)
-                   ;; Fast flush interval for tests (100ms)
-                   (assoc-in [:ingest/batcher :flush-interval-ms] 100)
-                   ;; Fast service discovery for tests (100ms)
-                   (assoc-in [:discovery/services :scan-interval-ms] 100))]
-    (ig/init config)))
+  (let [temp-path (create-temp-data-path)]
+    (-> (system/read-config :dev)
+        (assoc-in [:server/web :port] test-http-port)
+        (assoc-in [:server/web :host] "127.0.0.1")
+        (assoc-in [:server/otel-grpc :port] test-grpc-port)
+        (assoc-in [:db/duckdb :data-path] temp-path)
+        (assoc-in [:db/sqlite :data-path] temp-path)
+        ;; Fast flush interval for tests (100ms)
+        (assoc-in [:ingest/batcher :flush-interval-ms] 100)
+        ;; Fast service discovery for tests (100ms)
+        (assoc-in [:discovery/services :scan-interval-ms] 100))))
 
-(defn stop-test-system!
+(defn start-system!
+  "Start the full system with test configuration."
+  []
+  (ig/init (test-config)))
+
+(defn start-partial-system!
+  "Start only specified components (and their dependencies).
+   
+   Example:
+     (start-partial-system! [:discovery/services])
+     ;; Starts :discovery/services, :db/sqlite, :db/duckdb, :storage/init"
+  [keys]
+  (ig/init (test-config) keys))
+
+(defn stop-system!
   "Stop the test system."
   [system]
   (ig/halt! system))
 
 (defn with-system
-  "Test fixture that starts/stops the system for each test.
+  "Test fixture that starts/stops the full system for each test.
 
    Usage:
-   (use-fixtures :each test-helpers/with-system)"
+   (use-fixtures :each h/with-system)"
   [f]
-  (let [sys (start-test-system!)]
+  (let [sys (start-system!)]
     (try
       (binding [*system* sys]
         (f))
       (finally
-        (stop-test-system! sys)))))
+        (stop-system! sys)))))
+
+(defn with-partial-system
+  "Create a test fixture that starts only specified components.
+   
+   Usage:
+   (use-fixtures :each (h/with-partial-system [:discovery/services]))"
+  [keys]
+  (fn [f]
+    (let [sys (start-partial-system! keys)]
+      (try
+        (binding [*system* sys]
+          (f))
+        (finally
+          (stop-system! sys))))))
 
 ;; ---------------------------------------------------------
 ;; Re-exports: HTTP helpers
