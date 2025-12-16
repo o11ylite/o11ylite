@@ -10,7 +10,8 @@
    [o11ylite.test-helpers :as h]
    [o11ylite.components.event-metadata :as event-metadata]))
 
-(use-fixtures :each h/with-system)
+;; Only start the event metadata component and its dependencies
+(use-fixtures :each (h/with-partial-system [:cache/event-metadata]))
 
 ;; ---------------------------------------------------------
 ;; Helper to get event metadata component from system
