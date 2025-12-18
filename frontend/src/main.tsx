@@ -1,8 +1,24 @@
 // @ts-expect-error - vite/modulepreload-polyfill has no type definitions
 import 'vite/modulepreload-polyfill'
-import { createInertiaApp } from '@inertiajs/react'
+import { createInertiaApp, router } from '@inertiajs/react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+
+// Preserve time range query params across navigations
+router.on('before', (event) => {
+  const currentParams = new URLSearchParams(window.location.search)
+  const from = currentParams.get('from')
+  const to = currentParams.get('to')
+
+  if (from && to) {
+    const url = event.detail.visit.url
+    // Only add if not already present in the target URL
+    if (!url.searchParams.has('from')) {
+      url.searchParams.set('from', from)
+      url.searchParams.set('to', to)
+    }
+  }
+})
 
 void createInertiaApp({
   resolve: async (name) => {
