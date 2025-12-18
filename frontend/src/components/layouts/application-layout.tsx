@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { TimeRangeSelector } from "@/components/time-range-selector"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -17,9 +18,11 @@ import {
 export default function ApplicationLayout({
   children,
   title,
+  showTimeRange = false,
 }: {
   children: ReactNode
   title?: string
+  showTimeRange?: boolean
 }) {
   return (
     <SidebarProvider>
@@ -35,6 +38,11 @@ export default function ApplicationLayout({
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
+          {showTimeRange && (
+            <div className="ml-auto">
+              <TimeRangeSelector />
+            </div>
+          )}
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4">{children}</main>
       </SidebarInset>
