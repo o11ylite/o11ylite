@@ -14,9 +14,11 @@
 ;; Primitive Schemas
 
 (def timestamp
+  "Unix epoch timestamp in seconds."
   [:int {:min 0}])
 
 (def time-range
+  "Time range with start/end as Unix epoch seconds."
   [:map
    [:start timestamp]
    [:end timestamp]])
@@ -135,9 +137,9 @@
 ;; Rich Comment
 (comment
 
-  ;; Valid table query
+  ;; Valid table query (timestamps in Unix epoch seconds)
   (validate events-query
-            {:time_range {:start 1702000000000 :end 1702003600000}
+            {:time_range {:start 1702000000 :end 1702003600}
              :visualization {:type "table" :limit 100}})
   ;; => nil
 
@@ -148,13 +150,13 @@
 
   ;; Heatmap without group_by
   (validate events-query
-            {:time_range {:start 1702000000000 :end 1702003600000}
+            {:time_range {:start 1702000000 :end 1702003600}
              :visualization {:type "heatmap"}})
   ;; => {:error ["heatmap requires exactly one group_by field"]}
 
   ;; Valid heatmap
   (validate events-query
-            {:time_range {:start 1702000000000 :end 1702003600000}
+            {:time_range {:start 1702000000 :end 1702003600}
              :group_by ["duration_ms"]
              :visualization {:type "heatmap"}})
   ;; => nil
