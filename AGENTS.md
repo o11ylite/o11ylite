@@ -40,4 +40,5 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Imports: external libs first, then local, CSS last
 - Use Inertia `<Link href="...">` for internal navigation, not `<a href="...">`
 - Avoid unnecessary deep nesting in JSX, I believe the happy path is left-aligned.
+- `components/ui/` is reserved for shadcn components installed via `npx shadcn add`; place custom components in `components/`
 
