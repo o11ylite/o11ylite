@@ -12,17 +12,27 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { type Field } from "@/types"
 import { FiltersSection, type Filter } from "./filters-section"
-import { AggregationSection, type Aggregation } from "./aggregation-section"
+import {
+  AggregationSection,
+  type AggregationConfig,
+} from "./aggregation-section"
 
 type SignalType = "events" | "metrics"
 type VisualizationType = "table" | "timeseries" | "heatmap"
+
+const INITIAL_AGGREGATION_CONFIG: AggregationConfig = {
+  aggregations: [],
+  groupBy: [],
+}
 
 export function QueryBuilder({ fields }: { fields: Field[] }) {
   const [signalType, setSignalType] = useState<SignalType>("events")
   const [filters, setFilters] = useState<Filter[]>([
     { field: "service", op: "=", value: "api-gateway" },
   ])
-  const [aggregation, setAggregation] = useState<Aggregation | null>(null)
+  const [aggregationConfig, setAggregationConfig] = useState<AggregationConfig>(
+    INITIAL_AGGREGATION_CONFIG
+  )
   const [vizType, setVizType] = useState<VisualizationType>("table")
 
   return (
@@ -84,9 +94,9 @@ export function QueryBuilder({ fields }: { fields: Field[] }) {
 
       {/* Aggregation */}
       <AggregationSection
-        aggregation={aggregation}
+        config={aggregationConfig}
         fields={fields}
-        onAggregationChange={setAggregation}
+        onConfigChange={setAggregationConfig}
       />
     </div>
   )
