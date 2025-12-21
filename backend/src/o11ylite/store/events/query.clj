@@ -11,6 +11,8 @@
 
 (ns o11ylite.store.events.query
   (:require
+   [honey.sql :as sql]
+   [next.jdbc :as jdbc]
    [o11ylite.store.events.query-schema :as query-schema]))
 
 ;; ---------------------------------------------------------
@@ -23,15 +25,134 @@
   (query-schema/validate query-schema/events-query query))
 
 ;; ---------------------------------------------------------
-;; Query Execution (Stubs)
+;; Filter Building
+
+(defn- -filter-op->sql
+  "Convert filter operator string to HoneySQL operator."
+  [op]
+  (case op
+    "=" :=
+    "!=" :<>
+    ">" :>
+    "<" :<
+    ">=" :>=
+    "<=" :<=
+    "contains" :like
+    "exists" :is-not))
+
+(defn- -build-simple-filter
+  "Build a HoneySQL clause from a simple filter."
+  [{:keys [field op value]}]
+  (let [sql-op (-filter-op->sql op)
+        col (keyword field)]
+    (case op
+      "contains" [sql-op col (str "%" value "%")]
+      "exists" [sql-op col nil]
+      [sql-op col value])))
+
+(defn- -build-filter-clause
+  "Recursively build HoneySQL WHERE clause from filter expression."
+  [filter-expr]
+  (cond
+    ;; Compound AND
+    (:and filter-expr)
+    (into [:and] (map -build-filter-clause (:and filter-expr)))
+
+    ;; Compound OR
+    (:or filter-expr)
+    (into [:or] (map -build-filter-clause (:or filter-expr)))
+
+    ;; Simple filter
+    :else
+    (-build-simple-filter filter-expr)))
+
+;; ---------------------------------------------------------
+;; Aggregation Building
+
+(defn- -build-aggregation-expr
+  "Build a HoneySQL aggregation expression.
+   Returns [expr alias] for use in select."
+  [{:keys [field function alias]}]
+  (let [col (if (= field "*") :* (keyword field))
+        agg-fn (keyword function)
+        expr (case function
+               ;; Percentiles use approx_quantile in DuckDB
+               "p50" [:approx_quantile col 0.50]
+               "p90" [:approx_quantile col 0.90]
+               "p99" [:approx_quantile col 0.99]
+               ;; Standard aggregations
+               [agg-fn col])
+        result-alias (or alias (str function "_" (name (if (= col :*) "all" col))))]
+    [expr (keyword result-alias)]))
+
+;; ---------------------------------------------------------
+;; Query Building
+
+(defn- -epoch-s->timestamp
+  "Convert epoch seconds to DuckDB TIMESTAMP.
+   Uses to_timestamp(epoch_s)::TIMESTAMP to handle timezone correctly.
+   to_timestamp returns TIMESTAMPTZ, casting to TIMESTAMP converts to local time
+   which matches how TIMESTAMP_NS data is stored."
+  [epoch-s]
+  [:cast [:to_timestamp epoch-s] :timestamp])
+
+(defn- -build-base-query
+  "Build the base HoneySQL query with time range filter.
+   time_range start/end are Unix epoch seconds."
+  [{:keys [time_range]}]
+  {:select [:*]
+   :from [:events]
+   :where [:and
+           [:>= :timestamp (-epoch-s->timestamp (:start time_range))]
+           [:< :timestamp (-epoch-s->timestamp (:end time_range))]]})
+
+(defn- -add-filter
+  "Add filter clause to query if present."
+  [hsql-query filter-expr]
+  (if filter-expr
+    (update hsql-query :where conj (-build-filter-clause filter-expr))
+    hsql-query))
+
+(defn- -add-aggregations
+  "Add aggregations and group-by to query if present."
+  [hsql-query {:keys [aggregations group_by]}]
+  (if (seq aggregations)
+    (let [agg-exprs (map -build-aggregation-expr aggregations)
+          group-cols (map keyword group_by)
+          select-clause (concat
+                         (map (fn [col] [col col]) group-cols)
+                         (map (fn [[expr alias]] [expr alias]) agg-exprs))]
+      (cond-> (assoc hsql-query :select (vec select-clause))
+        (seq group-cols) (assoc :group-by (vec group-cols))))
+    hsql-query))
+
+(defn- -add-order-and-limit
+  "Add ORDER BY and LIMIT to query."
+  [hsql-query {:keys [visualization aggregations]}]
+  (let [limit (or (:limit visualization) 200)
+        ;; If aggregating, don't add default order
+        ;; Otherwise order by timestamp desc
+        has-aggregations? (seq aggregations)]
+    (cond-> hsql-query
+      (not has-aggregations?) (assoc :order-by [[:timestamp :desc]])
+      true (assoc :limit limit))))
+
+;; ---------------------------------------------------------
+;; Query Execution
 
 (defn- -execute-table
   "Execute a table visualization query."
-  [_duckdb {:keys [visualization]}]
-  (let [limit (or (:limit visualization) 200)]
-    {:rows []
-     :total_count 0
-     :truncated (> 0 limit)}))
+  [duckdb query]
+  (let [hsql-query (-> (-build-base-query query)
+                       (-add-filter (:filter query))
+                       (-add-aggregations query)
+                       (-add-order-and-limit query))
+        [sql-str & params] (sql/format hsql-query {:dialect :ansi})
+        rows (jdbc/execute! duckdb (into [sql-str] params))
+        limit (or (get-in query [:visualization :limit]) 200)]
+    {:rows rows
+     :total_count (count rows)
+     :truncated (>= (count rows) limit)}))
 
 (defn- -execute-time-series
   "Execute a time series visualization query."
@@ -80,23 +201,41 @@
 ;; Rich Comment
 (comment
 
-  ;; Example: table query
-  (execute nil
-           {:time_range {:start 1702000000000 :end 1702003600000}
+  (require '[honey.sql :as sql])
+  (require '[integrant.core :as ig])
+  (require '[o11ylite.components.duckdb-pool])
+  (require '[o11ylite.store.init :as init])
+
+  ;; Epoch seconds to timestamp conversion
+  ;; Uses to_timestamp(epoch_s)::TIMESTAMP for proper timezone handling
+  ;; to_timestamp returns TIMESTAMPTZ, cast to TIMESTAMP converts to local time
+  (-epoch-s->timestamp 1702000000)
+  ;; => [:cast [:to_timestamp 1702000000] :timestamp]
+
+  (sql/format {:where [:>= :timestamp (-epoch-s->timestamp 1702000000)]}
+              {:dialect :ansi})
+  ;; => ["WHERE timestamp >= CAST(TO_TIMESTAMP(?) AS TIMESTAMP)" 1702000000]
+
+  ;; Build filter clause
+  (-build-filter-clause {:field "service" :op "=" :value "api"})
+  ;; => [:= :service "api"]
+
+  (-build-filter-clause {:and [{:field "service" :op "=" :value "api"}
+                               {:field "status" :op ">" :value 400}]})
+  ;; => [:and [:= :service "api"] [:> :status 400]]
+
+  ;; Full integration test
+  (def ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
+  (init/init-store! ds)
+
+  ;; Table query (timestamps in Unix epoch seconds)
+  (execute ds
+           {:time_range {:start 1702000000 :end 1702003600}
             :visualization {:type "table" :limit 100}})
+  ;; => {:data {:rows [] :total_count 0 :truncated false}
+  ;;     :metadata {:query_time_ms N :truncated false}}
 
-  ;; Example: time series query
-  (execute nil
-           {:time_range {:start 1702000000000 :end 1702003600000}
-            :aggregations [{:field "*" :function "count"}]
-            :visualization {:type "time_series"}})
-
-  ;; Validate before execute
-  (let [query {:time_range {:start 1702000000000 :end 1702003600000}
-               :visualization {:type "table"}}]
-    (if-let [error (validate query)]
-      error
-      (execute nil query)))
+  (ig/halt-key! :db/duckdb ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

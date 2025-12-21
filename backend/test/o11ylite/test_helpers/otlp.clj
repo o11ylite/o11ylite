@@ -178,6 +178,7 @@
 
 (defn export-traces!
   "Export traces to the test gRPC server.
+   Ingestion is synchronous - data is queryable immediately after this returns.
 
    Takes a map with :service-name, :tracer-name, :spans etc.
    Returns the ExportTraceServiceResponse."
@@ -256,6 +257,7 @@
 
 (defn export-logs!
   "Export logs to the test gRPC server.
+   Ingestion is synchronous - data is queryable immediately after this returns.
 
    Takes a map with :service-name, :logger-name, :logs etc.
    Returns the ExportLogsServiceResponse."
