@@ -1,141 +1,110 @@
 import { useState } from "react"
-import { ChevronDown, ChevronRight, BarChart3 } from "lucide-react"
+import { ChevronDown, ChevronRight, BarChart3, Plus } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { type Field } from "@/types"
+import { AggregationRow, type AggregationItem } from "./aggregation-row"
+import { GroupBySection } from "./group-by-section"
 
-export interface Aggregation {
-  method: string
-  field?: string
-  groupBy?: string
+export type { AggregationItem, AggregationFunction } from "./aggregation-row"
+
+export interface AggregationConfig {
+  aggregations: AggregationItem[]
+  groupBy: string[]
 }
 
-const AGGREGATION_METHODS = ["count", "sum", "avg", "p50", "p95", "p99"]
-
-// Use a sentinel value instead of empty string for "none" options
-const NONE_VALUE = "__none__"
-
 export function AggregationSection({
-  aggregation,
+  config,
   fields,
-  onAggregationChange,
+  onConfigChange,
 }: {
-  aggregation: Aggregation | null
+  config: AggregationConfig
   fields: Field[]
-  onAggregationChange: (aggregation: Aggregation | null) => void
+  onConfigChange: (config: AggregationConfig) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const numericFields = fields.filter((f) => f.type === "num")
 
-  const handleMethodChange = (method: string) => {
-    if (method === NONE_VALUE) {
-      onAggregationChange(null)
-    } else {
-      onAggregationChange({ method })
-    }
-  }
-
-  const handleGroupByChange = (groupBy: string) => {
-    if (!aggregation) return
-    onAggregationChange({
-      ...aggregation,
-      groupBy: groupBy === NONE_VALUE ? undefined : groupBy,
+  const addAggregation = () => {
+    onConfigChange({
+      ...config,
+      aggregations: [
+        ...config.aggregations,
+        { field: "", function: "count" },
+      ],
     })
   }
 
+  const updateAggregation = (index: number, item: AggregationItem) => {
+    const newAggregations = [...config.aggregations]
+    newAggregations[index] = item
+    onConfigChange({ ...config, aggregations: newAggregations })
+  }
+
+  const removeAggregation = (index: number) => {
+    onConfigChange({
+      ...config,
+      aggregations: config.aggregations.filter((_, i) => i !== index),
+    })
+  }
+
+  const hasAggregations = config.aggregations.length > 0
+
+  const summaryText = hasAggregations
+    ? config.aggregations.map((a) => a.alias || a.function).join(", ")
+    : null
+
   return (
-    <div className="bg-muted/50 rounded-lg">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-      >
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      className="bg-muted/50 rounded-lg"
+    >
+      <CollapsibleTrigger className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground">
         {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <BarChart3 size={12} />
         <span>Aggregate</span>
-        {aggregation && (
-          <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-            {aggregation.method}
+        {summaryText && (
+          <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded truncate max-w-[200px]">
+            {summaryText}
           </span>
         )}
-      </button>
+      </CollapsibleTrigger>
 
-      {isOpen && (
-        <div className="px-2 pb-2 flex items-center gap-2 flex-wrap">
-          <Select
-            value={aggregation?.method ?? NONE_VALUE}
-            onValueChange={handleMethodChange}
+      <CollapsibleContent className="px-2 pb-2 space-y-2">
+        <div className="space-y-1.5">
+          {config.aggregations.map((item, index) => (
+            <AggregationRow
+              key={index}
+              item={item}
+              fields={fields}
+              onUpdate={(updated) => updateAggregation(index, updated)}
+              onRemove={() => removeAggregation(index)}
+            />
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addAggregation}
+            className="text-muted-foreground hover:text-foreground gap-1"
           >
-            <SelectTrigger size="sm" className="w-auto min-w-[80px]">
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_VALUE}>None</SelectItem>
-              {AGGREGATION_METHODS.map((method) => (
-                <SelectItem key={method} value={method}>
-                  {method}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {aggregation && aggregation.method !== "count" && (
-            <>
-              <span className="text-[10px] text-muted-foreground">of</span>
-              <Select
-                value={aggregation.field ?? NONE_VALUE}
-                onValueChange={(field) =>
-                  onAggregationChange({
-                    ...aggregation,
-                    field: field === NONE_VALUE ? undefined : field,
-                  })
-                }
-              >
-                <SelectTrigger size="sm" className="w-auto min-w-[100px]">
-                  <SelectValue placeholder="Select field" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Select field</SelectItem>
-                  {numericFields.map((f) => (
-                    <SelectItem key={f.name} value={f.name}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
-
-          {aggregation && (
-            <>
-              <span className="text-[10px] text-muted-foreground">
-                group by
-              </span>
-              <Select
-                value={aggregation.groupBy ?? NONE_VALUE}
-                onValueChange={handleGroupByChange}
-              >
-                <SelectTrigger size="sm" className="w-auto min-w-[80px]">
-                  <SelectValue placeholder="none" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_VALUE}>none</SelectItem>
-                  {fields.map((f) => (
-                    <SelectItem key={f.name} value={f.name}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
+            <Plus size={12} />
+            Add aggregation
+          </Button>
         </div>
-      )}
-    </div>
+
+        {hasAggregations && (
+          <GroupBySection
+            groupBy={config.groupBy}
+            fields={fields}
+            onChange={(groupBy) => onConfigChange({ ...config, groupBy })}
+          />
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
