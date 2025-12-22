@@ -211,6 +211,24 @@ caddy run --config dev/Caddyfile
 | `ASSET_BASE_URL` | /frontend | Base URL for frontend assets |
 
 
+### Multiple Dev Environments
+
+You can run multiple dev environments on the same host by configuring unique ports and hostnames per instance. This is useful when working on multiple branches or features simultaneously.
+
+Create a `.envrc` in each repository clone:
+
+```bash
+export O11YLITE_DEV_HOSTNAME="o11ylite-feature-a.localhost"  # default: o11ylite.localhost
+export DEV_HTTPS_PORT=8443     # default: 443
+export PORT=3010               # default: 3000
+export VITE_PORT=5180          # default: 5173
+export OTEL_GRPC_PORT=4320     # default: 4317
+```
+
+Then run `dev/setup` to add the hostname to `/etc/hosts`, and `dev/start` to launch.
+
+Access at `https://o11ylite-feature-a.localhost:8443`
+
 ### Running Testings
 
 Please read `backend/README.md` and `frontend/README.md`

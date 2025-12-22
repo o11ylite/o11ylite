@@ -1,12 +1,12 @@
 # This is dev only!
-o11ylite.localhost {
+{$O11YLITE_DEV_HOSTNAME:o11ylite.localhost}:{$DEV_HTTPS_PORT:443} {
 	encode zstd gzip
 
 	handle /frontend/* {
-		reverse_proxy 127.0.0.1:5173
+		reverse_proxy 127.0.0.1:{$VITE_PORT:5173}
 	}
 
 	handle {
-		reverse_proxy 127.0.0.1:3000
+		reverse_proxy 127.0.0.1:{$PORT:3000}
 	}
 }
