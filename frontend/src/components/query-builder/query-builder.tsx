@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Play, Table, LineChart, Grid3X3 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -10,42 +10,67 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { type Field } from "@/types"
-import { FiltersSection, type Filter } from "./filters-section"
 import {
-  AggregationSection,
-  type AggregationConfig,
-} from "./aggregation-section"
+  type Field,
+  type QueryBuilderState,
+  type Visualization,
+  type VisualizationType,
+} from "@/types"
+import { FiltersSection } from "./filters-section"
+import { AggregationSection } from "./aggregation-section"
 
-type SignalType = "events" | "metrics"
-type VisualizationType = "table" | "timeseries" | "heatmap"
+export function QueryBuilder({
+  fields,
+  initialState,
+  onSubmit,
+}: {
+  fields: Field[]
+  initialState: QueryBuilderState
+  onSubmit: (state: QueryBuilderState) => void
+}) {
+  // Local state for editing - only synced to URL on submit
+  const [state, setState] = useState(initialState)
 
-const INITIAL_AGGREGATION_CONFIG: AggregationConfig = {
-  aggregations: [],
-  groupBy: [],
-}
+  // Sync local state when URL state changes (e.g., browser back/forward)
+  useEffect(() => {
+    setState(initialState)
+  }, [initialState])
 
-export function QueryBuilder({ fields }: { fields: Field[] }) {
-  const [signalType, setSignalType] = useState<SignalType>("events")
-  const [filters, setFilters] = useState<Filter[]>([
-    { field: "service", op: "=", value: "api-gateway" },
-  ])
-  const [aggregationConfig, setAggregationConfig] = useState<AggregationConfig>(
-    INITIAL_AGGREGATION_CONFIG
-  )
-  const [vizType, setVizType] = useState<VisualizationType>("table")
+  const vizType = state.visualization.type
+
+  const handleVizTypeChange = (type: VisualizationType) => {
+    let visualization: Visualization
+    switch (type) {
+      case "table":
+        visualization = { type: "table", limit: 100 }
+        break
+      case "time_series":
+        visualization = { type: "time_series" }
+        break
+      case "heatmap":
+        visualization = { type: "heatmap" }
+        break
+      case "trace":
+        visualization = { type: "trace" }
+        break
+    }
+    setState({ ...state, visualization })
+  }
+
+  const handleRun = () => {
+    onSubmit(state)
+  }
 
   return (
     <div className="space-y-2">
       {/* Top Bar */}
       <div className="flex items-center gap-2">
-        <Tabs
-          value={signalType}
-          onValueChange={(v) => setSignalType(v as SignalType)}
-        >
+        <Tabs value="events">
           <TabsList>
             <TabsTrigger value="events">Events</TabsTrigger>
-            <TabsTrigger value="metrics">Metrics</TabsTrigger>
+            <TabsTrigger value="metrics" disabled>
+              Metrics
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -62,15 +87,12 @@ export function QueryBuilder({ fields }: { fields: Field[] }) {
 
         <div className="flex-1" />
 
-        <Tabs
-          value={vizType}
-          onValueChange={(v) => setVizType(v as VisualizationType)}
-        >
+        <Tabs value={vizType} onValueChange={(v) => handleVizTypeChange(v as VisualizationType)}>
           <TabsList>
             <TabsTrigger value="table">
               <Table size={14} />
             </TabsTrigger>
-            <TabsTrigger value="timeseries">
+            <TabsTrigger value="time_series">
               <LineChart size={14} />
             </TabsTrigger>
             <TabsTrigger value="heatmap">
@@ -79,7 +101,7 @@ export function QueryBuilder({ fields }: { fields: Field[] }) {
           </TabsList>
         </Tabs>
 
-        <Button size="sm" className="gap-1.5">
+        <Button size="sm" className="gap-1.5" onClick={handleRun}>
           <Play size={12} />
           Run
         </Button>
@@ -87,16 +109,20 @@ export function QueryBuilder({ fields }: { fields: Field[] }) {
 
       {/* Filters */}
       <FiltersSection
-        filters={filters}
+        filters={state.filters}
         fields={fields}
-        onFiltersChange={setFilters}
+        onFiltersChange={(filters) => setState({ ...state, filters })}
       />
 
       {/* Aggregation */}
       <AggregationSection
-        config={aggregationConfig}
+        aggregations={state.aggregations}
+        groupBy={state.groupBy}
         fields={fields}
-        onConfigChange={setAggregationConfig}
+        onAggregationsChange={(aggregations) =>
+          setState({ ...state, aggregations })
+        }
+        onGroupByChange={(groupBy) => setState({ ...state, groupBy })}
       />
     </div>
   )

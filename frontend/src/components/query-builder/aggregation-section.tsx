@@ -7,55 +7,46 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { type Field } from "@/types"
-import { AggregationRow, type AggregationItem } from "./aggregation-row"
+import { type Field, type Aggregation } from "@/types"
+import { AggregationRow } from "./aggregation-row"
 import { GroupBySection } from "./group-by-section"
 
-export type { AggregationItem, AggregationFunction } from "./aggregation-row"
-
-export interface AggregationConfig {
-  aggregations: AggregationItem[]
-  groupBy: string[]
-}
-
 export function AggregationSection({
-  config,
+  aggregations,
+  groupBy,
   fields,
-  onConfigChange,
+  onAggregationsChange,
+  onGroupByChange,
 }: {
-  config: AggregationConfig
+  aggregations: Aggregation[]
+  groupBy: string[]
   fields: Field[]
-  onConfigChange: (config: AggregationConfig) => void
+  onAggregationsChange: (aggregations: Aggregation[]) => void
+  onGroupByChange: (groupBy: string[]) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
 
   const addAggregation = () => {
-    onConfigChange({
-      ...config,
-      aggregations: [
-        ...config.aggregations,
-        { field: "", function: "count" },
-      ],
-    })
+    onAggregationsChange([
+      ...aggregations,
+      { field: "*", function: "count" },
+    ])
   }
 
-  const updateAggregation = (index: number, item: AggregationItem) => {
-    const newAggregations = [...config.aggregations]
+  const updateAggregation = (index: number, item: Aggregation) => {
+    const newAggregations = [...aggregations]
     newAggregations[index] = item
-    onConfigChange({ ...config, aggregations: newAggregations })
+    onAggregationsChange(newAggregations)
   }
 
   const removeAggregation = (index: number) => {
-    onConfigChange({
-      ...config,
-      aggregations: config.aggregations.filter((_, i) => i !== index),
-    })
+    onAggregationsChange(aggregations.filter((_, i) => i !== index))
   }
 
-  const hasAggregations = config.aggregations.length > 0
+  const hasAggregations = aggregations.length > 0
 
   const summaryText = hasAggregations
-    ? config.aggregations.map((a) => a.alias || a.function).join(", ")
+    ? aggregations.map((a) => a.alias || a.function).join(", ")
     : null
 
   return (
@@ -77,7 +68,7 @@ export function AggregationSection({
 
       <CollapsibleContent className="px-2 pb-2 space-y-2">
         <div className="space-y-1.5">
-          {config.aggregations.map((item, index) => (
+          {aggregations.map((item, index) => (
             <AggregationRow
               key={index}
               item={item}
@@ -99,9 +90,9 @@ export function AggregationSection({
 
         {hasAggregations && (
           <GroupBySection
-            groupBy={config.groupBy}
+            groupBy={groupBy}
             fields={fields}
-            onChange={(groupBy) => onConfigChange({ ...config, groupBy })}
+            onChange={onGroupByChange}
           />
         )}
       </CollapsibleContent>
