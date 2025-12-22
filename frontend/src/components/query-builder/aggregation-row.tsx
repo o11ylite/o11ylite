@@ -9,24 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { type Field } from "@/types"
+import { type Field, type Aggregation, type AggregationFunction } from "@/types"
 import { FieldPicker } from "./field-picker"
-
-export type AggregationFunction =
-  | "count"
-  | "sum"
-  | "avg"
-  | "min"
-  | "max"
-  | "p50"
-  | "p90"
-  | "p99"
-
-export interface AggregationItem {
-  field: string
-  function: AggregationFunction
-  alias?: string
-}
 
 const AGGREGATION_FUNCTIONS: AggregationFunction[] = [
   "count",
@@ -45,9 +29,9 @@ export function AggregationRow({
   onUpdate,
   onRemove,
 }: {
-  item: AggregationItem
+  item: Aggregation
   fields: Field[]
-  onUpdate: (item: AggregationItem) => void
+  onUpdate: (item: Aggregation) => void
   onRemove: () => void
 }) {
   const numericFields = fields.filter((f) => f.type === "num")

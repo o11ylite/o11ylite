@@ -9,22 +9,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { type Field } from "@/types"
+import { type Field, type SimpleFilter, type FilterOp } from "@/types"
 import { FieldPicker } from "./field-picker"
 
-export type FilterOperator = "=" | "!=" | ">" | "<" | "contains"
-
-export interface Filter {
-  field: string
-  op: FilterOperator
-  value: string
-}
-
-const FILTER_OPERATORS: { value: FilterOperator; label: string }[] = [
+const FILTER_OPERATORS: { value: FilterOp; label: string }[] = [
   { value: "=", label: "=" },
   { value: "!=", label: "!=" },
   { value: ">", label: ">" },
   { value: "<", label: "<" },
+  { value: ">=", label: ">=" },
+  { value: "<=", label: "<=" },
   { value: "contains", label: "contains" },
 ]
 
@@ -34,9 +28,9 @@ function FilterChip({
   onUpdate,
   onRemove,
 }: {
-  filter: Filter
+  filter: SimpleFilter
   fields: Field[]
-  onUpdate: (filter: Filter) => void
+  onUpdate: (filter: SimpleFilter) => void
   onRemove: () => void
 }) {
   return (
@@ -49,7 +43,7 @@ function FilterChip({
       />
       <Select
         value={filter.op}
-        onValueChange={(op: FilterOperator) => onUpdate({ ...filter, op })}
+        onValueChange={(op: FilterOp) => onUpdate({ ...filter, op })}
       >
         <SelectTrigger size="sm" className="w-auto min-w-[60px]">
           <SelectValue />
@@ -64,7 +58,7 @@ function FilterChip({
       </Select>
       <Input
         type="text"
-        value={filter.value}
+        value={typeof filter.value === "string" ? filter.value : String(filter.value)}
         onChange={(e) => onUpdate({ ...filter, value: e.target.value })}
         placeholder="value"
         className="h-8 w-24 text-sm"
@@ -86,14 +80,14 @@ export function FiltersSection({
   fields,
   onFiltersChange,
 }: {
-  filters: Filter[]
+  filters: SimpleFilter[]
   fields: Field[]
-  onFiltersChange: (filters: Filter[]) => void
+  onFiltersChange: (filters: SimpleFilter[]) => void
 }) {
   const addFilter = () =>
     onFiltersChange([...filters, { field: "", op: "=", value: "" }])
 
-  const updateFilter = (index: number, filter: Filter) => {
+  const updateFilter = (index: number, filter: SimpleFilter) => {
     const newFilters = [...filters]
     newFilters[index] = filter
     onFiltersChange(newFilters)
