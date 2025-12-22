@@ -49,11 +49,11 @@
 
 (defn get-services
   "Get all registered services.
-   Returns a list of {:service, :first_seen_at, :updated_at}."
+   Returns a list of {:name, :first_seen_at, :updated_at}."
   [sqlite]
   (jdbc/execute!
    sqlite
-   ["SELECT service, first_seen_at, updated_at
+   ["SELECT service AS name, first_seen_at, updated_at
      FROM service_metadata
      ORDER BY service"]
    {:builder-fn rs/as-unqualified-lower-maps}))
@@ -78,7 +78,7 @@
 
   ;; Get all known services
   (get-services sqlite)
-  ;; => [{:service "api-gateway" :first_seen_at 1702000000000 :updated_at 1702000000000} ...]
+  ;; => [{:name "api-gateway" :first_seen_at 1702000000000 :updated_at 1702000000000} ...]
 
   ;; Cleanup
   (ig/halt-key! :storage/init storage)

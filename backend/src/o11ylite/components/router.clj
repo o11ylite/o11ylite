@@ -71,12 +71,12 @@
 
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."
-  [{:keys [inertia]}]
+  [{:keys [inertia sqlite event-metadata]}]
   ["" {:middleware [wrap-site-defaults
                     inertia/wrap-csrf-cookie
                     (make-wrap-inertia inertia)]}
    (home/routes {})
-   (explore/routes {})
+   (explore/routes {:sqlite sqlite :event-metadata event-metadata})
    (dashboards/routes {})
    (monitors/routes {})])
 

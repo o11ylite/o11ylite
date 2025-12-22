@@ -55,7 +55,7 @@
     (let [registered (services/get-services (sqlite))]
       (is (= 2 (count registered)))
       (is (= #{"api-gateway" "payment-service"}
-             (set (map :service registered))))
+             (set (map :name registered))))
       (is (every? :first_seen_at registered)))))
 
 ;; ---------------------------------------------------------
