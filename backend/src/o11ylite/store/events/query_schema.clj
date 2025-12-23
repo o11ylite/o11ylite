@@ -17,6 +17,16 @@
   "Unix epoch timestamp in seconds."
   [:int {:min 0}])
 
+(def field-name
+  "Valid field name for queries.
+   Allows alphanumeric, underscores, and dots (for nested attributes like attr.http.method).
+   Must start with a letter or underscore.
+   Prevents SQL injection by rejecting special characters."
+  [:and
+   :string
+   [:re {:error/message "field name must contain only letters, numbers, underscores, and dots"}
+    #"^[a-zA-Z_][a-zA-Z0-9_.]*$"]])
+
 (def time-range
   "Time range with start/end as Unix epoch seconds."
   [:map
@@ -31,7 +41,7 @@
 
 (def simple-filter
   [:map
-   [:field :string]
+   [:field field-name]
    [:op filter-op]
    [:value :any]])
 
@@ -51,11 +61,15 @@
 (def aggregation-function
   [:enum "count" "sum" "avg" "min" "max" "p50" "p90" "p99"])
 
+(def aggregation-field
+  "Field name for aggregations. Same as field-name but also allows '*' for count(*)."
+  [:or [:= "*"] field-name])
+
 (def aggregation
   [:map
-   [:field :string]
+   [:field aggregation-field]
    [:function aggregation-function]
-   [:alias {:optional true} :string]])
+   [:alias {:optional true} field-name]])
 
 ;; ---------------------------------------------------------
 ;; Visualization Schemas
@@ -65,7 +79,7 @@
 
 (def sort-config
   [:map
-   [:field :string]
+   [:field field-name]
    [:order sort-order]])
 
 (def table-visualization
@@ -105,7 +119,7 @@
    [:time_range time-range]
    [:filter {:optional true} filter-expr]
    [:aggregations {:optional true} [:vector aggregation]]
-   [:group_by {:optional true} [:vector :string]]
+   [:group_by {:optional true} [:vector field-name]]
    [:having {:optional true} filter-expr]
    [:visualization visualization]])
 
@@ -160,6 +174,20 @@
              :group_by ["duration_ms"]
              :visualization {:type "heatmap"}})
   ;; => nil
+
+  ;; Valid field with dots (attribute fields)
+  (validate events-query
+            {:time_range {:start 1702000000 :end 1702003600}
+             :filter {:field "attr.http.method" :op "=" :value "GET"}
+             :visualization {:type "table"}})
+  ;; => nil
+
+  ;; Invalid field name (SQL injection attempt)
+  (validate events-query
+            {:time_range {:start 1702000000 :end 1702003600}
+             :filter {:field "service; DROP TABLE events;" :op "=" :value "x"}
+             :visualization {:type "table"}})
+  ;; => {:error {:filter {:field ["field name must contain only letters, numbers, underscores, and dots"]}}}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

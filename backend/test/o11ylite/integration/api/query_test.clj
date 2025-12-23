@@ -147,6 +147,40 @@
             (is (= 1 (:event_count service-b-row)))))))))
 
 ;; ---------------------------------------------------------
+;; Field Names with Dots
+
+(deftest events-query-filter-by-field-with-dots-test
+  (testing "POST /api/query/events handles filtering by attribute fields containing dots"
+    (let [now-s (current-epoch-seconds)
+          now-ns (* (System/currentTimeMillis) 1000000)]
+
+      ;; Ingest spans with a dotted attribute
+      (h/export-traces!
+       {:service-name "test-dotted-field-service"
+        :tracer-name "test-tracer"
+        :spans [{:trace-id "11111111111111111111111111111111"
+                 :span-id "1111111111111111"
+                 :name "request-with-dotted-attr"
+                 :start-time-ns now-ns
+                 :end-time-ns (+ now-ns 10000000)
+                 :attributes {:http.method "GET"}}]})
+
+      ;; Query filtering by the dotted field name
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start (- now-s 60)
+                                                :end (+ now-s 60)}
+                                   :filter {:field "attr.http.method"
+                                            :op "="
+                                            :value "GET"}
+                                   :visualization {:type "table" :limit 10}})]
+        (is (= 200 (h/status response)))
+        (is (h/json-response? response))
+
+        (let [rows (get-in response [:body :data :rows])]
+          (is (pos? (count rows)))
+          (is (some #(= "GET" (:attr.http.method %)) rows)))))))
+
+;; ---------------------------------------------------------
 ;; Time Series Visualization
 
 (deftest events-query-time-series-test

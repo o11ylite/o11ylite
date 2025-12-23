@@ -11,6 +11,7 @@
 
 (ns o11ylite.store.events.query
   (:require
+   [clojure.string :as str]
    [honey.sql :as sql]
    [next.jdbc :as jdbc]
    [o11ylite.store.events.query-schema :as query-schema]))
@@ -23,6 +24,20 @@
    Returns nil if valid, or error map with :error key if invalid."
   [query]
   (query-schema/validate query-schema/events-query query))
+
+;; ---------------------------------------------------------
+;; Column Name Handling
+
+(defn- -field->col
+  "Convert a field name string to a HoneySQL column reference.
+   Field names containing dots need special handling because HoneySQL
+   interprets dots as namespace separators. For example, :attr.http.method
+   becomes \"attr\".\"http\".\"method\" which is incorrect.
+   Instead, we use [:raw ...] to preserve the literal column name."
+  [field]
+  (if (str/includes? field ".")
+    [:raw (str "\"" field "\"")]
+    (keyword field)))
 
 ;; ---------------------------------------------------------
 ;; Filter Building
@@ -44,7 +59,7 @@
   "Build a HoneySQL clause from a simple filter."
   [{:keys [field op value]}]
   (let [sql-op (-filter-op->sql op)
-        col (keyword field)]
+        col (-field->col field)]
     (case op
       "contains" [sql-op col (str "%" value "%")]
       "exists" [sql-op col nil]
@@ -73,7 +88,7 @@
   "Build a HoneySQL aggregation expression.
    Returns [expr alias] for use in select."
   [{:keys [field function alias]}]
-  (let [col (if (= field "*") :* (keyword field))
+  (let [col (if (= field "*") :* (-field->col field))
         agg-fn (keyword function)
         expr (case function
                ;; Percentiles use approx_quantile in DuckDB
@@ -82,7 +97,7 @@
                "p99" [:approx_quantile col 0.99]
                ;; Standard aggregations
                [agg-fn col])
-        result-alias (or alias (str function "_" (name (if (= col :*) "all" col))))]
+        result-alias (or alias (str function "_" field))]
     [expr (keyword result-alias)]))
 
 ;; ---------------------------------------------------------
@@ -118,10 +133,12 @@
   [hsql-query {:keys [aggregations group_by]}]
   (if (seq aggregations)
     (let [agg-exprs (map -build-aggregation-expr aggregations)
-          group-cols (map keyword group_by)
-          select-clause (concat
-                         (map (fn [col] [col col]) group-cols)
-                         (map (fn [[expr alias]] [expr alias]) agg-exprs))]
+          group-cols (map -field->col group_by)
+          ;; Build select clause: [col alias] for each group column
+          ;; The alias is the original field name as a keyword
+          group-select (map (fn [field col] [col (keyword field)]) group_by group-cols)
+          select-clause (concat group-select
+                                (map (fn [[expr alias]] [expr alias]) agg-exprs))]
       (cond-> (assoc hsql-query :select (vec select-clause))
         (seq group-cols) (assoc :group-by (vec group-cols))))
     hsql-query))
