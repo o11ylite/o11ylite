@@ -156,3 +156,51 @@
                  :aggregations [{:field "*" :function "count"}]
                  :group_by ["service" "environment"]
                  :visualization {:type "time_series"}}))))
+
+;; ---------------------------------------------------------
+;; Field Name Validation (SQL Injection Prevention)
+
+(deftest field-name-validation-test
+  (testing "valid field names"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :filter {:field "service" :op "=" :value "api"}
+                 :visualization {:type "table"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :filter {:field "attr.http.method" :op "=" :value "GET"}
+                 :visualization {:type "table"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :filter {:field "_private_field" :op "=" :value "x"}
+                 :visualization {:type "table"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :filter {:field "field_with_123" :op "=" :value "x"}
+                 :visualization {:type "table"}})))
+
+  (testing "rejects SQL injection attempts in filter field"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "service; DROP TABLE events; --" :op "=" :value "x"}
+                   :visualization {:type "table"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "field\"injection" :op "=" :value "x"}
+                   :visualization {:type "table"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "field'injection" :op "=" :value "x"}
+                   :visualization {:type "table"}})))
+
+  (testing "rejects SQL injection in group_by"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:field "*" :function "count"}]
+                   :group_by ["service; DROP TABLE events;"]
+                   :visualization {:type "table"}})))
+
+  (testing "rejects SQL injection in aggregation field"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:field "duration); DROP TABLE events; --" :function "avg"}]
+                   :visualization {:type "table"}})))
+
+  (testing "field name must start with letter or underscore"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "123field" :op "=" :value "x"}
+                   :visualization {:type "table"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field ".dotfirst" :op "=" :value "x"}
+                   :visualization {:type "table"}}))))
