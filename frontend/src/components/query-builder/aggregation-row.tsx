@@ -34,7 +34,7 @@ export function AggregationRow({
   onUpdate: (item: Aggregation) => void
   onRemove: () => void
 }) {
-  const numericFields = fields.filter((f) => f.type === "num")
+  const numericFields = fields.filter((f) => f.type === "integer" || f.type === "float")
   const needsField = item.function !== "count"
 
   return (

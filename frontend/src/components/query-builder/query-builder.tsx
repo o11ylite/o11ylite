@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   type Field,
+  type Service,
   type QueryBuilderState,
   type Visualization,
   type VisualizationType,
@@ -21,10 +22,12 @@ import { AggregationSection } from "./aggregation-section"
 
 export function QueryBuilder({
   fields,
+  services,
   initialState,
   onSubmit,
 }: {
   fields: Field[]
+  services: Service[]
   initialState: QueryBuilderState
   onSubmit: (state: QueryBuilderState) => void
 }) {
@@ -80,8 +83,11 @@ export function QueryBuilder({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All services</SelectItem>
-            <SelectItem value="api-gateway">api-gateway</SelectItem>
-            <SelectItem value="user-service">user-service</SelectItem>
+            {services.map((service) => (
+              <SelectItem key={service.name} value={service.name}>
+                {service.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
