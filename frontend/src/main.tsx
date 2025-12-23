@@ -33,7 +33,7 @@ router.on('before', (event) => {
 
 void createInertiaApp({
   resolve: async (name) => {
-    const pages = import.meta.glob('./pages/**/*.tsx')
+    const pages = import.meta.glob(['./pages/**/*.tsx', '!./pages/**/*.test.tsx'])
     const page = await pages[`./pages/${name}.tsx`]()
     return page
   },
