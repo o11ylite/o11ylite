@@ -1,10 +1,22 @@
 // ============================================================================
+// Service Types
+// ============================================================================
+// Service metadata from the backend's service_metadata table.
+
+export interface Service {
+  name: string
+  first_seen_at: number
+  updated_at: number
+}
+
+// ============================================================================
 // Field Types
 // ============================================================================
 // Field metadata from the backend's event_metadata component.
 // Used to populate field pickers and determine available operators.
+// Maps to backend schema.clj normalized types.
 
-export type FieldType = "time" | "str" | "num" | "enum"
+export type FieldType = "string" | "instant" | "integer" | "float" | "boolean"
 
 export interface Field {
   name: string

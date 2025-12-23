@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { QueryBuilder } from "@/components/query-builder"
@@ -13,28 +14,12 @@ import { useQueryState } from "@/hooks/use-query-state"
 import { useTimeRange, resolveTimeRange } from "@/hooks/use-time-range"
 import type {
   Field,
+  Service,
   EventsQuery,
   QueryResponse,
   SimpleFilter,
   FilterExpr,
 } from "@/types"
-
-// ============================================================================
-// Mock Data (will come from backend later)
-// ============================================================================
-
-const MOCK_FIELDS: Field[] = [
-  { name: "timestamp", type: "time" },
-  { name: "service", type: "str" },
-  { name: "severity", type: "enum" },
-  { name: "message", type: "str" },
-  { name: "trace_id", type: "str" },
-  { name: "span_id", type: "str" },
-  { name: "duration_ms", type: "num" },
-  { name: "status_code", type: "num" },
-  { name: "http_method", type: "str" },
-  { name: "http_path", type: "str" },
-]
 
 // ============================================================================
 // API
@@ -71,6 +56,7 @@ function buildFilterExpr(filters: SimpleFilter[]): FilterExpr | undefined {
 // ============================================================================
 
 export default function Explore() {
+  const { fields, services } = usePage<{ fields: Field[]; services: Service[] }>().props
   const { state, setState, hasQuery } = useQueryState()
   const { from, to } = useTimeRange()
   const timeRange = resolveTimeRange({ from, to })
@@ -114,7 +100,7 @@ export default function Explore() {
   }
 
   const rightPanel = (
-    <FieldsPanel fields={MOCK_FIELDS} onFieldClick={handleFieldClick} />
+    <FieldsPanel fields={fields} onFieldClick={handleFieldClick} />
   )
 
   const renderResults = () => {
@@ -129,7 +115,8 @@ export default function Explore() {
     <ApplicationLayout title="Explore" showTimeRange rightPanel={rightPanel}>
       <div className="flex flex-col h-full gap-3">
         <QueryBuilder
-          fields={MOCK_FIELDS}
+          fields={fields}
+          services={services}
           initialState={state}
           onSubmit={handleSubmit}
         />
