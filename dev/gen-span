@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# Generates sample spans using otel-cli and sends them to the local GRPC server.
+#
+# Requirements:
+#   brew install equinix-labs/otel-cli/otel-cli
+#
+# Usage:
+#   dev/gen-span        # Generate 10 spans (default)
+#   dev/gen-span 50     # Generate 50 spans
+#
+# Environment:
+#   OTEL_GRPC_PORT      # gRPC port (default: 4317)
+#
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+OTEL_GRPC_PORT="${OTEL_GRPC_PORT:-4317}"
+ENDPOINT="localhost:$OTEL_GRPC_PORT"
+
+# Sample services and operations for realistic traces
+SERVICES=("api-gateway" "user-service" "order-service" "payment-service" "inventory-service")
+OPERATIONS=("GET /users" "POST /orders" "GET /products" "POST /payments" "GET /inventory")
+STATUSES=("ok" "ok" "ok" "ok" "error")  # 80% success rate
+
+generate_trace() {
+  local service="${SERVICES[$((RANDOM % ${#SERVICES[@]}))]}"
+  local operation="${OPERATIONS[$((RANDOM % ${#OPERATIONS[@]}))]}"
+  local status="${STATUSES[$((RANDOM % ${#STATUSES[@]}))]}"
+  local duration_ms=$((50 + RANDOM % 450))  # 50-500ms
+  local start_time end_time
+  start_time=$(date +%s.%N)
+  end_time=$(echo "$start_time + $duration_ms / 1000" | bc -l)
+
+  echo "Sending span: service=$service operation=\"$operation\" status=$status duration=${duration_ms}ms"
+
+  otel-cli span \
+    --start "$start_time" \
+    --end "$end_time" \
+    --endpoint "$ENDPOINT" \
+    --insecure \
+    --service "$service" \
+    --name "$operation" \
+    --kind server \
+    --status-code "$status" \
+    --attrs "http.method=${operation%% *},http.route=${operation#* },http.status_code=$([[ $status == "ok" ]] && echo 200 || echo 500),service.version=1.0.$((RANDOM % 10))"
+}
+
+generate_nested_trace() {
+  local parent_service="api-gateway"
+  local child_service="${SERVICES[$((1 + RANDOM % (${#SERVICES[@]} - 1)))]}"
+
+  echo "Sending nested trace: $parent_service -> $child_service"
+
+  # Create parent span and propagate context to child
+  otel-cli exec \
+    --endpoint "$ENDPOINT" \
+    --insecure \
+    --service "$parent_service" \
+    --name "GET /api/data" \
+    --kind server \
+    --attrs "http.method=GET,http.route=/api/data,http.status_code=200" \
+    -- \
+    otel-cli span \
+      --endpoint "$ENDPOINT" \
+      --insecure \
+      --service "$child_service" \
+      --name "fetch_data" \
+      --kind client \
+      --attrs "db.system=postgresql,db.operation=SELECT"
+}
+
+main() {
+  local count="${1:-10}"
+
+  echo "Generating $count sample spans to $ENDPOINT"
+  echo "---"
+
+  for ((i = 1; i <= count; i++)); do
+    if ((RANDOM % 3 == 0)); then
+      generate_nested_trace
+    else
+      generate_trace
+    fi
+    sleep 0.1
+  done
+
+  echo "---"
+  echo "Done. Sent $count spans."
+}
+
+main "$@"
