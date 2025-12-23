@@ -13,6 +13,7 @@ Read the following file as it's relevant to all workflows: @README.md.
 - `make format-check` / `make format-fix` - Check/fix formatting with cljstyle
 
 **Frontend (TypeScript):** Run from `frontend/` directory
+- `npm test` - Run tests powered by msw, React Testing Library.
 - `npm run build` - TypeScript compile + Vite build
 - `npm run lint` - ESLint check
 
