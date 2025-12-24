@@ -17,6 +17,9 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+export OTEL_CLI_FAIL=true
+export OTEL_CLI_VERBOSE=true
+export OTEL_EXPORTER_OTLP_TIMEOUT=2s # we flush every 1s by default
 OTEL_GRPC_PORT="${OTEL_GRPC_PORT:-4317}"
 ENDPOINT="localhost:$OTEL_GRPC_PORT"
 
@@ -32,7 +35,7 @@ generate_trace() {
   local duration_ms=$((50 + RANDOM % 450))  # 50-500ms
   local start_time end_time
   start_time=$(date +%s.%N)
-  end_time=$(echo "$start_time + $duration_ms / 1000" | bc -l)
+  end_time=$(printf "%.9f" "$(echo "$start_time + $duration_ms / 1000" | bc -l)")
 
   echo "Sending span: service=$service operation=\"$operation\" status=$status duration=${duration_ms}ms"
 
