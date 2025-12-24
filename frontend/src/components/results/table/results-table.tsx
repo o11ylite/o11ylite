@@ -3,19 +3,12 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type ColumnDef,
   type VisibilityState,
 } from "@tanstack/react-table"
-import { ChevronDown, Eye } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 
 import type { QueryResponse } from "@/types"
 import { Button } from "@/components/ui/button"
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -31,103 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-type RowData = Record<string, unknown>
-
-const DEFAULT_VISIBLE_FIELDS = new Set([
-  "timestamp",
-  "service",
-  "name",
-  "log.body",
-  "trace_id",
-  "meta.signal_type",
-])
-
-function formatCellValue(value: unknown): string {
-  if (value === null || value === undefined) return ""
-  if (typeof value === "string") return value
-  if (typeof value === "number" || typeof value === "boolean") return String(value)
-  return JSON.stringify(value)
-}
-
-function buildColumns(
-  fields: string[],
-  onViewDetail: (row: RowData) => void
-): ColumnDef<RowData>[] {
-  const actionsColumn: ColumnDef<RowData> = {
-    id: "_actions",
-    header: "",
-    cell: ({ row }) => (
-      // Using native button for minimal footprint in table cells.
-      // shadcn Button adds padding/height that disrupts row density.
-      <button
-        onClick={() => onViewDetail(row.original)}
-        className="p-1 text-muted-foreground hover:text-foreground"
-        aria-label="View details"
-      >
-        <Eye className="h-3.5 w-3.5" />
-      </button>
-    ),
-    enableHiding: false,
-  }
-
-  const fieldColumns = fields.map((field) => ({
-    id: field,
-    // Use accessorFn instead of accessorKey to avoid TanStack Table
-    // interpreting dots as nested property paths (e.g., "scope.version")
-    accessorFn: (row: RowData) => row[field],
-    header: field,
-    cell: ({ getValue }: { getValue: () => unknown }) => (
-      <span className="truncate max-w-[300px] block">
-        {formatCellValue(getValue())}
-      </span>
-    ),
-  }))
-
-  return [actionsColumn, ...fieldColumns]
-}
-
-function buildDefaultVisibility(fields: string[]): VisibilityState {
-  // Show all fields if there are few (typical for aggregation queries)
-  if (fields.length <= 6) return {}
-
-  const defaultFieldCount = fields.filter((f) => DEFAULT_VISIBLE_FIELDS.has(f)).length
-
-  // Show all fields if fewer than 3 default fields are available
-  if (defaultFieldCount < 3) return {}
-
-  return Object.fromEntries(
-    fields.map((field) => [field, DEFAULT_VISIBLE_FIELDS.has(field)])
-  )
-}
-
-function RowDetailDrawer({
-  row,
-  onClose,
-}: {
-  row: RowData | null
-  onClose: () => void
-}) {
-  const nonNilEntries = row
-    ? Object.entries(row).filter(([, v]) => v !== null && v !== undefined)
-    : []
-
-  return (
-    <Drawer open={row !== null} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent>
-        <div className="mx-auto w-full max-w-2xl">
-          <DrawerHeader>
-            <DrawerTitle>Row Details</DrawerTitle>
-          </DrawerHeader>
-          <div className="p-4 max-h-[60vh] overflow-auto">
-            <pre className="text-xs bg-muted/50 p-4 rounded-lg overflow-auto">
-              {JSON.stringify(Object.fromEntries(nonNilEntries), null, 2)}
-            </pre>
-          </div>
-        </div>
-      </DrawerContent>
-    </Drawer>
-  )
-}
+import { buildColumns, buildDefaultVisibility, type RowData } from "./columns"
+import { RowDetailDrawer } from "./row-detail-drawer"
 
 export function ResultsTable({ data }: { data: QueryResponse }) {
   const { rows, total_count, truncated } = data.data
