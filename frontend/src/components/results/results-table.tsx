@@ -6,10 +6,16 @@ import {
   type ColumnDef,
   type VisibilityState,
 } from "@tanstack/react-table"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Eye } from "lucide-react"
 
 import type { QueryResponse } from "@/types"
 import { Button } from "@/components/ui/button"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -43,19 +49,41 @@ function formatCellValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
-function buildColumns(fields: string[]): ColumnDef<RowData>[] {
-  return fields.map((field) => ({
+function buildColumns(
+  fields: string[],
+  onViewDetail: (row: RowData) => void
+): ColumnDef<RowData>[] {
+  const actionsColumn: ColumnDef<RowData> = {
+    id: "_actions",
+    header: "",
+    cell: ({ row }) => (
+      // Using native button for minimal footprint in table cells.
+      // shadcn Button adds padding/height that disrupts row density.
+      <button
+        onClick={() => onViewDetail(row.original)}
+        className="p-1 text-muted-foreground hover:text-foreground"
+        aria-label="View details"
+      >
+        <Eye className="h-3.5 w-3.5" />
+      </button>
+    ),
+    enableHiding: false,
+  }
+
+  const fieldColumns = fields.map((field) => ({
     id: field,
     // Use accessorFn instead of accessorKey to avoid TanStack Table
     // interpreting dots as nested property paths (e.g., "scope.version")
-    accessorFn: (row) => row[field],
+    accessorFn: (row: RowData) => row[field],
     header: field,
-    cell: ({ getValue }) => (
+    cell: ({ getValue }: { getValue: () => unknown }) => (
       <span className="truncate max-w-[300px] block">
         {formatCellValue(getValue())}
       </span>
     ),
   }))
+
+  return [actionsColumn, ...fieldColumns]
 }
 
 function buildDefaultVisibility(fields: string[]): VisibilityState {
@@ -72,8 +100,39 @@ function buildDefaultVisibility(fields: string[]): VisibilityState {
   )
 }
 
+function RowDetailDrawer({
+  row,
+  onClose,
+}: {
+  row: RowData | null
+  onClose: () => void
+}) {
+  const nonNilEntries = row
+    ? Object.entries(row).filter(([, v]) => v !== null && v !== undefined)
+    : []
+
+  return (
+    <Drawer open={row !== null} onOpenChange={(open) => !open && onClose()}>
+      <DrawerContent>
+        <div className="mx-auto w-full max-w-2xl">
+          <DrawerHeader>
+            <DrawerTitle>Row Details</DrawerTitle>
+          </DrawerHeader>
+          <div className="p-4 max-h-[60vh] overflow-auto">
+            <pre className="text-xs bg-muted/50 p-4 rounded-lg overflow-auto">
+              {JSON.stringify(Object.fromEntries(nonNilEntries), null, 2)}
+            </pre>
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
 export function ResultsTable({ data }: { data: QueryResponse }) {
   const { rows, total_count, truncated } = data.data
+
+  const [detailRow, setDetailRow] = useState<RowData | null>(null)
 
   const rawFields = rows.length > 0 ? Object.keys(rows[0]) : []
   // Ensure timestamp always rendered as the first field.
@@ -84,7 +143,7 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
 
   // Memoize columns based on field names, not the rows array reference
   const columns = useMemo(
-    () => buildColumns(fields),
+    () => buildColumns(fields, setDetailRow),
     [fieldsKey] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
@@ -180,6 +239,7 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
         {total_count} rows{truncated && " (truncated)"} &middot;{" "}
         {data.metadata.query_time_ms}ms
       </div>
+      <RowDetailDrawer row={detailRow} onClose={() => setDetailRow(null)} />
     </div>
   )
 }
