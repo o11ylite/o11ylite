@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { type Field } from "@/types"
 import { FieldTypeBadge } from "@/components/field-type-badge"
@@ -9,15 +10,25 @@ export function FieldsPanel({
   fields: Field[]
   onFieldClick: (fieldName: string) => void
 }) {
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const filteredFields = searchQuery
+    ? fields.filter((field) =>
+        field.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : fields
+
   return (
     <div className="space-y-2">
       <Input
         type="text"
         placeholder="Search fields..."
         className="h-8 text-xs"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
       />
       <div className="space-y-0.5">
-        {fields.map((field) => (
+        {filteredFields.map((field) => (
           <button
             key={field.name}
             onClick={() => onFieldClick(field.name)}
