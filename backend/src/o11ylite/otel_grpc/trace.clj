@@ -39,7 +39,7 @@
 
 (defn create-service
   "Create a TraceService gRPC implementation.
-   
+
    Arguments:
      event-metadata - Event metadata cache component
      batcher        - Ingest batcher component"
