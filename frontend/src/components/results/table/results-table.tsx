@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { buildColumns, buildDefaultVisibility, type RowData } from "./columns"
+import { buildColumns, buildDefaultVisibility, isErrorRow, type RowData } from "./columns"
 import { RowDetailDrawer } from "./row-detail-drawer"
 
 export function ResultsTable({ data }: { data: QueryResponse }) {
@@ -122,7 +122,10 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                key={row.id}
+                className={isErrorRow(row.original) ? "border-l-2 border-l-red-500" : ""}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
