@@ -100,13 +100,13 @@
   (get-fields em)
   ;; => {:service {:type :string}
   ;;     :timestamp {:type :instant}
-  ;;     :span.duration_ns {:type :integer}
+   ;;     :span.duration_ms {:type :float}
   ;;     ...}
 
   ;; Get specific field
   (get-field em :service)           ;; => {:type :string}
   (get-field em :timestamp)         ;; => {:type :instant}
-  (get-field em :span.duration_ns)  ;; => {:type :integer}
+  (get-field em :span.duration_ms)  ;; => {:type :float}
 
   ;; Async refresh
   @(refresh! em)

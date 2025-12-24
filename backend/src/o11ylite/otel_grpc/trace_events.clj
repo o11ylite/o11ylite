@@ -91,8 +91,8 @@
       :span.status_message (.getMessage status)
       :span.start_time (proto/nanos->instant start-nanos)
       :span.end_time (proto/nanos->instant end-nanos)
-      :span.duration_ns (when (and (pos? end-nanos) (pos? start-nanos))
-                          (- end-nanos start-nanos))
+      :span.duration_ms (when (and (pos? end-nanos) (pos? start-nanos))
+                          (/ (- end-nanos start-nanos) 1e6))
 
       ;; Instrumentation scope
       :scope.name scope-name
@@ -177,7 +177,7 @@
    :span.status_code :ok
    :span.start_time #inst "2024-01-15T10:30:00Z"
    :span.end_time #inst "2024-01-15T10:30:00.100Z"
-   :span.duration_ns 100000000
+   :span.duration_ms 100.0
    :scope.name "http-server"
    :scope.version "1.0.0"
    :meta.observed_time #inst "2024-01-15T10:30:01Z"

@@ -37,7 +37,7 @@
      \"span.status_message\" VARCHAR,
      \"span.start_time\" TIMESTAMP_NS,
      \"span.end_time\" TIMESTAMP_NS,
-     \"span.duration_ns\" BIGINT,
+     \"span.duration_ms\" FLOAT,
 
      -- Log-specific fields (NULL for spans)
      \"log.severity\" VARCHAR,

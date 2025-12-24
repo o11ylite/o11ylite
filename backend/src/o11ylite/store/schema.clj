@@ -148,7 +148,7 @@
   (fetch-event-fields ds)
   ;; => {:service {:type :string}
   ;;     :timestamp {:type :instant}
-  ;;     :span.duration_ns {:type :integer}
+   ;;     :span.duration_ms {:type :float}
   ;;     ...}
 
   (ig/halt-key! :db/duckdb ds)

@@ -178,7 +178,7 @@
    :meta.signal_type :span
    :span.kind :server
    :span.status_code :ok
-   :span.duration_ns 1234567
+   :span.duration_ms 1.234567
    :meta.observed_time #inst "2024-01-01T00:00:01Z"
    ;; Dynamic attributes (also keywords)
    :attr.http.method "GET"

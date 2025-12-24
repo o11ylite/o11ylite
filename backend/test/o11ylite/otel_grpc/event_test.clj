@@ -87,7 +87,7 @@
       (is (= "" (:parent_span_id parent-span))) ; Empty string for no parent (protobuf default)
       (is (= :server (:span.kind parent-span)))
       (is (= :ok (:span.status_code parent-span)))
-      (is (= 100000000000 (:span.duration_ns parent-span)))
+      (is (= 100000.0 (:span.duration_ms parent-span)))
       (is (= "test-tracer" (:scope.name parent-span)))
       (is (= "1.0.0" (:scope.version parent-span))))))
 
