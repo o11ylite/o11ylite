@@ -46,7 +46,7 @@
     (let [em (event-metadata-component)]
       (is (= :string (:type (event-metadata/get-field em :service))))
       (is (= :instant (:type (event-metadata/get-field em :timestamp))))
-      (is (= :integer (:type (event-metadata/get-field em :span.duration_ns)))))))
+      (is (= :float (:type (event-metadata/get-field em :span.duration_ms)))))))
 
 (deftest event-metadata-refresh-async-test
   (testing "Async refresh returns promise with fields"
