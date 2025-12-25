@@ -8,7 +8,8 @@
 (ns o11ylite.integration.api.query-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.test-helpers :as h]))
+   [o11ylite.test-helpers :as h]
+   [tick.core :as t]))
 
 (use-fixtures :each h/with-system)
 
@@ -147,6 +148,52 @@
       (is (h/json-response? response))
       (is (vector? (get-in response [:body :data :series])))
       (is (number? (get-in response [:body :data :bucket_ms]))))))
+
+(deftest events-query-time-series-with-data-test
+  (testing "POST /api/query/events time_series returns bucketed series grouped by labels"
+    ;; Use fixed timestamps truncated to minute boundary for predictable bucketing
+    (let [bucket-1 (-> (t/instant) (t/truncate :minutes))
+          bucket-2 (t/>> bucket-1 (t/of-minutes 1))
+          bucket-1-epoch-s (t/long bucket-1)
+          bucket-2-epoch-s (t/long bucket-2)]
+
+      ;; Ingest events into first time bucket
+      (h/ingest-sample-events! (event-metadata) (batcher) 2
+                               {:service "ts-service-a" :timestamp bucket-1})
+      (h/ingest-sample-events! (event-metadata) (batcher) 1
+                               {:service "ts-service-b" :timestamp bucket-1})
+
+      ;; Ingest events into second time bucket
+      (h/ingest-sample-events! (event-metadata) (batcher) 3
+                               {:service "ts-service-a" :timestamp bucket-2})
+      (h/ingest-sample-events! (event-metadata) (batcher) 2
+                               {:service "ts-service-b" :timestamp bucket-2})
+
+      ;; Query time series grouped by service
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start bucket-1-epoch-s
+                                                :end (+ bucket-2-epoch-s 60)}
+                                   :filter {:or [{:field "service" :op "=" :value "ts-service-a"}
+                                                 {:field "service" :op "=" :value "ts-service-b"}]}
+                                   :aggregations [{:field "*"
+                                                   :function "count"
+                                                   :alias "count"}]
+                                   :group_by ["service"]
+                                   :visualization {:type "time_series"
+                                                   :bucket_ms 60000}})
+            data (get-in response [:body :data])
+            bucket-1-ts (* bucket-1-epoch-s 1000)
+            bucket-2-ts (* bucket-2-epoch-s 1000)]
+        (is (= 200 (h/status response)))
+        (is (= {:bucket_ms 60000
+                :series [{:labels {:service "ts-service-a"}
+                          :data [{:timestamp bucket-1-ts :count 2}
+                                 {:timestamp bucket-2-ts :count 3}]}
+                         {:labels {:service "ts-service-b"}
+                          :data [{:timestamp bucket-1-ts :count 1}
+                                 {:timestamp bucket-2-ts :count 2}]}]}
+               (update data :series
+                       (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
 
 ;; ---------------------------------------------------------
 ;; Heatmap Visualization

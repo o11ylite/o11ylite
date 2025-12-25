@@ -130,12 +130,21 @@
     (= 1 (count group_by))
     true))
 
+(defn- -valid-time-series-aggregation?
+  "Time series requires at least one aggregation for Y-axis values."
+  [{:keys [visualization aggregations]}]
+  (if (= "time_series" (:type visualization))
+    (seq aggregations)
+    true))
+
 (def events-query
   "Schema for events query requests."
   [:and
    base-query
    [:fn {:error/message "heatmap requires exactly one group_by field"}
-    -valid-heatmap-group-by?]])
+    -valid-heatmap-group-by?]
+   [:fn {:error/message "time_series requires at least one aggregation"}
+    -valid-time-series-aggregation?]])
 
 ;; ---------------------------------------------------------
 ;; Validation
