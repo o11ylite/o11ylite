@@ -1,6 +1,7 @@
-import { type ReactNode, useState } from "react"
+import { type ReactNode } from "react"
 import { PanelRightIcon } from "lucide-react"
 
+import { useLocalStorage } from "@/hooks/use-local-storage"
 import { AppSidebar } from "@/components/app-sidebar"
 import { TimeRangeSelector } from "@/components/time-range-selector"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,10 @@ export default function ApplicationLayout({
   showTimeRange?: boolean
   rightPanel?: ReactNode
 }) {
-  const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [rightPanelOpen, setRightPanelOpen] = useLocalStorage(
+    "right_panel_open",
+    true
+  )
 
   const rightPanelTrigger = rightPanel && (
     <>
