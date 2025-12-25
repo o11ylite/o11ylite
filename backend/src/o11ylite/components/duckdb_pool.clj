@@ -45,6 +45,8 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
+(def data-inlining-row-limit 100000)
+
 (defn- ensure-data-dir!
   "Ensure the data directory exists, creating it if necessary."
   [data-path]
@@ -62,12 +64,18 @@
   "Create the root DuckDB connection with DuckLake attached.
    This connection is used as the basis for duplicate() calls.
 
+   Note the use of DATA_INLINING_ROW_LIMIT this enables data inlining, this is our
+   main defence against fragmented parquets file.
+
    Note: USE o11ylite won't carry over to duplicate() connections since USE is
    session-level state. We add connectionInitSql to HikariCP to run USE on each
    pooled connection checkout."
   [ducklake-file]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
-        attach-sql (format "ATTACH 'ducklake:%s' AS o11ylite" ducklake-file)]
+        attach-sql (format
+                    "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s)"
+                    ducklake-file
+                    data-inlining-row-limit)]
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])

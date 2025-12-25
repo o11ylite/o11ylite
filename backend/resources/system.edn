@@ -27,6 +27,12 @@
   ;; Flush interval in milliseconds (default: 1 second)
   :flush-interval-ms #long #or [#env INGEST_FLUSH_INTERVAL_MS 1000]}
 
+ :ingest/inlined-data-flusher
+ {:duckdb #ig/ref :db/duckdb
+  ;; Flush interval in milliseconds (default: 15 minutes)
+  :flush-interval-ms #long #or [#env INLINED_DATA_FLUSH_INTERVAL_MS 900000]
+  :_storage #ig/ref :storage/init}
+
  :server/web
  {:host #or [#env HOST "0.0.0.0"]
   :port #long #or [#env PORT 3000]
