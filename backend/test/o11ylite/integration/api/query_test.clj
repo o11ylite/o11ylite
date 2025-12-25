@@ -15,6 +15,9 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
+(defn- event-metadata [] (:cache/event-metadata h/*system*))
+(defn- batcher [] (:ingest/batcher h/*system*))
+
 (defn- current-epoch-seconds
   "Get current Unix epoch time in seconds."
   []
@@ -46,39 +49,17 @@
       (is (number? (get-in response [:body :metadata :query_time_ms]))))))
 
 (deftest events-query-table-with-data-test
-  (testing "POST /api/query/events returns ingested spans"
-    (let [now-s (current-epoch-seconds)
-          now-ns (* (System/currentTimeMillis) 1000000)
-          trace-id "0123456789abcdef0123456789abcdef"
-          span-id-1 "0123456789abcdef"
-          span-id-2 "fedcba9876543210"]
+  (testing "POST /api/query/events returns ingested events"
+    (let [now-s (current-epoch-seconds)]
 
-      ;; Ingest test spans
-      (h/export-traces!
-       {:service-name "test-query-service"
-        :tracer-name "test-tracer"
-        :spans [{:trace-id trace-id
-                 :span-id span-id-1
-                 :name "GET /api/users"
-                 :kind :server
-                 :start-time-ns now-ns
-                 :end-time-ns (+ now-ns 50000000)
-                 :status :ok
-                 :attributes {:http.method "GET"
-                              :http.route "/api/users"}}
-                {:trace-id trace-id
-                 :span-id span-id-2
-                 :parent-span-id span-id-1
-                 :name "db.query"
-                 :kind :client
-                 :start-time-ns (+ now-ns 10000000)
-                 :end-time-ns (+ now-ns 40000000)
-                 :status :ok
-                 :attributes {:db.system "postgresql"}}]})
+      ;; Ingest test events
+      (h/ingest-sample-events! (event-metadata) (batcher) 2
+                               {:service "test-query-service"
+                                :name "test-event"})
 
       ;; Query the data
       (let [response (h/post-json "/api/query/events"
-                                  {:time_range {:start (- now-s 60)
+                                  {:time_range {:start (- now-s 3600)
                                                 :end (+ now-s 60)}
                                    :filter {:field "service"
                                             :op "="
@@ -91,42 +72,20 @@
               total (get-in response [:body :data :total_count])]
           (is (= 2 total))
           (is (= 2 (count rows)))
-          (is (some #(= "GET /api/users" (:name %)) rows))
-          (is (some #(= "db.query" (:name %)) rows))
+          (is (every? #(= "test-event" (:name %)) rows))
           (is (every? #(= "test-query-service" (:service %)) rows)))))))
 
 (deftest events-query-table-with-aggregation-test
   (testing "POST /api/query/events with aggregation returns grouped results"
-    (let [now-s (current-epoch-seconds)
-          now-ns (* (System/currentTimeMillis) 1000000)]
+    (let [now-s (current-epoch-seconds)]
 
-      ;; Ingest spans from two services
-      (h/export-traces!
-       {:service-name "service-a"
-        :tracer-name "test-tracer"
-        :spans [{:trace-id "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
-                 :span-id "aaaaaaaaaaaaaaaa"
-                 :name "request-1"
-                 :start-time-ns now-ns
-                 :end-time-ns (+ now-ns 10000000)}
-                {:trace-id "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
-                 :span-id "aaaaaaaaaaaaaaab"
-                 :name "request-2"
-                 :start-time-ns now-ns
-                 :end-time-ns (+ now-ns 20000000)}]})
-
-      (h/export-traces!
-       {:service-name "service-b"
-        :tracer-name "test-tracer"
-        :spans [{:trace-id "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1"
-                 :span-id "bbbbbbbbbbbbbbbb"
-                 :name "request-1"
-                 :start-time-ns now-ns
-                 :end-time-ns (+ now-ns 30000000)}]})
+      ;; Ingest events from two services
+      (h/ingest-sample-events! (event-metadata) (batcher) 2 {:service "service-a"})
+      (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "service-b"})
 
       ;; Query with count aggregation grouped by service
       (let [response (h/post-json "/api/query/events"
-                                  {:time_range {:start (- now-s 60)
+                                  {:time_range {:start (- now-s 3600)
                                                 :end (+ now-s 60)}
                                    :aggregations [{:field "*"
                                                    :function "count"
@@ -151,23 +110,16 @@
 
 (deftest events-query-filter-by-field-with-dots-test
   (testing "POST /api/query/events handles filtering by attribute fields containing dots"
-    (let [now-s (current-epoch-seconds)
-          now-ns (* (System/currentTimeMillis) 1000000)]
+    (let [now-s (current-epoch-seconds)]
 
-      ;; Ingest spans with a dotted attribute
-      (h/export-traces!
-       {:service-name "test-dotted-field-service"
-        :tracer-name "test-tracer"
-        :spans [{:trace-id "11111111111111111111111111111111"
-                 :span-id "1111111111111111"
-                 :name "request-with-dotted-attr"
-                 :start-time-ns now-ns
-                 :end-time-ns (+ now-ns 10000000)
-                 :attributes {:http.method "GET"}}]})
+      ;; Ingest events with a dotted attribute (attr.http.method is generated by make-random-event)
+      (h/ingest-sample-events! (event-metadata) (batcher) 1
+                               {:service "test-dotted-field-service"
+                                :attr.http.method "GET"})
 
       ;; Query filtering by the dotted field name
       (let [response (h/post-json "/api/query/events"
-                                  {:time_range {:start (- now-s 60)
+                                  {:time_range {:start (- now-s 3600)
                                                 :end (+ now-s 60)}
                                    :filter {:field "attr.http.method"
                                             :op "="

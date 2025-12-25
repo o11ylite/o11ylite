@@ -9,6 +9,7 @@
   (:require
    [integrant.core :as ig]
    [o11ylite.system :as system]
+   [o11ylite.test-helpers.event-ingest :as event-ingest]
    [o11ylite.test-helpers.http :as http]
    [o11ylite.test-helpers.otlp :as otlp])
   (:import
@@ -125,3 +126,11 @@
 (def build-log-record otlp/build-log-record)
 (def build-logs-request otlp/build-logs-request)
 (def export-logs! otlp/export-logs!)
+
+;; ---------------------------------------------------------
+;; Re-exports: Event ingest helpers
+
+(def make-random-event event-ingest/make-random-event)
+(def make-random-events event-ingest/make-random-events)
+(def ingest-events! event-ingest/ingest-events!)
+(def ingest-sample-events! event-ingest/ingest-sample-events!)
