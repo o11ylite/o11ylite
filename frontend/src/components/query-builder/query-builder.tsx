@@ -95,13 +95,13 @@ export function QueryBuilder({
 
         <Tabs value={vizType} onValueChange={(v) => handleVizTypeChange(v as VisualizationType)}>
           <TabsList>
-            <TabsTrigger value="table">
+            <TabsTrigger value="table" title="Table">
               <Table size={14} />
             </TabsTrigger>
-            <TabsTrigger value="time_series">
+            <TabsTrigger value="time_series" title="Time series">
               <LineChart size={14} />
             </TabsTrigger>
-            <TabsTrigger value="heatmap">
+            <TabsTrigger value="heatmap" title="Heatmap">
               <Grid3X3 size={14} />
             </TabsTrigger>
           </TabsList>
