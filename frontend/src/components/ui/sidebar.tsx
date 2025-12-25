@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useLocalStorage } from "@/hooks/use-local-storage"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,8 +26,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+// O11yLite modification: Replaced cookie-based persistence with localStorage.
+// The original shadcn implementation writes a cookie on state change, but the
+// component itself never reads it back - it expects the server (e.g., Next.js)
+// to read the cookie and pass it as the `defaultOpen` prop during SSR. Since
+// we're using Inertia with a Clojure backend and don't need SSR hydration for
+// this preference, localStorage is simpler and fully client-side.
+const SIDEBAR_STORAGE_KEY = "sidebar_open"
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
@@ -69,9 +75,10 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
+  // O11yLite modification: Use localStorage for persistence instead of cookies.
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
+  const [_open, _setOpen] = useLocalStorage(SIDEBAR_STORAGE_KEY, defaultOpen)
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -81,11 +88,8 @@ function SidebarProvider({
       } else {
         _setOpen(openState)
       }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
-    [setOpenProp, open]
+    [setOpenProp, open, _setOpen]
   )
 
   // Helper to toggle the sidebar.
