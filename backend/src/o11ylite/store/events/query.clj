@@ -171,14 +171,70 @@
      :total_count (count rows)
      :truncated (>= (count rows) limit)}))
 
+(defn- -bucket-ms->interval
+  "Convert bucket size in milliseconds to DuckDB INTERVAL expression.
+   Uses raw SQL since HoneySQL doesn't have built-in interval support."
+  [bucket-ms]
+  (let [seconds (quot bucket-ms 1000)]
+    [:raw (str "INTERVAL '" seconds " seconds'")]))
+
+(defn- -build-time-series-query
+  "Build HoneySQL query for time series visualization.
+   Auto-injects time bucketing; user's group_by fields become series labels."
+  [{:keys [time_range filter aggregations group_by visualization]}]
+  (let [bucket-ms (or (:bucket_ms visualization)
+                      (max 1000 (quot (- (:end time_range) (:start time_range)) 100)))
+        bucket-interval (-bucket-ms->interval bucket-ms)
+        ;; Time bucket expression: time_bucket(interval, timestamp)
+        bucket-expr [[:time_bucket bucket-interval :timestamp] :bucket]
+        ;; Build aggregation expressions
+        agg-exprs (map -build-aggregation-expr aggregations)
+        ;; Group by columns (series labels)
+        group-cols (map -field->col group_by)
+        group-select (map (fn [field col] [col (keyword field)]) group_by group-cols)
+        ;; Select: bucket, group_by fields, aggregations
+        select-clause (into [bucket-expr]
+                            (concat group-select
+                                    (map (fn [[expr alias]] [expr alias]) agg-exprs)))
+        ;; Group by: bucket + user's group_by fields
+        group-by-clause (into [:bucket] group-cols)]
+    (-> {:select (vec select-clause)
+         :from [:events]
+         :where [:and
+                 [:>= :timestamp (-epoch-s->timestamp (:start time_range))]
+                 [:< :timestamp (-epoch-s->timestamp (:end time_range))]]
+         :group-by group-by-clause
+         :order-by [[:bucket :asc]]}
+        (-add-filter filter))))
+
+(defn- -rows->series
+  "Transform query result rows into series format.
+   Groups rows by label fields and extracts time/value pairs."
+  [rows group-by-fields agg-aliases]
+  (let [label-keys (map keyword group-by-fields)
+        ;; Group rows by their label values
+        grouped (group-by #(select-keys % label-keys) rows)]
+    (for [[labels rows-for-series] grouped]
+      {:labels labels
+       :data (vec (for [row rows-for-series]
+                    (into {:timestamp (.getTime (:bucket row))}
+                          (map (fn [alias] [alias (get row alias)]) agg-aliases))))})))
+
 (defn- -execute-time-series
   "Execute a time series visualization query."
-  [_duckdb {:keys [time_range visualization]}]
-  (let [bucket_ms (:bucket_ms visualization)
-        range-ms (- (:end time_range) (:start time_range))
-        actual-bucket-ms (or bucket_ms (max 1000 (quot range-ms 100)))]
-    {:bucket_ms actual-bucket-ms
-     :series []}))
+  [duckdb {:keys [visualization aggregations group_by] :as query}]
+  (let [bucket-ms (or (:bucket_ms visualization)
+                      (max 1000 (quot (- (:end (:time_range query))
+                                         (:start (:time_range query))) 100)))
+        hsql-query (-build-time-series-query query)
+        [sql-str & params] (sql/format hsql-query {:dialect :ansi})
+        rows (jdbc/execute! duckdb (into [sql-str] params))
+        agg-aliases (map (fn [{:keys [alias field function]}]
+                           (keyword (or alias (str function "_" field))))
+                         aggregations)
+        series (-rows->series rows (or group_by []) agg-aliases)]
+    {:bucket_ms bucket-ms
+     :series (vec series)}))
 
 (defn- -execute-heatmap
   "Execute a heatmap visualization query."
@@ -250,6 +306,26 @@
            {:time_range {:start 1702000000 :end 1702003600}
             :visualization {:type "table" :limit 100}})
   ;; => {:data {:rows [] :total_count 0 :truncated false}
+  ;;     :metadata {:query_time_ms N :truncated false}}
+
+  ;; Time series query - count events per minute
+  (execute ds
+           {:time_range {:start 1702000000 :end 1702003600}
+            :aggregations [{:field "*" :function "count"}]
+            :visualization {:type "time_series" :bucket_ms 60000}})
+  ;; => {:data {:bucket_ms 60000
+  ;;            :series [{:labels {} :data [{:timestamp N :count_* N} ...]}]}
+  ;;     :metadata {:query_time_ms N :truncated false}}
+
+  ;; Time series with group_by - count per service per minute
+  (execute ds
+           {:time_range {:start 1702000000 :end 1702003600}
+            :aggregations [{:field "*" :function "count"}]
+            :group_by ["service"]
+            :visualization {:type "time_series" :bucket_ms 60000}})
+  ;; => {:data {:bucket_ms 60000
+  ;;            :series [{:labels {:service "api"} :data [...]}
+  ;;                     {:labels {:service "web"} :data [...]}]}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
   (ig/halt-key! :db/duckdb ds)

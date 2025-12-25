@@ -56,10 +56,17 @@
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :visualization {:type "table" :limit 501}})))
 
-  (testing "time_series visualization"
+  (testing "time_series visualization requires at least one aggregation"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :visualization {:type "time_series"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations []
+                   :visualization {:type "time_series"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:field "*" :function "count"}]
                  :visualization {:type "time_series"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:field "*" :function "count"}]
                  :visualization {:type "time_series" :bucket_ms 60000}})))
 
   (testing "heatmap visualization requires exactly one group_by"
