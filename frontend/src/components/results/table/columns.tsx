@@ -1,6 +1,12 @@
 import { type ColumnDef, type VisibilityState } from "@tanstack/react-table"
 import { Eye } from "lucide-react"
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 export type RowData = Record<string, unknown>
 
 const DEFAULT_VISIBLE_FIELDS = new Set([
@@ -39,13 +45,18 @@ export function buildColumns(
     cell: ({ row }) => (
       // Using native button for minimal footprint in table cells.
       // shadcn Button adds padding/height that disrupts row density.
-      <button
-        onClick={() => onViewDetail(row.original)}
-        className="p-1 text-muted-foreground hover:text-foreground"
-        aria-label="View details"
-      >
-        <Eye className="h-3.5 w-3.5" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => onViewDetail(row.original)}
+            className="p-1 text-muted-foreground hover:text-foreground"
+            aria-label="View details"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>View details</TooltipContent>
+      </Tooltip>
     ),
     enableHiding: false,
   }
