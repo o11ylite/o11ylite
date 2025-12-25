@@ -17,6 +17,7 @@
    [o11ylite.components.event-metadata]
    [o11ylite.components.service-discovery]
    [o11ylite.components.ingest-batcher]
+   [o11ylite.components.inlined-data-flusher]
    [o11ylite.components.otel-grpc-server]
    [o11ylite.components.inertia]
    [o11ylite.components.router]

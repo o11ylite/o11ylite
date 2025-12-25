@@ -48,7 +48,9 @@
         ;; Fast flush interval for tests (100ms)
         (assoc-in [:ingest/batcher :flush-interval-ms] 100)
         ;; Fast service discovery for tests (100ms)
-        (assoc-in [:discovery/services :scan-interval-ms] 100))))
+        (assoc-in [:discovery/services :scan-interval-ms] 100)
+        ;; Fast inlined data flusher for tests (100ms)
+        (assoc-in [:ingest/inlined-data-flusher :flush-interval-ms] 100))))
 
 (defn start-system!
   "Start the full system with test configuration."

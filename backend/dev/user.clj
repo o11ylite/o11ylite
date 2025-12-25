@@ -19,7 +19,11 @@
    [com.brunobonacci.mulog :as mulog]  ; Global context & Tap publisher
    [portal]
    [portal.api :as inspect]                          ; Data inspector
-   [clojure.tools.namespace.repl :as namespace]))
+   [clojure.tools.namespace.repl :as namespace]
+   ;; integrant.repl provides convenient functions to start, stop, and reset
+   ;; the system during development. It maintains the system state internally.
+   [integrant.repl :as ig-repl]
+   [o11ylite.system :as system]))
 
 ;; ---------------------------------------------------------
 ;; Help
@@ -120,9 +124,6 @@
 ;;
 ;; integrant.repl provides convenient functions to start, stop, and reset
 ;; the system during development. It maintains the system state internally.
-
-(require '[integrant.repl :as ig-repl])
-(require '[o11ylite.system :as system])
 
 ;; Tell integrant.repl how to read your system config
 (ig-repl/set-prep! #(system/read-config :dev))
