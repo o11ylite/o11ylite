@@ -15,6 +15,10 @@
    [java.time Instant]))
 
 ;; Only start components needed for inlined data flusher
+;; Note: We use persist-batch! directly instead of the batcher to avoid a
+;; known DuckLake concurrency issue where INSERT + flush_inlined_data can
+;; cause data duplication when running concurrently.
+;; See: https://github.com/duckdb/ducklake/issues/650
 (use-fixtures :each (h/with-partial-system [:ingest/inlined-data-flusher :cache/event-metadata]))
 
 ;; ---------------------------------------------------------
@@ -24,7 +28,7 @@
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
 
 (defn- ingest-small-batch!
-  "Ingest a small batch of events (will be inlined due to DATA_INLINING_ROW_LIMIT)."
+  "Ingest a small batch of events directly (will be inlined due to DATA_INLINING_ROW_LIMIT)."
   [service-name n]
   (let [now (Instant/now)
         events (for [i (range n)]

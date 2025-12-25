@@ -7,37 +7,18 @@
 (ns o11ylite.integration.components.service-discovery-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.store.events.ingest :as events.ingest]
    [o11ylite.store.services :as services]
-   [o11ylite.test-helpers :as h])
-  (:import
-   [java.time Instant]))
+   [o11ylite.test-helpers :as h]))
 
 ;; Only start components needed for service discovery
-(use-fixtures :each (h/with-partial-system [:discovery/services :cache/event-metadata]))
+(use-fixtures :each (h/with-partial-system [:discovery/services :cache/event-metadata :ingest/batcher]))
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
 (defn- sqlite [] (:db/sqlite h/*system*))
-(defn- duckdb [] (:db/duckdb h/*system*))
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
-
-(defn- ingest-event!
-  "Ingest a single event for a service."
-  [service-name]
-  (let [now (Instant/now)
-        events [{:service service-name
-                 :timestamp now
-                 :meta.signal_type :span
-                 :meta.observed_time now
-                 :name "test-span"}]
-        fields {:service {:type :string}
-                :timestamp {:type :instant}
-                :meta.signal_type {:type :string}
-                :meta.observed_time {:type :instant}
-                :name {:type :string}}]
-    (events.ingest/persist-batch! (duckdb) (event-metadata) events fields)))
+(defn- batcher [] (:ingest/batcher h/*system*))
 
 ;; ---------------------------------------------------------
 ;; Tests
@@ -45,8 +26,8 @@
 (deftest service-discovery-test
   (testing "Service discovery component discovers services from telemetry"
     ;; Ingest events for two services
-    (ingest-event! "api-gateway")
-    (ingest-event! "payment-service")
+    (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "api-gateway"})
+    (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "payment-service"})
 
     ;; Wait for background discovery (test system uses 100ms interval)
     (Thread/sleep 200)

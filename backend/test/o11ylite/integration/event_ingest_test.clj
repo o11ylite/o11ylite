@@ -2,7 +2,6 @@
 ;; o11ylite.integration.event-ingest-test
 ;;
 ;; Integration tests for event ingestion into DuckLake.
-;; Focuses on persist-batch! INSERT behavior.
 ;; ---------------------------------------------------------
 
 (ns o11ylite.integration.event-ingest-test
@@ -21,6 +20,7 @@
 
 (defn- duckdb [] (:db/duckdb h/*system*))
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
+(defn- batcher [] (:ingest/batcher h/*system*))
 
 (defn- query-events
   "Query all events from DuckLake, ordered by name."
@@ -74,6 +74,35 @@
             row (first rows)]
         (is (= 1 (count rows)))
         (is (= "dynamic-value" (get row custom-field)))))))
+
+(deftest ingest-events-happy-path-test
+  (testing "ingest-events! validates, extracts fields, and persists via batcher"
+    (let [events [(make-event {:name "ingested-span-1"
+                               :trace_id "trace-001"
+                               :attr.http.method "GET"})
+                  (make-event {:name "ingested-span-2"
+                               :trace_id "trace-002"
+                               :attr.http.status_code 200})]
+          result (events.ingest/ingest-events! (event-metadata) (batcher) events)]
+      (is (true? result) "ingest-events! should return true on success")
+      (let [rows (query-events)]
+        (is (= 2 (count rows)))
+        (is (= "ingested-span-1" (:name (first rows))))
+        (is (= "ingested-span-2" (:name (second rows))))
+        (is (= "trace-001" (:trace_id (first rows))))
+        (is (= "GET" (:attr.http.method (first rows))))
+        (is (= 200 (:attr.http.status_code (second rows))))))))
+
+(deftest ingest-sample-events-helper-test
+  (testing "ingest-sample-events! generates and persists random events"
+    (let [n 5
+          events (h/ingest-sample-events! (event-metadata) (batcher) n)
+          rows (query-events)]
+      (is (= n (count events)) "Should return the generated events")
+      (is (= n (count rows)) "Should persist all events")
+      (is (every? :service events) "Generated events have service")
+      (is (every? :trace_id events) "Generated events have trace_id")
+      (is (every? :name rows) "Persisted events have name"))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

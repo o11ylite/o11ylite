@@ -10,7 +10,6 @@ Read the following file as it's relevant to all workflows: @README.md.
 - `make test` - Run all tests (fail-fast)
 - `make test-all` - Run all tests (no fail-fast)
 - Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test`
-- `make format-check` / `make format-fix` - Check/fix formatting with cljstyle
 
 **Frontend (TypeScript):** Run from `frontend/` directory
 - `npm test` - Run tests powered by msw, React Testing Library.
