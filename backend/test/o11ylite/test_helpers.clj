@@ -37,7 +37,13 @@
     (.getAbsolutePath dir)))
 
 (defn test-config
-  "Build test configuration with test-specific overrides."
+  "Build test configuration with test-specific overrides.
+   
+   Note: :ingest/inlined-data-flusher is excluded by default due to a known
+   DuckLake concurrency bug where flush_inlined_data + INSERT can cause
+   data duplication. See: https://github.com/duckdb/ducklake/issues/650
+   
+   Tests that specifically need the flusher should use with-partial-system."
   []
   (let [temp-path (create-temp-data-path)]
     (-> (system/read-config :dev)
@@ -50,8 +56,9 @@
         (assoc-in [:ingest/batcher :flush-interval-ms] 100)
         ;; Fast service discovery for tests (100ms)
         (assoc-in [:discovery/services :scan-interval-ms] 100)
-        ;; Fast inlined data flusher for tests (100ms)
-        (assoc-in [:ingest/inlined-data-flusher :flush-interval-ms] 100))))
+        ;; Exclude inlined-data-flusher from default test system
+        ;; (causes data duplication when running concurrently with inserts)
+        (dissoc :ingest/inlined-data-flusher))))
 
 (defn start-system!
   "Start the full system with test configuration."
