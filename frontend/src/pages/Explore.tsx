@@ -5,6 +5,7 @@ import ApplicationLayout from "@/components/layouts/application-layout"
 import { QueryBuilder } from "@/components/query-builder"
 import {
   ResultsTable,
+  ResultsTimeSeries,
   ResultsPlaceholder,
   ResultsLoading,
   ResultsError,
@@ -107,8 +108,15 @@ export default function Explore() {
     if (!hasQuery) return <ResultsPlaceholder />
     if (isLoading) return <ResultsLoading />
     if (error instanceof Error) return <ResultsError message={error.message} />
-    if (queryResult) return <ResultsTable data={queryResult} />
-    return <ResultsPlaceholder />
+    if (!queryResult) return <ResultsPlaceholder />
+
+    switch (state.visualization.type) {
+      case "time_series":
+        return <ResultsTimeSeries data={queryResult} />
+      case "table":
+      default:
+        return <ResultsTable data={queryResult} />
+    }
   }
 
   return (

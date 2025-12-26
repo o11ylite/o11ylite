@@ -147,7 +147,24 @@
       (is (= 200 (h/status response)))
       (is (h/json-response? response))
       (is (vector? (get-in response [:body :data :series])))
-      (is (number? (get-in response [:body :data :bucket_ms]))))))
+      (is (number? (get-in response [:body :data :bucket_ms])))
+      (is (number? (get-in response [:body :data :start_ms])))
+      (is (number? (get-in response [:body :data :end_ms]))))))
+
+(deftest events-query-time-series-auto-bucket-ms-test
+  (testing "POST /api/query/events auto-calculates bucket_ms in milliseconds"
+    ;; 1 hour time range (3600 seconds) should produce ~36 second buckets
+    ;; bucket_ms = max(1000, (3600 / 100) * 1000) = 36000ms
+    (let [response (h/post-json "/api/query/events"
+                                {:time_range {:start 1702000000
+                                              :end 1702003600}
+                                 :aggregations [{:field "*"
+                                                 :function "count"}]
+                                 :visualization {:type "time_series"}})
+          bucket-ms (get-in response [:body :data :bucket_ms])]
+      (is (= 200 (h/status response)))
+      ;; Should be 36000ms (36 seconds), not 36ms
+      (is (= 36000 bucket-ms)))))
 
 (deftest events-query-time-series-with-data-test
   (testing "POST /api/query/events time_series returns bucketed series grouped by labels"
@@ -170,9 +187,10 @@
                                {:service "ts-service-b" :timestamp bucket-2})
 
       ;; Query time series grouped by service
-      (let [response (h/post-json "/api/query/events"
+      (let [end-epoch-s (+ bucket-2-epoch-s 60)
+            response (h/post-json "/api/query/events"
                                   {:time_range {:start bucket-1-epoch-s
-                                                :end (+ bucket-2-epoch-s 60)}
+                                                :end end-epoch-s}
                                    :filter {:or [{:field "service" :op "=" :value "ts-service-a"}
                                                  {:field "service" :op "=" :value "ts-service-b"}]}
                                    :aggregations [{:field "*"
@@ -186,6 +204,8 @@
             bucket-2-ts (* bucket-2-epoch-s 1000)]
         (is (= 200 (h/status response)))
         (is (= {:bucket_ms 60000
+                :start_ms bucket-1-ts
+                :end_ms (* end-epoch-s 1000)
                 :series [{:labels {:service "ts-service-a"}
                           :data [{:timestamp bucket-1-ts :count 2}
                                  {:timestamp bucket-2-ts :count 3}]}
