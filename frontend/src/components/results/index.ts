@@ -1,4 +1,5 @@
 export { ResultsTable } from "./table"
+export { ResultsTimeSeries } from "./time-series"
 export { ResultsPlaceholder } from "./results-placeholder"
 export { ResultsLoading } from "./results-loading"
 export { ResultsError } from "./results-error"

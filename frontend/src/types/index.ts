@@ -150,8 +150,29 @@ export interface TableQueryResult {
   truncated: boolean
 }
 
+// Time series data point with timestamp and metric values
+export interface TimeSeriesDataPoint {
+  timestamp: number // Unix epoch milliseconds
+  [key: string]: number // Dynamic metric values (count, sum, etc.)
+}
+
+// A single series with labels identifying the group and its data points
+export interface TimeSeriesSeries {
+  labels: Record<string, string>
+  data: TimeSeriesDataPoint[]
+}
+
+export interface TimeSeriesQueryResult {
+  bucket_ms: number
+  start_ms: number
+  end_ms: number
+  series: TimeSeriesSeries[]
+}
+
+export type QueryResult = TableQueryResult | TimeSeriesQueryResult
+
 export interface QueryResponse {
-  data: TableQueryResult // Will be union type when other viz types implemented
+  data: QueryResult
   metadata: {
     query_time_ms: number
     truncated: boolean

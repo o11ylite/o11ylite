@@ -181,10 +181,8 @@
 (defn- -build-time-series-query
   "Build HoneySQL query for time series visualization.
    Auto-injects time bucketing; user's group_by fields become series labels."
-  [{:keys [time_range filter aggregations group_by visualization]}]
-  (let [bucket-ms (or (:bucket_ms visualization)
-                      (max 1000 (quot (- (:end time_range) (:start time_range)) 100)))
-        bucket-interval (-bucket-ms->interval bucket-ms)
+  [{:keys [time_range filter aggregations group_by visualization bucket-ms]}]
+  (let [bucket-interval (-bucket-ms->interval bucket-ms)
         ;; Time bucket expression: time_bucket(interval, timestamp)
         bucket-expr [[:time_bucket bucket-interval :timestamp] :bucket]
         ;; Build aggregation expressions
@@ -220,13 +218,21 @@
                     (into {:timestamp (.getTime (:bucket row))}
                           (map (fn [alias] [alias (get row alias)]) agg-aliases))))})))
 
+(defn- -align-to-bucket
+  "Align a timestamp (in seconds) down to the nearest bucket boundary.
+   Returns the aligned timestamp in milliseconds."
+  [epoch-s bucket-ms]
+  (let [epoch-ms (* epoch-s 1000)]
+    (- epoch-ms (mod epoch-ms bucket-ms))))
+
 (defn- -execute-time-series
   "Execute a time series visualization query."
-  [duckdb {:keys [visualization aggregations group_by] :as query}]
+  [duckdb {:keys [visualization aggregations group_by time_range] :as query}]
   (let [bucket-ms (or (:bucket_ms visualization)
-                      (max 1000 (quot (- (:end (:time_range query))
-                                         (:start (:time_range query))) 100)))
-        hsql-query (-build-time-series-query query)
+                      (max 1000 (* 1000 (quot (- (:end time_range) (:start time_range)) 100))))
+        start-ms (-align-to-bucket (:start time_range) bucket-ms)
+        end-ms (-align-to-bucket (:end time_range) bucket-ms)
+        hsql-query (-build-time-series-query (assoc query :bucket-ms bucket-ms))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         rows (jdbc/execute! duckdb (into [sql-str] params))
         agg-aliases (map (fn [{:keys [alias field function]}]
@@ -234,6 +240,8 @@
                          aggregations)
         series (-rows->series rows (or group_by []) agg-aliases)]
     {:bucket_ms bucket-ms
+     :start_ms start-ms
+     :end_ms end-ms
      :series (vec series)}))
 
 (defn- -execute-heatmap

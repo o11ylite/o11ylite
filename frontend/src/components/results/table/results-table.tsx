@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-table"
 import { ChevronDown } from "lucide-react"
 
-import type { QueryResponse } from "@/types"
+import type { QueryResponse, TableQueryResult } from "@/types"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -28,7 +28,7 @@ import { buildColumns, buildDefaultVisibility, isErrorRow, type RowData } from "
 import { RowDetailDrawer } from "./row-detail-drawer"
 
 export function ResultsTable({ data }: { data: QueryResponse }) {
-  const { rows, total_count, truncated } = data.data
+  const { rows, total_count, truncated } = data.data as TableQueryResult
 
   const [detailRow, setDetailRow] = useState<RowData | null>(null)
 
