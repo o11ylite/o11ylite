@@ -174,28 +174,27 @@
           bucket-1-epoch-s (t/long bucket-1)
           bucket-2-epoch-s (t/long bucket-2)]
 
-      ;; Ingest events into first time bucket
+      ;; Ingest events into first time bucket with deterministic durations
       (h/ingest-sample-events! (event-metadata) (batcher) 2
-                               {:service "ts-service-a" :timestamp bucket-1})
+                               {:service "ts-service-a" :timestamp bucket-1 :span.duration_ms 100.0})
       (h/ingest-sample-events! (event-metadata) (batcher) 1
-                               {:service "ts-service-b" :timestamp bucket-1})
+                               {:service "ts-service-b" :timestamp bucket-1 :span.duration_ms 200.0})
 
-      ;; Ingest events into second time bucket
+      ;; Ingest events into second time bucket with deterministic durations
       (h/ingest-sample-events! (event-metadata) (batcher) 3
-                               {:service "ts-service-a" :timestamp bucket-2})
+                               {:service "ts-service-a" :timestamp bucket-2 :span.duration_ms 150.0})
       (h/ingest-sample-events! (event-metadata) (batcher) 2
-                               {:service "ts-service-b" :timestamp bucket-2})
+                               {:service "ts-service-b" :timestamp bucket-2 :span.duration_ms 250.0})
 
-      ;; Query time series grouped by service
+      ;; Query time series grouped by service with two aggregations (no explicit aliases)
       (let [end-epoch-s (+ bucket-2-epoch-s 60)
             response (h/post-json "/api/query/events"
                                   {:time_range {:start bucket-1-epoch-s
                                                 :end end-epoch-s}
                                    :filter {:or [{:field "service" :op "=" :value "ts-service-a"}
                                                  {:field "service" :op "=" :value "ts-service-b"}]}
-                                   :aggregations [{:field "*"
-                                                   :function "count"
-                                                   :alias "count"}]
+                                   :aggregations [{:field "*" :function "count"}
+                                                  {:field "span.duration_ms" :function "avg"}]
                                    :group_by ["service"]
                                    :visualization {:type "time_series"
                                                    :bucket_ms 60000}})
@@ -203,17 +202,29 @@
             bucket-1-ts (* bucket-1-epoch-s 1000)
             bucket-2-ts (* bucket-2-epoch-s 1000)]
         (is (= 200 (h/status response)))
+        ;; With new format: one series per (labels, aggregation) combination
+        ;; Each series has :name and :data with {:timestamp :value} points
         (is (= {:bucket_ms 60000
                 :start_ms bucket-1-ts
                 :end_ms (* end-epoch-s 1000)
                 :series [{:labels {:service "ts-service-a"}
-                          :data [{:timestamp bucket-1-ts :count 2}
-                                 {:timestamp bucket-2-ts :count 3}]}
+                          :name "avg_span.duration_ms"
+                          :data [{:timestamp bucket-1-ts :value 100.0}
+                                 {:timestamp bucket-2-ts :value 150.0}]}
+                         {:labels {:service "ts-service-a"}
+                          :name "count_*"
+                          :data [{:timestamp bucket-1-ts :value 2}
+                                 {:timestamp bucket-2-ts :value 3}]}
                          {:labels {:service "ts-service-b"}
-                          :data [{:timestamp bucket-1-ts :count 1}
-                                 {:timestamp bucket-2-ts :count 2}]}]}
+                          :name "avg_span.duration_ms"
+                          :data [{:timestamp bucket-1-ts :value 200.0}
+                                 {:timestamp bucket-2-ts :value 250.0}]}
+                         {:labels {:service "ts-service-b"}
+                          :name "count_*"
+                          :data [{:timestamp bucket-1-ts :value 1}
+                                 {:timestamp bucket-2-ts :value 2}]}]}
                (update data :series
-                       (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
+                       (fn [s] (vec (sort-by (juxt #(get-in % [:labels :service]) :name) s))))))))))
 
 ;; ---------------------------------------------------------
 ;; Heatmap Visualization

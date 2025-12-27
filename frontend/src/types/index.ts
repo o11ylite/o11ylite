@@ -150,15 +150,16 @@ export interface TableQueryResult {
   truncated: boolean
 }
 
-// Time series data point with timestamp and metric values
+// Time series data point with timestamp and value
 export interface TimeSeriesDataPoint {
   timestamp: number // Unix epoch milliseconds
-  [key: string]: number // Dynamic metric values (count, sum, etc.)
+  value: number
 }
 
-// A single series with labels identifying the group and its data points
+// A single series with labels, name, and data points
 export interface TimeSeriesSeries {
   labels: Record<string, string>
+  name: string // Aggregation alias (e.g., "count_*", "avg_span.duration_ms")
   data: TimeSeriesDataPoint[]
 }
 

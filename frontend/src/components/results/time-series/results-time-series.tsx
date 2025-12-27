@@ -20,18 +20,18 @@ const CHART_COLORS = [
   "var(--chart-5)",
 ]
 
-// Builds a unique key for a series from its labels
-function seriesKey(labels: Record<string, string>): string {
+// Builds a unique key for a series from its labels and name
+function seriesKey(labels: Record<string, string>, name: string): string {
   const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b))
-  if (entries.length === 0) return "all"
-  return entries.map(([k, v]) => `${k}:${v}`).join(",")
+  const labelPart = entries.length === 0 ? "all" : entries.map(([k, v]) => `${k}:${v}`).join(",")
+  return `${labelPart}::${name}`
 }
 
 // Builds a human-readable label for a series
-function seriesLabel(labels: Record<string, string>): string {
-  const values = Object.values(labels)
-  if (values.length === 0) return "All"
-  return values.join(", ")
+function seriesLabel(labels: Record<string, string>, name: string): string {
+  const labelValues = Object.values(labels)
+  if (labelValues.length === 0) return name
+  return `${labelValues.join(", ")} (${name})`
 }
 
 // Transforms backend series data into Recharts-compatible format
@@ -49,16 +49,10 @@ function transformData(result: TimeSeriesQueryResult) {
 
   // Build series metadata
   const seriesMeta = series.map((s, idx) => ({
-    key: seriesKey(s.labels),
-    label: seriesLabel(s.labels),
+    key: seriesKey(s.labels, s.name),
+    label: seriesLabel(s.labels, s.name),
     color: CHART_COLORS[idx % CHART_COLORS.length],
   }))
-
-  // Get metric keys from first data point (excluding timestamp)
-  const metricKeys =
-    series.length > 0 && series[0].data.length > 0
-      ? Object.keys(series[0].data[0]).filter((k) => k !== "timestamp")
-      : ["count"]
 
   // Build chart data - one row per timestamp with all series values
   const chartData = Array.from(timestamps)
@@ -68,15 +62,14 @@ function transformData(result: TimeSeriesQueryResult) {
 
       for (const s of series) {
         const point = s.data.find((p) => p.timestamp === timestamp)
-        const key = seriesKey(s.labels)
-        // Use first metric key's value (typically "count" or the alias)
-        row[key] = point ? (point[metricKeys[0]] ?? 0) : 0
+        const key = seriesKey(s.labels, s.name)
+        row[key] = point?.value ?? 0
       }
 
       return row
     })
 
-  return { chartData, seriesMeta, metricKeys }
+  return { chartData, seriesMeta }
 }
 
 const HOUR_MS = 60 * 60 * 1000
@@ -102,6 +95,7 @@ function createTimestampFormatter(rangeMs: number): (timestamp: number) => strin
 export function ResultsTimeSeries({ data }: { data: QueryResponse }) {
   const result = data.data as TimeSeriesQueryResult
   const { chartData, seriesMeta } = useMemo(() => transformData(result), [result])
+  const uniqueSeriesCount = new Set(result.series.map((s) => Object.values(s.labels).join(","))).size
 
   // Build chart config from series metadata
   const chartConfig = useMemo(() => {
@@ -164,8 +158,8 @@ export function ResultsTimeSeries({ data }: { data: QueryResponse }) {
         </LineChart>
       </ChartContainer>
       <div className="px-3 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
-        {result.series.length} series &middot; {chartData.length} data points &middot;{" "}
-        {data.metadata.query_time_ms}ms
+        {uniqueSeriesCount} groups &middot; {result.series.length} series &middot;{" "}
+        {chartData.length} data points &middot; {data.metadata.query_time_ms}ms
       </div>
     </div>
   )
