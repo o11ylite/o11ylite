@@ -207,16 +207,18 @@
 
 (defn- -rows->series
   "Transform query result rows into series format.
-   Groups rows by label fields and extracts time/value pairs."
+   Creates one series per (labels, aggregation) combination.
+   Each series has :labels, :name, and :data with {:timestamp, :value} points."
   [rows group-by-fields agg-aliases]
   (let [label-keys (map keyword group-by-fields)
-        ;; Group rows by their label values
         grouped (group-by #(select-keys % label-keys) rows)]
-    (for [[labels rows-for-series] grouped]
+    (for [[labels rows-for-series] grouped
+          agg-alias agg-aliases]
       {:labels labels
+       :name (name agg-alias)
        :data (vec (for [row rows-for-series]
-                    (into {:timestamp (.getTime (:bucket row))}
-                          (map (fn [alias] [alias (get row alias)]) agg-aliases))))})))
+                    {:timestamp (.getTime (:bucket row))
+                     :value (get row agg-alias)}))})))
 
 (defn- -align-to-bucket
   "Align a timestamp (in seconds) down to the nearest bucket boundary.
@@ -322,7 +324,8 @@
             :aggregations [{:field "*" :function "count"}]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000
-  ;;            :series [{:labels {} :data [{:timestamp N :count_* N} ...]}]}
+  ;;            :series [{:labels {} :name "count_*"
+  ;;                      :data [{:timestamp N :value N} ...]}]}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
   ;; Time series with group_by - count per service per minute
@@ -332,8 +335,8 @@
             :group_by ["service"]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000
-  ;;            :series [{:labels {:service "api"} :data [...]}
-  ;;                     {:labels {:service "web"} :data [...]}]}
+  ;;            :series [{:labels {:service "api"} :name "count_*" :data [...]}
+  ;;                     {:labels {:service "web"} :name "count_*" :data [...]}]}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
   (ig/halt-key! :db/duckdb ds)
