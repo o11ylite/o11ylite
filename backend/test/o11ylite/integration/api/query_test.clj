@@ -227,10 +227,19 @@
                        (fn [s] (vec (sort-by (juxt #(get-in % [:labels :service]) :name) s))))))))))
 
 ;; ---------------------------------------------------------
-;; Heatmap Visualization
+;; Heatmap Visualization (DEFERRED to post-v1)
+;;
+;; Decision: Heatmap is deferred because:
+;; 1. Low user demand - most developers unfamiliar with heatmaps
+;; 2. Market evidence: HyperDX lacks it, Datadog buries it
+;; 3. Significant implementation effort for niche use case
+;;
+;; When implemented: Use "smart visualization" pattern where user selects
+;; heatmap mode and sees a simplified "Distribution of: [field]" selector.
+;; Backend handles histogram bucketing via DuckDB's histogram()/width_bucket().
 
-(deftest events-query-heatmap-test
-  (testing "POST /api/query/events with heatmap visualization"
+(deftest ^:deferred events-query-heatmap-test
+  (testing "POST /api/query/events with heatmap visualization (DEFERRED - returns empty data)"
     (let [response (h/post-json "/api/query/events"
                                 {:time_range {:start 1702000000
                                               :end 1702003600}
@@ -238,15 +247,20 @@
                                  :visualization {:type "heatmap"}})]
       (is (= 200 (h/status response)))
       (is (h/json-response? response))
+      ;; Currently returns empty vectors - will be populated when implemented
       (is (vector? (get-in response [:body :data :x_buckets])))
       (is (vector? (get-in response [:body :data :y_buckets])))
       (is (vector? (get-in response [:body :data :values]))))))
 
 ;; ---------------------------------------------------------
 ;; Trace Visualization
+;;
+;; Part of v1, accessed via dedicated /trace/:id frontend page.
+;; Uses /api/query/events with filter on trace_id and visualization: {type: "trace"}.
+;; Users click trace_id links in table results to navigate to the trace page.
 
 (deftest events-query-trace-test
-  (testing "POST /api/query/events with trace visualization"
+  (testing "POST /api/query/events with trace visualization (TODO - returns empty data)"
     (let [response (h/post-json "/api/query/events"
                                 {:time_range {:start 1702000000
                                               :end 1702003600}
@@ -256,6 +270,7 @@
                                  :visualization {:type "trace"}})]
       (is (= 200 (h/status response)))
       (is (h/json-response? response))
+      ;; TODO: Implement span retrieval - currently returns empty data
       (is (vector? (get-in response [:body :data :spans])))
       (is (number? (get-in response [:body :data :total_count])))
       (is (boolean? (get-in response [:body :data :truncated]))))))
