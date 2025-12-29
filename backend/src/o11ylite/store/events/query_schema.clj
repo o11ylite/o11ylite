@@ -68,8 +68,7 @@
 (def aggregation
   [:map
    [:field aggregation-field]
-   [:function aggregation-function]
-   [:alias {:optional true} field-name]])
+   [:function aggregation-function]])
 
 ;; ---------------------------------------------------------
 ;; Visualization Schemas

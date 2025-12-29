@@ -1,7 +1,6 @@
 import { X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -69,17 +68,6 @@ export function AggregationRow({
           <span className="text-[10px] text-muted-foreground">)</span>
         </>
       )}
-
-      <span className="text-[10px] text-muted-foreground">as</span>
-      <Input
-        type="text"
-        value={item.alias ?? ""}
-        onChange={(e) =>
-          onUpdate({ ...item, alias: e.target.value || undefined })
-        }
-        placeholder="alias"
-        className="h-8 w-20 text-sm"
-      />
 
       <Button
         variant="ghost"

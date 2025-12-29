@@ -84,10 +84,15 @@
 ;; ---------------------------------------------------------
 ;; Aggregation Building
 
+(defn- -format-agg-alias
+  "Format aggregation alias as function(field), e.g., count(*), avg(duration)."
+  [function field]
+  (str function "(" field ")"))
+
 (defn- -build-aggregation-expr
   "Build a HoneySQL aggregation expression.
    Returns [expr alias] for use in select."
-  [{:keys [field function alias]}]
+  [{:keys [field function]}]
   (let [col (if (= field "*") :* (-field->col field))
         agg-fn (keyword function)
         expr (case function
@@ -97,7 +102,7 @@
                "p99" [:approx_quantile col 0.99]
                ;; Standard aggregations
                [agg-fn col])
-        result-alias (or alias (str function "_" field))]
+        result-alias (-format-agg-alias function field)]
     [expr (keyword result-alias)]))
 
 ;; ---------------------------------------------------------
@@ -137,8 +142,7 @@
           ;; Build select clause: [col alias] for each group column
           ;; The alias is the original field name as a keyword
           group-select (map (fn [field col] [col (keyword field)]) group_by group-cols)
-          select-clause (concat group-select
-                                (map (fn [[expr alias]] [expr alias]) agg-exprs))]
+          select-clause (concat group-select agg-exprs)]
       (cond-> (assoc hsql-query :select (vec select-clause))
         (seq group-cols) (assoc :group-by (vec group-cols))))
     hsql-query))
@@ -191,9 +195,7 @@
         group-cols (map -field->col group_by)
         group-select (map (fn [field col] [col (keyword field)]) group_by group-cols)
         ;; Select: bucket, group_by fields, aggregations
-        select-clause (into [bucket-expr]
-                            (concat group-select
-                                    (map (fn [[expr alias]] [expr alias]) agg-exprs)))
+        select-clause (into [bucket-expr] (concat group-select agg-exprs))
         ;; Group by: bucket + user's group_by fields
         group-by-clause (into [:bucket] group-cols)]
     (-> {:select (vec select-clause)
@@ -237,8 +239,8 @@
         hsql-query (-build-time-series-query (assoc query :bucket-ms bucket-ms))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         rows (jdbc/execute! duckdb (into [sql-str] params))
-        agg-aliases (map (fn [{:keys [alias field function]}]
-                           (keyword (or alias (str function "_" field))))
+        agg-aliases (map (fn [{:keys [field function]}]
+                           (keyword (-format-agg-alias function field)))
                          aggregations)
         series (-rows->series rows (or group_by []) agg-aliases)]
     {:bucket_ms bucket-ms
@@ -335,7 +337,7 @@
             :aggregations [{:field "*" :function "count"}]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000
-  ;;            :series [{:labels {} :name "count_*"
+  ;;            :series [{:labels {} :name "count(*)"
   ;;                      :data [{:timestamp N :value N} ...]}]}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
@@ -346,8 +348,8 @@
             :group_by ["service"]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000
-  ;;            :series [{:labels {:service "api"} :name "count_*" :data [...]}
-  ;;                     {:labels {:service "web"} :name "count_*" :data [...]}]}
+  ;;            :series [{:labels {:service "api"} :name "count(*)" :data [...]}
+  ;;                     {:labels {:service "web"} :name "count(*)" :data [...]}]}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
   (ig/halt-key! :db/duckdb ds)
