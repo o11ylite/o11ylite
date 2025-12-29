@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Play, Table, LineChart, Grid3X3 } from "lucide-react"
+import { Play, Table, LineChart } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -50,12 +50,6 @@ export function QueryBuilder({
       case "time_series":
         visualization = { type: "time_series" }
         break
-      case "heatmap":
-        visualization = { type: "heatmap" }
-        break
-      case "trace":
-        visualization = { type: "trace" }
-        break
     }
     setState({ ...state, visualization })
   }
@@ -100,9 +94,6 @@ export function QueryBuilder({
             </TabsTrigger>
             <TabsTrigger value="time_series" title="Time series">
               <LineChart size={14} />
-            </TabsTrigger>
-            <TabsTrigger value="heatmap" title="Heatmap">
-              <Grid3X3 size={14} />
             </TabsTrigger>
           </TabsList>
         </Tabs>

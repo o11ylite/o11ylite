@@ -246,15 +246,26 @@
      :end_ms end-ms
      :series (vec series)}))
 
+;; DEFERRED: Heatmap visualization is deferred to post-v1.
+;; When implemented, this should:
+;; 1. Use DuckDB's histogram() or width_bucket() for value bucketing
+;; 2. Combine with time_bucket() for 2D (time x value) histogram
+;; 3. Return matrix of counts for heatmap rendering
+;; The UI will show a "Distribution of: [field]" selector instead of
+;; the full aggregation builder.
 (defn- -execute-heatmap
-  "Execute a heatmap visualization query."
+  "Execute a heatmap visualization query. (DEFERRED - returns empty data)"
   [_duckdb _query]
   {:x_buckets []
    :y_buckets []
    :values []})
 
+;; Trace visualization: Part of v1, accessed via dedicated /trace/:id page.
+;; Uses /api/query/events with filter: {field: "trace_id", op: "=", value: "<id>"}
+;; and visualization: {type: "trace"}. Users click trace_id links in table results.
+;; TODO: Implement span retrieval and waterfall data structure.
 (defn- -execute-trace
-  "Execute a trace visualization query."
+  "Execute a trace visualization query. (TODO - returns empty data)"
   [_duckdb _query]
   {:spans []
    :root_span_id nil

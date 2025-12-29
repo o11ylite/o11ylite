@@ -69,7 +69,9 @@
                  :aggregations [{:field "*" :function "count"}]
                  :visualization {:type "time_series" :bucket_ms 60000}})))
 
-  (testing "heatmap visualization requires exactly one group_by"
+  ;; DEFERRED: Heatmap visualization is deferred to post-v1.
+  ;; Schema validation is kept to ensure API contract is stable when implemented.
+  (testing "heatmap visualization requires exactly one group_by (DEFERRED)"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :visualization {:type "heatmap"}}))
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
@@ -85,6 +87,7 @@
                  :group_by ["duration_ms"]
                  :visualization {:type "heatmap" :y_buckets 100}})))
 
+  ;; Trace: Part of v1, accessed via dedicated /trace/:id page
   (testing "trace visualization"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :visualization {:type "trace"}}))))

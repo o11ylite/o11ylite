@@ -94,11 +94,22 @@
    [:bucket_ms {:optional true} [:int {:min 1}]]
    [:limit_series {:optional true} [:int {:min 1}]]])
 
+;; DEFERRED: Heatmap visualization is deferred to post-v1.
+;; Decision: Heatmap should be a "smart visualization" - when user selects heatmap,
+;; the UI shows a simplified "Distribution of: [field]" selector instead of the
+;; full aggregation builder. Backend will handle histogram bucketing internally.
+;; The current schema expects group_by to specify the field, but this may change
+;; to visualization.field when implemented.
+;; See: https://github.com/o11ylite/o11ylite/discussions/xxx (architecture decision)
 (def heatmap-visualization
   [:map
    [:type [:= "heatmap"]]
    [:y_buckets {:optional true} [:int {:min 1 :max 200}]]])
 
+;; Trace visualization: Part of v1, accessed via dedicated /trace/:id page.
+;; Uses /api/query/events with visualization: {type: "trace"} and
+;; filter: {field: "trace_id", op: "=", value: "<id>"}.
+;; Users click trace_id links in table results to navigate to the trace page.
 (def trace-visualization
   [:map
    [:type [:= "trace"]]])

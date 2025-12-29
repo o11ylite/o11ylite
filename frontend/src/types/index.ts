@@ -70,10 +70,10 @@ export interface Aggregation {
 // ============================================================================
 // Visualization Types
 // ============================================================================
-// Maps to backend schema: query_schema.clj#visualization (union of 4 types)
-// Note: heatmap requires exactly one group_by field (enforced by backend)
+// Maps to backend schema: query_schema.clj#visualization
+// Note: heatmap and trace are deferred to post-v1 (backend scaffolding exists)
 
-export type VisualizationType = "table" | "time_series" | "heatmap" | "trace"
+export type VisualizationType = "table" | "time_series"
 
 export interface TableVisualization {
   type: "table"
@@ -90,20 +90,10 @@ export interface TimeSeriesVisualization {
   limit_series?: number
 }
 
-export interface HeatmapVisualization {
-  type: "heatmap"
-  y_buckets?: number
-}
+// Deferred to post-v1: HeatmapVisualization, TraceVisualization
+// Backend scaffolding exists in query_schema.clj and query.clj
 
-export interface TraceVisualization {
-  type: "trace"
-}
-
-export type Visualization =
-  | TableVisualization
-  | TimeSeriesVisualization
-  | HeatmapVisualization
-  | TraceVisualization
+export type Visualization = TableVisualization | TimeSeriesVisualization
 
 // ============================================================================
 // Events Query Types
