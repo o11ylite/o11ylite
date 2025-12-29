@@ -134,9 +134,9 @@
                  :aggregations [{:field "*" :function "count"}]
                  :visualization {:type "time_series"}})))
 
-  (testing "aggregation with alias"
+  (testing "aggregation with numeric field"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "duration_ms" :function "p99" :alias "latency_p99"}]
+                 :aggregations [{:field "duration_ms" :function "p99"}]
                  :visualization {:type "time_series"}})))
 
   (testing "invalid aggregation function"

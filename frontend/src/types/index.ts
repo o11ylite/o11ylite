@@ -64,7 +64,6 @@ export type AggregationFunction =
 export interface Aggregation {
   field: string
   function: AggregationFunction
-  alias?: string
 }
 
 // ============================================================================
@@ -149,7 +148,7 @@ export interface TimeSeriesDataPoint {
 // A single series with labels, name, and data points
 export interface TimeSeriesSeries {
   labels: Record<string, string>
-  name: string // Aggregation alias (e.g., "count_*", "avg_span.duration_ms")
+  name: string // Aggregation alias (e.g., "count(*)", "avg(span.duration_ms)")
   data: TimeSeriesDataPoint[]
 }
 
