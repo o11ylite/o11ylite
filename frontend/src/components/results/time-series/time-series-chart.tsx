@@ -76,7 +76,8 @@ export function TimeSeriesChart({ data, title }: TimeSeriesChartProps) {
               type="monotone"
               stroke={series.color}
               strokeWidth={2}
-              dot={false}
+              dot={true}
+              connectNulls={false}
             />
           ))}
         </LineChart>

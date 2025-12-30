@@ -32,18 +32,17 @@ export interface SeriesMeta {
 
 // Transforms backend series data into Recharts-compatible format
 // Each data point becomes a row with timestamp and values for each series
+// Missing data points are set to null so charts can show gaps
 export function transformData(result: TimeSeriesQueryResult): {
-  chartData: Record<string, number>[]
+  chartData: Record<string, number | null>[]
   seriesMeta: SeriesMeta[]
 } {
-  const { series } = result
+  const { series, start_ms, end_ms, bucket_ms } = result
 
-  // Get all unique timestamps across all series
-  const timestamps = new Set<number>()
-  for (const s of series) {
-    for (const point of s.data) {
-      timestamps.add(point.timestamp)
-    }
+  // Generate all bucket timestamps from start to end
+  const timestamps: number[] = []
+  for (let ts = start_ms; ts < end_ms; ts += bucket_ms) {
+    timestamps.push(ts)
   }
 
   // Build series metadata
@@ -53,20 +52,27 @@ export function transformData(result: TimeSeriesQueryResult): {
     color: CHART_COLORS[idx % CHART_COLORS.length],
   }))
 
+  // Index series data by timestamp for O(1) lookup
+  const seriesDataMaps = series.map((s) => {
+    const map = new Map<number, number>()
+    for (const point of s.data) {
+      map.set(point.timestamp, point.value)
+    }
+    return { series: s, map }
+  })
+
   // Build chart data - one row per timestamp with all series values
-  const chartData = Array.from(timestamps)
-    .sort((a, b) => a - b)
-    .map((timestamp) => {
-      const row: Record<string, number> = { timestamp }
+  const chartData = timestamps.map((timestamp) => {
+    const row: Record<string, number | null> = { timestamp }
 
-      for (const s of series) {
-        const point = s.data.find((p) => p.timestamp === timestamp)
-        const key = seriesKey(s.labels, s.name)
-        row[key] = point?.value ?? 0
-      }
+    for (const { series: s, map } of seriesDataMaps) {
+      const key = seriesKey(s.labels, s.name)
+      const value = map.get(timestamp)
+      row[key] = value !== undefined ? value : null
+    }
 
-      return row
-    })
+    return row
+  })
 
   return { chartData, seriesMeta }
 }
