@@ -152,19 +152,23 @@
       (is (number? (get-in response [:body :data :end_ms]))))))
 
 (deftest events-query-time-series-auto-bucket-ms-test
-  (testing "POST /api/query/events auto-calculates bucket_ms in milliseconds"
-    ;; 1 hour time range (3600 seconds) should produce ~36 second buckets
-    ;; bucket_ms = max(1000, (3600 / 100) * 1000) = 36000ms
-    (let [response (h/post-json "/api/query/events"
-                                {:time_range {:start 1702000000
-                                              :end 1702003600}
-                                 :aggregations [{:field "*"
-                                                 :function "count"}]
-                                 :visualization {:type "time_series"}})
-          bucket-ms (get-in response [:body :data :bucket_ms])]
-      (is (= 200 (h/status response)))
-      ;; Should be 36000ms (36 seconds), not 36ms
-      (is (= 36000 bucket-ms)))))
+  (testing "POST /api/query/events auto-calculates bucket_ms using nice intervals"
+    ;; Nice bucket sizes: 1s, 5s, 10s, 20s, 30s, 1m, 2m, 5m, 10m, 20m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
+    ;; Formula: pick smallest nice bucket that yields ~100 buckets
+    (let [query-bucket (fn [start end]
+                         (get-in (h/post-json "/api/query/events"
+                                              {:time_range {:start start :end end}
+                                               :aggregations [{:field "*" :function "count"}]
+                                               :visualization {:type "time_series"}})
+                                 [:body :data :bucket_ms]))]
+      ;; 1 hour (3600s) -> ideal 36s -> rounds to 1 minute (60,000 ms)
+      (is (= 60000 (query-bucket 1702000000 1702003600)))
+      ;; 5 minutes (300s) -> ideal 3s -> rounds to 5s (5,000 ms)
+      (is (= 5000 (query-bucket 1702000000 1702000300)))
+      ;; 24 hours (86400s) -> ideal 864s (~14m) -> rounds to 20 minutes (1,200,000 ms)
+      (is (= 1200000 (query-bucket 1702000000 1702086400)))
+      ;; 7 days (604800s) -> ideal 6048s (~100m) -> rounds to 2 hours (7,200,000 ms)
+      (is (= 7200000 (query-bucket 1702000000 1702604800))))))
 
 (deftest events-query-time-series-with-data-test
   (testing "POST /api/query/events time_series returns bucketed series grouped by labels"
