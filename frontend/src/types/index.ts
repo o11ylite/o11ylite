@@ -101,8 +101,8 @@ export type Visualization = TableVisualization | TimeSeriesVisualization
 // This is the payload sent to POST /api/query/events
 
 export interface TimeRange {
-  start: number // Unix epoch seconds
-  end: number   // Unix epoch seconds
+  start: number // Unix epoch milliseconds
+  end: number   // Unix epoch milliseconds
 }
 
 export interface EventsQuery {
