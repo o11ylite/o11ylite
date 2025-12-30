@@ -4,6 +4,11 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+OTEL_AGENT_VERSION="2.16.0"
+OTEL_AGENT_JAR="opentelemetry-javaagent.jar"
+OTEL_AGENT_DIR="backend/.tmp"
+OTEL_AGENT_PATH="${OTEL_AGENT_DIR}/${OTEL_AGENT_JAR}"
+
 echo "Updating /etc/hosts..."
 hosts --auto-sudo add 127.0.0.1 "${O11YLITE_DEV_HOSTNAME:-o11ylite.localhost}" || true
 
@@ -12,6 +17,16 @@ echo "Downloading OpenTelemetry protos..."
 
 echo "Compiling protobuf classes..."
 (cd backend && make proto-compile)
+
+echo "Downloading OpenTelemetry javaagent..."
+mkdir -p "${OTEL_AGENT_DIR}"
+if [ ! -f "${OTEL_AGENT_PATH}" ]; then
+  curl -L -o "${OTEL_AGENT_PATH}" \
+    "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/${OTEL_AGENT_JAR}"
+  echo "Downloaded OpenTelemetry javaagent v${OTEL_AGENT_VERSION}"
+else
+  echo "OpenTelemetry javaagent already exists at ${OTEL_AGENT_PATH}"
+fi
 
 echo "Setting up frontend..."
 (cd frontend && npm install)

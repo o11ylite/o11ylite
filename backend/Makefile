@@ -52,7 +52,7 @@ rebel:  ## Run Clojure REPL with rich terminal UI (Rebel Readline)
 
 reloaded:  ## Run Clojure REPL with rich terminal UI (Rebel Readline)
 	$(info -- Run Rebel REPL ------------------------)
-	clojure -M:repl/reloaded:lib/integrant-repl
+	clojure -M:otel:repl/reloaded:lib/integrant-repl
 
 deps: deps.edn  ## Prepare dependencies for test and dist targets
 	$(info -- Download test and service libraries ---)
