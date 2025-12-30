@@ -60,14 +60,16 @@ export default function Explore() {
   const { fields, services } = usePage<{ fields: Field[]; services: Service[] }>().props
   const { state, setState, hasQuery } = useQueryState()
   const { from, to } = useTimeRange()
-  const timeRange = resolveTimeRange({ from, to })
 
-  // Build the query for the API - only when hasQuery is true (URL has ?q=)
-  const eventsQuery: EventsQuery | null = hasQuery
+  // Resolve time range using second-level precision for stable query keys.
+  // This keeps the key stable across renders within the same second,
+  // while still changing on each "Run" click (typically >1s apart).
+  const resolved = resolveTimeRange({ from, to })
+  const eventsQuery = hasQuery
     ? {
         time_range: {
-          start: Math.floor(timeRange.from.getTime() / 1000),
-          end: Math.floor(timeRange.to.getTime() / 1000),
+          start: Math.floor(resolved.from.getTime() / 1000) * 1000,
+          end: Math.floor(resolved.to.getTime() / 1000) * 1000,
         },
         filter: buildFilterExpr(state.filters),
         aggregations:
@@ -78,8 +80,6 @@ export default function Explore() {
     : null
 
   // TanStack Query for fetching results
-  // Query is keyed by the full eventsQuery object (includes time range from URL)
-  // Re-fetches when URL changes (either ?q= or ?from=/?to=)
   const {
     data: queryResult,
     isLoading,

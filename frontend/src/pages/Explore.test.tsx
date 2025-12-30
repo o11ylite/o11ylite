@@ -39,9 +39,13 @@ afterAll(() => server.close())
 // ============================================================================
 
 // Must use vi.hoisted to define variables used in vi.mock factory
+// Use fixed timestamps to ensure stable query keys across renders
+const FIXED_FROM = "2024-01-01T00:00:00.000Z"
+const FIXED_TO = "2024-01-01T01:00:00.000Z"
+
 const { mockState, mockRouterPush } = vi.hoisted(() => ({
   mockState: {
-    url: "https://localhost/explore",
+    url: `https://localhost/explore?from=${encodeURIComponent("2024-01-01T00:00:00.000Z")}&to=${encodeURIComponent("2024-01-01T01:00:00.000Z")}`,
     // Callback to notify React of URL changes (set by test wrapper)
     onUrlChange: null as (() => void) | null,
   },
@@ -65,8 +69,18 @@ vi.mock("@inertiajs/react", () => ({
   router: {
     push: (opts: { url: string }) => {
       mockRouterPush(opts)
-      // Update URL and trigger re-render
-      mockState.url = `https://localhost${opts.url}`
+      // Merge the new URL params with existing params from mockState.url
+      // This simulates how a real URL update would preserve existing params
+      const existingUrl = new URL(mockState.url)
+      const newUrl = new URL(opts.url, existingUrl.origin)
+      // Preserve from/to params from existing URL if not in new URL
+      if (!newUrl.searchParams.has("from") && existingUrl.searchParams.has("from")) {
+        newUrl.searchParams.set("from", existingUrl.searchParams.get("from")!)
+      }
+      if (!newUrl.searchParams.has("to") && existingUrl.searchParams.has("to")) {
+        newUrl.searchParams.set("to", existingUrl.searchParams.get("to")!)
+      }
+      mockState.url = newUrl.toString()
       mockState.onUrlChange?.()
     },
     on: vi.fn(),
@@ -141,7 +155,8 @@ function renderExplore() {
 describe("Explore", () => {
   afterEach(() => {
     mockRouterPush.mockClear()
-    mockState.url = "https://localhost/explore"
+    // Reset to URL with fixed timestamps for stable query keys
+    mockState.url = `https://localhost/explore?from=${encodeURIComponent(FIXED_FROM)}&to=${encodeURIComponent(FIXED_TO)}`
   })
 
   it("sends API request and renders results when Run is clicked", async () => {

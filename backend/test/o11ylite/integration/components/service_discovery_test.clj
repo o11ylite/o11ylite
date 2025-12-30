@@ -25,9 +25,11 @@
 
 (deftest service-discovery-test
   (testing "Service discovery component discovers services from telemetry"
-    ;; Ingest events for two services
-    (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "api-gateway"})
-    (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "payment-service"})
+    ;; Ingest events for two services with recent timestamps
+    ;; (service discovery scan window is ~30s, so we need recent events)
+    (let [now (java.time.Instant/now)]
+      (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "api-gateway" :timestamp now})
+      (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "payment-service" :timestamp now}))
 
     ;; Wait for background discovery (test system uses 100ms interval)
     (Thread/sleep 200)

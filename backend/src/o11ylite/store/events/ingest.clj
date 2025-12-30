@@ -25,7 +25,9 @@
    [next.jdbc.sql :as sql]
    [next.jdbc.quoted]
    [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.store.schema :as schema]))
+   [o11ylite.store.schema :as schema])
+  (:import
+   [java.time Instant LocalDateTime ZoneOffset]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -72,15 +74,23 @@
     (when (seq new-fields)
       new-fields)))
 
+(defn- -coerce-value
+  "Coerce a value for JDBC insertion.
+   - Keywords are converted to strings
+   - Instants are converted to LocalDateTime at UTC to avoid JDBC timezone bugs
+   - Other values pass through unchanged"
+  [v]
+  (cond
+    (keyword? v) (name v)
+    (instance? Instant v) (LocalDateTime/ofInstant v ZoneOffset/UTC)
+    :else v))
+
 (defn- -event->row
   "Convert event to a row vector for insert-multi!.
    Values are ordered by columns, missing keys become nil,
-   keyword values are coerced to strings."
+   values are coerced for JDBC compatibility."
   [event columns]
-  (mapv (fn [k]
-          (let [v (get event k)]
-            (if (keyword? v) (name v) v)))
-        columns))
+  (mapv (fn [k] (-coerce-value (get event k))) columns))
 
 (defn- -events->rows
   "Convert events to row vectors for insert-multi!.

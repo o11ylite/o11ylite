@@ -108,23 +108,22 @@
 ;; ---------------------------------------------------------
 ;; Query Building
 
-(defn- -epoch-s->timestamp
-  "Convert epoch seconds to DuckDB TIMESTAMP.
-   Uses to_timestamp(epoch_s)::TIMESTAMP to handle timezone correctly.
-   to_timestamp returns TIMESTAMPTZ, casting to TIMESTAMP converts to local time
-   which matches how TIMESTAMP_NS data is stored."
-  [epoch-s]
-  [:cast [:to_timestamp epoch-s] :timestamp])
+(defn- -epoch-ms->timestamp
+  "Convert epoch milliseconds to DuckDB TIMESTAMP.
+   Uses epoch_ms() which interprets the input as milliseconds since Unix epoch (UTC).
+   This matches how events are stored: Instant values converted to LocalDateTime at UTC."
+  [epoch-ms]
+  [:epoch_ms epoch-ms])
 
 (defn- -build-base-query
   "Build the base HoneySQL query with time range filter.
-   time_range start/end are Unix epoch seconds."
+   time_range start/end are Unix epoch milliseconds."
   [{:keys [time_range]}]
   {:select [:*]
    :from [:events]
    :where [:and
-           [:>= :timestamp (-epoch-s->timestamp (:start time_range))]
-           [:< :timestamp (-epoch-s->timestamp (:end time_range))]]})
+           [:>= :timestamp (-epoch-ms->timestamp (:start time_range))]
+           [:< :timestamp (-epoch-ms->timestamp (:end time_range))]]})
 
 (defn- -add-filter
   "Add filter clause to query if present."
@@ -217,8 +216,10 @@
    Auto-injects time bucketing; user's group_by fields become series labels."
   [{:keys [time_range filter aggregations group_by visualization bucket-ms]}]
   (let [bucket-interval (-bucket-ms->interval bucket-ms)
-        ;; Time bucket expression: time_bucket(interval, timestamp)
-        bucket-expr [[:time_bucket bucket-interval :timestamp] :bucket]
+        ;; Time bucket expression wrapped with epoch_ms to get correct UTC milliseconds
+        ;; (avoids JDBC timezone conversion issues when reading TIMESTAMP values)
+        time-bucket-expr [:time_bucket bucket-interval :timestamp]
+        bucket-expr [[:epoch_ms time-bucket-expr] :bucket]
         ;; Build aggregation expressions
         agg-exprs (map -build-aggregation-expr aggregations)
         ;; Group by columns (series labels)
@@ -231,8 +232,8 @@
     (-> {:select (vec select-clause)
          :from [:events]
          :where [:and
-                 [:>= :timestamp (-epoch-s->timestamp (:start time_range))]
-                 [:< :timestamp (-epoch-s->timestamp (:end time_range))]]
+                 [:>= :timestamp (-epoch-ms->timestamp (:start time_range))]
+                 [:< :timestamp (-epoch-ms->timestamp (:end time_range))]]
          :group-by group-by-clause
          :order-by [[:bucket :asc]]}
         (-add-filter filter))))
@@ -249,20 +250,20 @@
       {:labels labels
        :name (name agg-alias)
        :data (vec (for [row rows-for-series]
-                    {:timestamp (.getTime (:bucket row))
+                    ;; bucket is already epoch_ms (number) from the SQL query
+                    {:timestamp (:bucket row)
                      :value (get row agg-alias)}))})))
 
 (defn- -align-to-bucket
-  "Align a timestamp (in seconds) down to the nearest bucket boundary.
+  "Align a timestamp (in milliseconds) down to the nearest bucket boundary.
    Returns the aligned timestamp in milliseconds."
-  [epoch-s bucket-ms]
-  (let [epoch-ms (* epoch-s 1000)]
-    (- epoch-ms (mod epoch-ms bucket-ms))))
+  [epoch-ms bucket-ms]
+  (- epoch-ms (mod epoch-ms bucket-ms)))
 
 (defn- -execute-time-series
   "Execute a time series visualization query."
   [duckdb {:keys [visualization aggregations group_by time_range] :as query}]
-  (let [range-ms (* 1000 (- (:end time_range) (:start time_range)))
+  (let [range-ms (- (:end time_range) (:start time_range))
         bucket-ms (or (:bucket_ms visualization)
                       (-select-bucket-ms range-ms))
         start-ms (-align-to-bucket (:start time_range) bucket-ms)
@@ -333,15 +334,14 @@
   (require '[o11ylite.components.duckdb-pool])
   (require '[o11ylite.store.init :as init])
 
-  ;; Epoch seconds to timestamp conversion
-  ;; Uses to_timestamp(epoch_s)::TIMESTAMP for proper timezone handling
-  ;; to_timestamp returns TIMESTAMPTZ, cast to TIMESTAMP converts to local time
-  (-epoch-s->timestamp 1702000000)
-  ;; => [:cast [:to_timestamp 1702000000] :timestamp]
+  ;; Epoch milliseconds to timestamp conversion
+  ;; Uses epoch_ms() which interprets input as milliseconds since Unix epoch (UTC)
+  (-epoch-ms->timestamp 1702000000000)
+  ;; => [:epoch_ms 1702000000000]
 
-  (sql/format {:where [:>= :timestamp (-epoch-s->timestamp 1702000000)]}
+  (sql/format {:where [:>= :timestamp (-epoch-ms->timestamp 1702000000000)]}
               {:dialect :ansi})
-  ;; => ["WHERE timestamp >= CAST(TO_TIMESTAMP(?) AS TIMESTAMP)" 1702000000]
+  ;; => ["WHERE \"timestamp\" >= EPOCH_MS(?)" 1702000000000]
 
   ;; Build filter clause
   (-build-filter-clause {:field "service" :op "=" :value "api"})
@@ -355,16 +355,16 @@
   (def ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
   (init/init-store! ds)
 
-  ;; Table query (timestamps in Unix epoch seconds)
+  ;; Table query (timestamps in Unix epoch milliseconds)
   (execute ds
-           {:time_range {:start 1702000000 :end 1702003600}
+           {:time_range {:start 1702000000000 :end 1702003600000}
             :visualization {:type "table" :limit 100}})
   ;; => {:data {:rows [] :total_count 0 :truncated false}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
   ;; Time series query - count events per minute
   (execute ds
-           {:time_range {:start 1702000000 :end 1702003600}
+           {:time_range {:start 1702000000000 :end 1702003600000}
             :aggregations [{:field "*" :function "count"}]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000
@@ -374,7 +374,7 @@
 
   ;; Time series with group_by - count per service per minute
   (execute ds
-           {:time_range {:start 1702000000 :end 1702003600}
+           {:time_range {:start 1702000000000 :end 1702003600000}
             :aggregations [{:field "*" :function "count"}]
             :group_by ["service"]
             :visualization {:type "time_series" :bucket_ms 60000}})

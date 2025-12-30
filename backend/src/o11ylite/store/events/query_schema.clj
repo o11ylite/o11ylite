@@ -14,7 +14,7 @@
 ;; Primitive Schemas
 
 (def timestamp
-  "Unix epoch timestamp in seconds."
+  "Unix epoch timestamp in milliseconds."
   [:int {:min 0}])
 
 (def field-name
@@ -28,7 +28,7 @@
     #"^[a-zA-Z_][a-zA-Z0-9_.]*$"]])
 
 (def time-range
-  "Time range with start/end as Unix epoch seconds."
+  "Time range with start/end as Unix epoch milliseconds."
   [:map
    [:start timestamp]
    [:end timestamp]])
@@ -170,9 +170,9 @@
 ;; Rich Comment
 (comment
 
-  ;; Valid table query (timestamps in Unix epoch seconds)
+  ;; Valid table query (timestamps in Unix epoch milliseconds)
   (validate events-query
-            {:time_range {:start 1702000000 :end 1702003600}
+            {:time_range {:start 1702000000000 :end 1702003600000}
              :visualization {:type "table" :limit 100}})
   ;; => nil
 
@@ -183,27 +183,27 @@
 
   ;; Heatmap without group_by
   (validate events-query
-            {:time_range {:start 1702000000 :end 1702003600}
+            {:time_range {:start 1702000000000 :end 1702003600000}
              :visualization {:type "heatmap"}})
   ;; => {:error ["heatmap requires exactly one group_by field"]}
 
   ;; Valid heatmap
   (validate events-query
-            {:time_range {:start 1702000000 :end 1702003600}
+            {:time_range {:start 1702000000000 :end 1702003600000}
              :group_by ["duration_ms"]
              :visualization {:type "heatmap"}})
   ;; => nil
 
   ;; Valid field with dots (attribute fields)
   (validate events-query
-            {:time_range {:start 1702000000 :end 1702003600}
+            {:time_range {:start 1702000000000 :end 1702003600000}
              :filter {:field "attr.http.method" :op "=" :value "GET"}
              :visualization {:type "table"}})
   ;; => nil
 
   ;; Invalid field name (SQL injection attempt)
   (validate events-query
-            {:time_range {:start 1702000000 :end 1702003600}
+            {:time_range {:start 1702000000000 :end 1702003600000}
              :filter {:field "service; DROP TABLE events;" :op "=" :value "x"}
              :visualization {:type "table"}})
   ;; => {:error {:filter {:field ["field name must contain only letters, numbers, underscores, and dots"]}}}
