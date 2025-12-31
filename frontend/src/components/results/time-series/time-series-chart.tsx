@@ -1,7 +1,8 @@
-import { useMemo } from "react"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { useMemo, useState, useCallback } from "react"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, ReferenceArea } from "recharts"
 
 import type { TimeSeriesQueryResult } from "@/types"
+import { useTimeRange } from "@/hooks/use-time-range"
 import {
   type ChartConfig,
   ChartContainer,
@@ -19,6 +20,40 @@ interface TimeSeriesChartProps {
 
 export function TimeSeriesChart({ data, title }: TimeSeriesChartProps) {
   const { chartData, seriesMeta } = useMemo(() => transformData(data), [data])
+  const { setRange } = useTimeRange()
+
+  // Drag selection state
+  const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null)
+  const [refAreaRight, setRefAreaRight] = useState<number | null>(null)
+
+  const handleMouseDown = useCallback((e: { activeLabel?: string } | null) => {
+    if (e?.activeLabel) {
+      setRefAreaLeft(Number(e.activeLabel))
+      setRefAreaRight(null)
+    }
+  }, [])
+
+  const handleMouseMove = useCallback((e: { activeLabel?: string } | null) => {
+    if (refAreaLeft !== null && e?.activeLabel) {
+      setRefAreaRight(Number(e.activeLabel))
+    }
+  }, [refAreaLeft])
+
+  const handleMouseUp = useCallback(() => {
+    if (refAreaLeft !== null && refAreaRight !== null) {
+      const [start, end] = [refAreaLeft, refAreaRight].sort((a, b) => a - b)
+      // Only update if selection spans a meaningful range (at least 1 second)
+      // TODO: milliseconds support coming very soon!
+      if (end - start >= 1000) {
+        setRange({
+          from: new Date(start).toISOString(),
+          to: new Date(end).toISOString(),
+        })
+      }
+    }
+    setRefAreaLeft(null)
+    setRefAreaRight(null)
+  }, [refAreaLeft, refAreaRight, setRange])
 
   // Build chart config from series metadata
   const chartConfig = useMemo(() => {
@@ -43,7 +78,14 @@ export function TimeSeriesChart({ data, title }: TimeSeriesChartProps) {
         <div className="px-3 py-2 text-sm font-medium text-muted-foreground">{title}</div>
       )}
       <ChartContainer config={chartConfig} className="h-[240px] w-full py-2 px-2">
-        <LineChart accessibilityLayer data={chartData}>
+        <LineChart
+          accessibilityLayer
+          data={chartData}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="timestamp"
@@ -80,6 +122,16 @@ export function TimeSeriesChart({ data, title }: TimeSeriesChartProps) {
               connectNulls={false}
             />
           ))}
+          {refAreaLeft !== null && refAreaRight !== null && (
+            <ReferenceArea
+              x1={refAreaLeft}
+              x2={refAreaRight}
+              stroke="white"
+              strokeOpacity={0.8}
+              fill="white"
+              fillOpacity={0.3}
+            />
+          )}
         </LineChart>
       </ChartContainer>
     </div>
