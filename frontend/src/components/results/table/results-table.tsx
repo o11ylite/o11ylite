@@ -1,20 +1,12 @@
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  type VisibilityState,
 } from "@tanstack/react-table"
-import { ChevronDown } from "lucide-react"
 
 import type { QueryResponse, TableQueryResult } from "@/types"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { useDisplayedFields } from "@/hooks/use-displayed-fields"
 import {
   Table,
   TableBody,
@@ -24,7 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { buildColumns, buildDefaultVisibility, isErrorRow, type RowData } from "./columns"
+import { buildColumns, isErrorRow, type RowData } from "./columns"
+import { DisplayedFieldsSelector } from "./displayed-fields-selector"
 import { RowDetailDrawer } from "./row-detail-drawer"
 
 export function ResultsTable({ data }: { data: QueryResponse }) {
@@ -45,12 +38,9 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
     [fieldsKey] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-
-  // Reset visibility when fields change (new query results)
-  useEffect(() => {
-    setColumnVisibility(buildDefaultVisibility(fields))
-  }, [fieldsKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const { visibility, setVisibility } = useDisplayedFields({
+    availableFields: fields,
+  })
 
   // TanStack Table's useReactTable returns functions that React Compiler cannot
   // safely memoize. The compiler automatically skips this component, and the
@@ -60,9 +50,9 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: setVisibility,
     state: {
-      columnVisibility,
+      columnVisibility: visibility,
     },
   })
 
@@ -77,27 +67,7 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden rounded-lg border">
       <div className="flex items-center justify-end px-3 py-2 border-b bg-muted/30">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              Displayed fields <ChevronDown className="ml-1 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  checked={column.getIsVisible()}
-                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                >
-                  {column.id}
-                </DropdownMenuCheckboxItem>
-              ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <DisplayedFieldsSelector table={table} />
       </div>
       <div className="overflow-auto flex-1">
         <Table className="text-xs">
