@@ -8,6 +8,7 @@
 (ns o11ylite.test-helpers
   (:require
    [integrant.core :as ig]
+   [jsonista.core :as json]
    [o11ylite.system :as system]
    [o11ylite.test-helpers.event-ingest :as event-ingest]
    [o11ylite.test-helpers.http :as http]
@@ -107,11 +108,20 @@
           (stop-system! sys))))))
 
 ;; ---------------------------------------------------------
+;; JSON Utilities
+
+(defn ->json
+  "Convert Clojure data to JSON string."
+  [data]
+  (json/write-value-as-string data))
+
+;; ---------------------------------------------------------
 ;; Re-exports: HTTP helpers
 
 (def url http/url)
 (def get-request http/get-request)
 (def get-json http/get-json)
+(def post http/post)
 (def post-json http/post-json)
 (def inertia-headers http/inertia-headers)
 (def inertia-request http/inertia-request)

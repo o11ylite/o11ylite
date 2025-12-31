@@ -79,6 +79,18 @@
                  (assoc :headers (merge (inertia-headers {:version version})
                                         (:headers opts)))))))
 
+(defn post
+  "Make a POST request with raw body. Returns response map.
+   
+   Options:
+   - :headers - map of request headers
+   - :body    - request body (string or bytes)
+   - :throw   - whether to throw on error status (default false)"
+  ([path] (post path {}))
+  ([path opts]
+   (http/post (url path)
+              (merge {:throw false} opts))))
+
 (defn post-json
   "Make a POST request with JSON body, expecting JSON response.
    Body is automatically serialized to JSON."

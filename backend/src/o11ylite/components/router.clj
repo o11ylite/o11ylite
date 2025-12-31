@@ -16,6 +16,7 @@
    [o11ylite.inertia.middleware :as inertia]
    [o11ylite.api.health :as api.health]
    [o11ylite.api.query :as api.query]
+   [o11ylite.otel-http :as otel-http]
    [o11ylite.routes.home :as home]
    [o11ylite.routes.explore :as explore]
    [o11ylite.routes.dashboards :as dashboards]
@@ -69,6 +70,13 @@
    (api.health/routes {})
    (api.query/routes {:duckdb duckdb})])
 
+(defn otlp-routes
+  "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
+   These routes handle their own protobuf/JSON parsing."
+  [{:keys [event-metadata batcher]}]
+  (otel-http/routes {:event-metadata event-metadata
+                     :batcher batcher}))
+
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."
   [{:keys [inertia sqlite event-metadata]}]
@@ -89,6 +97,7 @@
   (ring/ring-handler
    (ring/router
     [(api-routes opts)
+     (otlp-routes opts)
      (page-routes opts)]
     {:data {:middleware [exception/exception-middleware]}})
    (ring/routes
