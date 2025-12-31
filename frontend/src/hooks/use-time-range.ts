@@ -123,7 +123,8 @@ function updateUrlParams(range: TimeRange): void {
   const newUrl = `${window.location.pathname}?${params.toString()}`
 
   // router.visit(replace: true) behave differently to this, not sure if it's a bug
-  router.replace({
+  // we are not too sure if it should be replace or push, maybe it's case by case. let's see
+  router.push({
     url: newUrl,
     preserveState: true,
     preserveScroll: true,
