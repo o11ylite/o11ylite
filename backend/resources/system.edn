@@ -65,5 +65,6 @@
   :duckdb #ig/ref :db/duckdb
   :sqlite #ig/ref :db/sqlite
   :event-metadata #ig/ref :cache/event-metadata
+  :batcher #ig/ref :ingest/batcher
   ;; _storage ensures storage/init runs first so DuckDB tables exist
   :_storage #ig/ref :storage/init}}
