@@ -8,6 +8,7 @@
   (:gen-class)
   (:require
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.mulog]
    [o11ylite.system :as system]))
 
 ;; ---------------------------------------------------------
@@ -29,10 +30,7 @@
    Set O11YLITE_DEV=1 for development mode (uses Vite dev server)."
   [& _args]
   (let [profile (if (dev-mode?) :dev :default)]
-    (when (= :dev profile)
-      (mulog/start-publisher! {:type :console :pretty? true}))
-    (mulog/set-global-context!
-     {:app-name "o11ylite backend" :version "0.1.0-SNAPSHOT"})
+    (o11ylite.mulog/init! profile)
     (mulog/log ::application-startup :profile profile)
     (println (greet))
 

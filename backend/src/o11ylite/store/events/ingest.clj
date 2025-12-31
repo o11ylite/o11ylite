@@ -37,12 +37,15 @@
    Returns a map of keyword -> {:type normalized-type}.
 
    When the same field appears with different types across events,
-   the last occurrence wins (merge behavior)."
+   the last occurrence wins (merge behavior).
+   
+   Note: Keys are normalized to keywords to prevent duplicate column errors
+   (e.g., both :timestamp and \"timestamp\" would map to the same SQL column)."
   [events]
   (->> events
        (mapcat (fn [event]
                  (map (fn [[k v]]
-                        [k {:type (schema/infer-type v)}])
+                        [(keyword k) {:type (schema/infer-type v)}])
                       event)))
        (into {})))
 
@@ -160,7 +163,9 @@
   (let [new-fields (-compute-schema-diff event-metadata fields)]
     ;; Step 1: Schema evolution (if needed)
     (when new-fields
-      (mulog/log ::schema-evolution :new-fields new-fields)
+      ;; Log field names only (not the nested {:type ...} maps) to avoid
+      ;; recursive schema evolution when dogfooding mulog -> otel -> o11ylite
+      (mulog/log ::schema-evolution :new-field-names (vec (keys new-fields)))
       (schema/add-fields! duckdb new-fields)
       (event-metadata/refresh! event-metadata))
 

@@ -5,10 +5,11 @@
 
  ;; ---------------------------------------------------------
  :deps
- {;; Application
-  org.clojure/clojure {:mvn/version "1.12.3"}
-  org.clojure/core.async {:mvn/version "1.8.741"}
-  com.brunobonacci/mulog {:mvn/version "0.9.0"}
+{;; Application
+   org.clojure/clojure {:mvn/version "1.12.3"}
+   org.clojure/core.async {:mvn/version "1.8.741"}
+   com.brunobonacci/mulog {:mvn/version "0.10.0"}
+   com.brunobonacci/mulog-opentelemetry {:mvn/version "0.10.0"}
 
   ;; System
   integrant/integrant {:mvn/version "1.0.1"}
