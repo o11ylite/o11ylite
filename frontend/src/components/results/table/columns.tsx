@@ -1,4 +1,4 @@
-import { type ColumnDef, type VisibilityState } from "@tanstack/react-table"
+import type { ColumnDef } from "@tanstack/react-table"
 import { Eye } from "lucide-react"
 
 import {
@@ -8,15 +8,6 @@ import {
 } from "@/components/ui/tooltip"
 
 export type RowData = Record<string, unknown>
-
-const DEFAULT_VISIBLE_FIELDS = new Set([
-  "timestamp",
-  "service",
-  "name",
-  "log.body",
-  "trace_id",
-  "meta.signal_type",
-])
 
 export function formatCellValue(value: unknown): string {
   if (value === null || value === undefined) return ""
@@ -75,18 +66,4 @@ export function buildColumns(
   }))
 
   return [actionsColumn, ...fieldColumns]
-}
-
-export function buildDefaultVisibility(fields: string[]): VisibilityState {
-  // Show all fields if there are few (typical for aggregation queries)
-  if (fields.length <= 6) return {}
-
-  const defaultFieldCount = fields.filter((f) => DEFAULT_VISIBLE_FIELDS.has(f)).length
-
-  // Show all fields if fewer than 3 default fields are available
-  if (defaultFieldCount < 3) return {}
-
-  return Object.fromEntries(
-    fields.map((field) => [field, DEFAULT_VISIBLE_FIELDS.has(field)])
-  )
 }
