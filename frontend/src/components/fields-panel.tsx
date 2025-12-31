@@ -12,11 +12,18 @@ export function FieldsPanel({
 }) {
   const [searchQuery, setSearchQuery] = useState("")
 
-  const filteredFields = searchQuery
-    ? fields.filter((field) =>
+  const filteredFields = fields
+    .filter(
+      (field) =>
+        !searchQuery ||
         field.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : fields
+    )
+    .sort((a, b) => {
+      const aIsAttr = a.name.startsWith("attr.")
+      const bIsAttr = b.name.startsWith("attr.")
+      if (aIsAttr !== bIsAttr) return aIsAttr ? 1 : -1
+      return a.name.localeCompare(b.name)
+    })
 
   return (
     <div className="space-y-2">
