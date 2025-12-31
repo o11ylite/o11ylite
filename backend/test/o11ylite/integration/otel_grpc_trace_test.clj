@@ -1,10 +1,10 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.otel-trace-test
+;; o11ylite.integration.otel-grpc-trace-test
 ;;
-;; Integration tests for OpenTelemetry trace ingestion.
+;; Integration tests for OpenTelemetry Traces gRPC endpoints.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.otel-trace-test
+(ns o11ylite.integration.otel-grpc-trace-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [next.jdbc :as jdbc]
@@ -131,7 +131,7 @@
 
   ;; Run tests manually
   (require '[clojure.test :refer [run-tests]])
-  (run-tests 'o11ylite.integration.otel-trace-test)
+  (run-tests 'o11ylite.integration.otel-grpc-trace-test)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
