@@ -7,6 +7,7 @@
 
 (ns o11ylite.otel-grpc.proto
   (:require
+   [clojure.string :as str]
    [jsonista.core :as json])
   (:import
    [com.google.protobuf ByteString]
@@ -135,11 +136,18 @@
 (defn prefix-attributes
   "Add 'attr.' prefix to attribute keys and convert to keywords.
    Merges all attribute maps, prefixes each key, and returns keywords.
+   
+   Slashes in attribute names are converted to dots to avoid creating
+   namespaced keywords (which cause issues with SQL column naming since
+   `(name :foo/bar)` returns just \"bar\", losing the namespace).
 
-   Example: {\"http.method\" \"GET\"} -> {:attr.http.method \"GET\"}"
+   Example: {\"http.method\" \"GET\"} -> {:attr.http.method \"GET\"}
+            {\"mulog/timestamp\" 123} -> {:attr.mulog.timestamp 123}"
   [& attr-maps]
   (reduce-kv (fn [acc k v]
-               (assoc acc (keyword (str "attr." k)) v))
+               ;; Replace slashes with dots to avoid namespaced keywords
+               (let [safe-key (str/replace (str k) "/" ".")]
+                 (assoc acc (keyword (str "attr." safe-key)) v)))
              {}
              (apply merge attr-maps)))
 
