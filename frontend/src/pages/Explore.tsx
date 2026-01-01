@@ -12,7 +12,11 @@ import {
 } from "@/components/results"
 import { FieldsPanel } from "@/components/fields-panel"
 import { useQueryState } from "@/hooks/use-query-state"
-import { useTimeRange, resolveTimeRange } from "@/hooks/use-time-range"
+import {
+  useTimeRange,
+  resolveTimeRange,
+  LIVE_REFRESH_INTERVAL,
+} from "@/hooks/use-time-range"
 import type {
   Field,
   Service,
@@ -59,18 +63,11 @@ function buildFilterExpr(filters: SimpleFilter[]): FilterExpr | undefined {
 export default function Explore() {
   const { fields, services } = usePage<{ fields: Field[]; services: Service[] }>().props
   const { state, setState, hasQuery } = useQueryState()
-  const { from, to } = useTimeRange()
+  const { from, to, live } = useTimeRange()
 
-  // Resolve time range using second-level precision for stable query keys.
-  // This keeps the key stable across renders within the same second,
-  // while still changing on each "Run" click (typically >1s apart).
-  const resolved = resolveTimeRange({ from, to })
-  const eventsQuery = hasQuery
+  // Build the query payload (without time_range for stable key in live mode)
+  const queryPayload = hasQuery
     ? {
-        time_range: {
-          start: Math.floor(resolved.from.getTime() / 1000) * 1000,
-          end: Math.floor(resolved.to.getTime() / 1000) * 1000,
-        },
         filter: buildFilterExpr(state.filters),
         aggregations:
           state.aggregations.length > 0 ? state.aggregations : undefined,
@@ -79,15 +76,40 @@ export default function Explore() {
       }
     : null
 
+  // For query key: in live mode, use stable relative strings (from, to)
+  // so only refetchInterval triggers queries.
+  // In non-live mode, resolve to timestamps with second-level precision.
+  // This keeps the key stable across renders within the same second,
+  // while still changing on each "Run" click (typically >1s apart).
+  const resolved = resolveTimeRange({ from, to })
+  const queryKeyTimeRange = live
+    ? { from, to }
+    : {
+        start: Math.floor(resolved.from.getTime() / 1000) * 1000,
+        end: Math.floor(resolved.to.getTime() / 1000) * 1000,
+      }
+
   // TanStack Query for fetching results
+  // In live mode, refetchInterval triggers periodic re-fetches with fresh timestamps
   const {
     data: queryResult,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["events-query", eventsQuery],
-    queryFn: () => fetchEventsQuery(eventsQuery!),
-    enabled: eventsQuery !== null,
+    queryKey: ["events-query", queryKeyTimeRange, queryPayload],
+    queryFn: () => {
+      // Resolve time range fresh on each fetch
+      const freshResolved = resolveTimeRange({ from, to })
+      return fetchEventsQuery({
+        ...queryPayload!,
+        time_range: {
+          start: Math.floor(freshResolved.from.getTime() / 1000) * 1000,
+          end: Math.floor(freshResolved.to.getTime() / 1000) * 1000,
+        },
+      })
+    },
+    enabled: queryPayload !== null,
+    refetchInterval: live ? LIVE_REFRESH_INTERVAL : false,
   })
 
   // Called when user clicks "Run" - updates URL which triggers refetch

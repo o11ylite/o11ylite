@@ -13,6 +13,7 @@ import { useMemo, useCallback } from "react"
 export interface TimeRange {
   from: string
   to: string
+  live?: boolean
 }
 
 export interface ResolvedTimeRange {
@@ -25,6 +26,8 @@ export interface ResolvedTimeRange {
 // ============================================================================
 
 export const DEFAULT_TIME_RANGE: TimeRange = { from: "now-15m", to: "now" }
+
+export const LIVE_REFRESH_INTERVAL = 3000
 
 // ============================================================================
 // Time string parsing & resolution
@@ -98,6 +101,7 @@ function parseTimeRangeFromUrl(url: string, defaultRange: TimeRange): TimeRange 
     const urlObj = new URL(url, window.location.origin)
     const from = urlObj.searchParams.get("from")
     const to = urlObj.searchParams.get("to")
+    const live = urlObj.searchParams.get("live") === "true"
 
     if (!from || !to) {
       return defaultRange
@@ -106,7 +110,7 @@ function parseTimeRangeFromUrl(url: string, defaultRange: TimeRange): TimeRange 
     // Validate
     resolveTimeString(from)
     resolveTimeString(to)
-    return { from, to }
+    return { from, to, live }
   } catch {
     return defaultRange
   }
@@ -119,6 +123,11 @@ function updateUrlParams(range: TimeRange): void {
   const params = new URLSearchParams(window.location.search)
   params.set("from", range.from)
   params.set("to", range.to)
+  if (range.live) {
+    params.set("live", "true")
+  } else {
+    params.delete("live")
+  }
 
   const newUrl = `${window.location.pathname}?${params.toString()}`
 
@@ -178,6 +187,7 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
   return {
     from: timeRange.from,
     to: timeRange.to,
+    live: timeRange.live ?? false,
     setRange,
     resolve,
   }
