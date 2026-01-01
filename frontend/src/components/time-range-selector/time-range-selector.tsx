@@ -1,17 +1,23 @@
 import { useState } from "react"
-import { Clock, ChevronDown } from "lucide-react"
+import { Clock, ChevronDown, Radio } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useTimeRange, resolveTimeString } from "@/hooks/use-time-range"
+import {
+  useTimeRange,
+  resolveTimeString,
+  LIVE_REFRESH_INTERVAL,
+} from "@/hooks/use-time-range"
 import { TimeInput } from "./time-input"
 import {
   isValidTimeInput,
   normalizeTimeInput,
   toDisplayValue,
 } from "./utils"
+
+const LIVE_PRESET = { from: "now-5m", to: "now", live: true, label: "Live 5 mins" }
 
 const TIME_RANGE_PRESETS = [
   { from: "now-5m", to: "now", label: "Last 5 minutes" },
@@ -22,7 +28,10 @@ const TIME_RANGE_PRESETS = [
   { from: "now-7d", to: "now", label: "Last 7 days" },
 ]
 
-function getLabel(from: string, to: string): string {
+function getLabel(from: string, to: string, live: boolean): string {
+  if (live && from === LIVE_PRESET.from && to === LIVE_PRESET.to) {
+    return LIVE_PRESET.label
+  }
   const preset = TIME_RANGE_PRESETS.find(
     (p) => p.from === from && p.to === to
   )
@@ -33,8 +42,8 @@ function getLabel(from: string, to: string): string {
 }
 
 export function TimeRangeSelector() {
-  const { from, to, setRange } = useTimeRange()
-  const label = getLabel(from, to)
+  const { from, to, live, setRange } = useTimeRange()
+  const label = getLabel(from, to, live)
   const [isOpen, setIsOpen] = useState(false)
   const [customFrom, setCustomFrom] = useState("")
   const [customTo, setCustomTo] = useState("")
@@ -48,7 +57,12 @@ export function TimeRangeSelector() {
   }
 
   const handlePresetClick = (preset: { from: string; to: string }) => {
-    setRange({ from: preset.from, to: preset.to })
+    setRange({ from: preset.from, to: preset.to, live: false })
+    setIsOpen(false)
+  }
+
+  const handleLiveClick = () => {
+    setRange({ from: LIVE_PRESET.from, to: LIVE_PRESET.to, live: true })
     setIsOpen(false)
   }
 
@@ -66,7 +80,7 @@ export function TimeRangeSelector() {
       return
     }
 
-    setRange({ from: normalizedFrom, to: normalizedTo })
+    setRange({ from: normalizedFrom, to: normalizedTo, live: false })
     setIsOpen(false)
   }
 
@@ -83,19 +97,42 @@ export function TimeRangeSelector() {
   })()
 
   const isPresetSelected = (preset: { from: string; to: string }) =>
-    from === preset.from && to === preset.to
+    !live && from === preset.from && to === preset.to
+
+  const isLiveSelected = live && from === LIVE_PRESET.from && to === LIVE_PRESET.to
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="min-w-[160px] justify-between gap-2">
-          <Clock className="size-4" />
+          {live ? (
+            <Radio className="size-4 text-green-500" />
+          ) : (
+            <Clock className="size-4" />
+          )}
           <span className="truncate">{label}</span>
           <ChevronDown className="size-4 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80" align="end">
         <div className="space-y-4">
+          <div>
+            <Button
+              variant={isLiveSelected ? "secondary" : "outline"}
+              size="sm"
+              className="w-full justify-start gap-2"
+              onClick={handleLiveClick}
+            >
+              <Radio className="size-4" />
+              {LIVE_PRESET.label}
+              <span className="ml-auto text-xs text-muted-foreground">
+                refreshes every {LIVE_REFRESH_INTERVAL / 1000}s
+              </span>
+            </Button>
+          </div>
+
+          <Separator />
+
           <div>
             <h4 className="mb-2 text-sm font-medium">Quick Select</h4>
             <div className="grid grid-cols-2 gap-1">
