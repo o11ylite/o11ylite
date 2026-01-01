@@ -183,6 +183,9 @@
                  :visualization {:type "table"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :filter {:field "field_with_123" :op "=" :value "x"}
+                 :visualization {:type "table"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :filter {:field "field-with-dashes" :op "=" :value "x"}
                  :visualization {:type "table"}})))
 
   (testing "rejects SQL injection attempts in filter field"
