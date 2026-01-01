@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   flexRender,
   getCoreRowModel,
@@ -20,10 +20,49 @@ import { buildColumns, isErrorRow, type RowData } from "./columns"
 import { DisplayedFieldsSelector } from "./displayed-fields-selector"
 import { RowDetailDrawer } from "./row-detail-drawer"
 
-export function ResultsTable({ data }: { data: QueryResponse }) {
+function getRowKey(row: RowData): string {
+  const ts = row.timestamp
+  return String(ts)
+}
+
+// Light green that works in both light and dark modes
+const NEW_ROW_HIGHLIGHT = "rgba(74, 222, 128, 0.2)"
+
+export function ResultsTable({
+  data,
+  live = false,
+}: {
+  data: QueryResponse
+  live?: boolean
+}) {
   const { rows, total_count, truncated } = data.data as TableQueryResult
 
   const [detailRow, setDetailRow] = useState<RowData | null>(null)
+
+  // Track previous row keys to detect new rows in live mode
+  const prevRowKeysRef = useRef<Set<string>>(new Set())
+  const [newRowKeys, setNewRowKeys] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!live) {
+      prevRowKeysRef.current = new Set()
+      setNewRowKeys(new Set())
+      return
+    }
+
+    const currentKeys = new Set(rows.map(getRowKey).filter(Boolean))
+    const prevKeys = prevRowKeysRef.current
+
+    const newKeys = new Set<string>()
+    for (const key of currentKeys) {
+      if (!prevKeys.has(key)) {
+        newKeys.add(key)
+      }
+    }
+    setNewRowKeys(newKeys)
+
+    prevRowKeysRef.current = currentKeys
+  }, [rows, live])
 
   const rawFields = rows.length > 0 ? Object.keys(rows[0]) : []
   // Ensure timestamp always rendered as the first field.
@@ -91,18 +130,28 @@ export function ResultsTable({ data }: { data: QueryResponse }) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={isErrorRow(row.original) ? "border-l-2 border-l-red-500" : ""}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const rowKey = getRowKey(row.original)
+              const isNew = live && rowKey && newRowKeys.has(rowKey)
+              const isError = isErrorRow(row.original)
+
+              return (
+                <TableRow
+                  key={row.id}
+                  className={isError ? "border-l-2 border-l-red-500" : ""}
+                  style={{
+                    backgroundColor: isNew ? NEW_ROW_HIGHLIGHT : undefined,
+                    transition: "background-color 1s ease-out",
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>

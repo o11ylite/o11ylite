@@ -137,7 +137,7 @@ export default function Explore() {
         return <ResultsTimeSeries data={queryResult} />
       case "table":
       default:
-        return <ResultsTable data={queryResult} />
+        return <ResultsTable data={queryResult} live={live} />
     }
   }
 
