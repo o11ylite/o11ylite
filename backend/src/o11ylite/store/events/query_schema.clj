@@ -19,13 +19,13 @@
 
 (def field-name
   "Valid field name for queries.
-   Allows alphanumeric, underscores, and dots (for nested attributes like attr.http.method).
+   Allows alphanumeric, underscores, dashes, and dots (for nested attributes like attr.http.method).
    Must start with a letter or underscore.
    Prevents SQL injection by rejecting special characters."
   [:and
    :string
-   [:re {:error/message "field name must contain only letters, numbers, underscores, and dots"}
-    #"^[a-zA-Z_][a-zA-Z0-9_.]*$"]])
+   [:re {:error/message "field name must contain only letters, numbers, underscores, dashes, and dots"}
+    #"^[a-zA-Z_][a-zA-Z0-9_.\-]*$"]])
 
 (def time-range
   "Time range with start/end as Unix epoch milliseconds."
