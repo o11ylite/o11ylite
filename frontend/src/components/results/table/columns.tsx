@@ -6,6 +6,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { TimestampCell } from "./timestamp-cell"
+import { TraceIdCell } from "./trace-id-cell"
 
 export type RowData = Record<string, unknown>
 
@@ -24,6 +26,21 @@ export function isErrorRow(row: RowData): boolean {
     (typeof spanStatus === "string" && spanStatus.toLowerCase() === "error") ||
     (typeof logSeverity === "string" && logSeverity.toLowerCase() === "error")
   )
+}
+
+// Default column widths by field type
+const COLUMN_SIZES = {
+  _actions: { size: 30, minSize: 30, maxSize: 30 },
+  timestamp: { size: 200, minSize: 80 },
+  trace_id: { size: 100, minSize: 50 },
+  default: { size: 200, minSize: 50 },
+} as const
+
+function getColumnSize(field: string) {
+  if (field in COLUMN_SIZES) {
+    return COLUMN_SIZES[field as keyof typeof COLUMN_SIZES]
+  }
+  return COLUMN_SIZES.default
 }
 
 export function buildColumns(
@@ -50,20 +67,48 @@ export function buildColumns(
       </Tooltip>
     ),
     enableHiding: false,
+    enableResizing: false,
+    ...getColumnSize("_actions"),
   }
 
-  const fieldColumns = fields.map((field) => ({
-    id: field,
-    // Use accessorFn instead of accessorKey to avoid TanStack Table
-    // interpreting dots as nested property paths (e.g., "scope.version")
-    accessorFn: (row: RowData) => row[field],
-    header: field,
-    cell: ({ getValue }: { getValue: () => unknown }) => (
-      <span className="truncate max-w-[300px] block">
-        {formatCellValue(getValue())}
-      </span>
-    ),
-  }))
+  const fieldColumns: ColumnDef<RowData>[] = fields.map((field) => {
+    const baseColumn = {
+      id: field,
+      // Use accessorFn instead of accessorKey to avoid TanStack Table
+      // interpreting dots as nested property paths (e.g., "scope.version")
+      accessorFn: (row: RowData) => row[field],
+      header: field,
+      enableResizing: true,
+      ...getColumnSize(field),
+    }
+
+    // Specialized cell renderers
+    if (field === "timestamp") {
+      return {
+        ...baseColumn,
+        cell: ({ getValue }: { getValue: () => unknown }) => (
+          <TimestampCell value={getValue()} />
+        ),
+      }
+    }
+
+    if (field === "trace_id") {
+      return {
+        ...baseColumn,
+        cell: ({ getValue }: { getValue: () => unknown }) => (
+          <TraceIdCell value={getValue()} />
+        ),
+      }
+    }
+
+    // Default cell renderer
+    return {
+      ...baseColumn,
+      cell: ({ getValue }: { getValue: () => unknown }) => (
+        <span className="break-words">{formatCellValue(getValue())}</span>
+      ),
+    }
+  })
 
   return [actionsColumn, ...fieldColumns]
 }
