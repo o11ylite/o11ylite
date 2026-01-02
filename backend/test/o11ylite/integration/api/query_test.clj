@@ -74,7 +74,34 @@
           (is (= 2 total))
           (is (= 2 (count rows)))
           (is (every? #(= "test-event" (:name %)) rows))
-          (is (every? #(= "test-query-service" (:service %)) rows)))))))
+          (is (every? #(= "test-query-service" (:service %)) rows))))))
+
+  (testing "timestamp columns are returned as epoch milliseconds (float)"
+    (let [now-ms (current-epoch-ms)
+          ;; Create timestamp with microsecond precision for test
+          test-timestamp (t/>> (t/truncate (t/instant) :millis) (t/of-micros 123))]
+
+      (h/ingest-sample-events! (event-metadata) (batcher) 1
+                               {:service "test-timestamp-format"
+                                :timestamp test-timestamp})
+
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start (- now-ms 3600000)
+                                                :end (+ now-ms 60000)}
+                                   :filter {:field "service"
+                                            :op "="
+                                            :value "test-timestamp-format"}
+                                   :visualization {:type "table" :limit 1}})
+            row (first (get-in response [:body :data :rows]))
+            timestamp (:timestamp row)
+            observed-time (:meta.observed_time row)]
+        ;; Timestamps should be numbers (epoch milliseconds as float), not strings
+        (is (number? timestamp) "timestamp should be epoch milliseconds (number)")
+        (is (number? observed-time) "meta.observed_time should be epoch milliseconds (number)")
+        ;; Verify microsecond precision is preserved in the fractional part
+        ;; test-timestamp has .123 microseconds, which becomes 0.123 in the fractional ms
+        (is (< (Math/abs (- (mod timestamp 1) 0.123)) 0.001)
+            "microsecond precision should be preserved in fractional milliseconds")))))
 
 (deftest events-query-table-with-aggregation-test
   (testing "POST /api/query/events with aggregation returns grouped results"
