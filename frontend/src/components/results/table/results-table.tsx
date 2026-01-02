@@ -7,14 +7,6 @@ import {
 
 import type { QueryResponse, TableQueryResult } from "@/types"
 import { useDisplayedFields } from "@/hooks/use-displayed-fields"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 import { buildColumns, isErrorRow, type RowData } from "./columns"
 import { DisplayedFieldsSelector } from "./displayed-fields-selector"
@@ -90,6 +82,7 @@ export function ResultsTable({
     columns,
     getCoreRowModel: getCoreRowModel(),
     onColumnVisibilityChange: setVisibility,
+    columnResizeMode: "onChange",
     state: {
       columnVisibility: visibility,
     },
@@ -109,51 +102,72 @@ export function ResultsTable({
         <DisplayedFieldsSelector table={table} />
       </div>
       <div className="overflow-auto flex-1">
-        <Table className="text-xs">
-          <TableHeader className="bg-muted/50 sticky top-0">
+        <table
+          className="text-xs border-collapse table-fixed"
+          style={{ minWidth: "100%", width: table.getTotalSize() }}
+        >
+          <thead className="bg-muted/50 sticky top-0">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <tr key={headerGroup.id} className="border-b">
                 {headerGroup.headers.map((header) => (
-                  <TableHead
+                  <th
                     key={header.id}
-                    className="text-muted-foreground font-medium"
+                    className="text-foreground px-2 py-2 text-left align-middle font-medium break-words relative group"
+                    style={{ width: header.getSize() }}
                   >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                  </TableHead>
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                    {header.column.getCanResize() && (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none bg-transparent group-hover:bg-border hover:bg-primary"
+                      />
+                    )}
+                  </th>
                 ))}
-              </TableRow>
+              </tr>
             ))}
-          </TableHeader>
-          <TableBody>
+          </thead>
+          <tbody>
             {table.getRowModel().rows.map((row) => {
               const rowKey = getRowKey(row.original)
               const isNew = live && rowKey && newRowKeys.has(rowKey)
               const isError = isErrorRow(row.original)
 
               return (
-                <TableRow
+                <tr
                   key={row.id}
-                  className={isError ? "border-l-2 border-l-red-500" : ""}
-                  style={{
-                    backgroundColor: isNew ? NEW_ROW_HIGHLIGHT : undefined,
-                    transition: "background-color 1s ease-out",
-                  }}
+                  className={`border-b hover:bg-muted/50 ${isError ? "border-l-2 border-l-red-500" : ""}`}
+                  style={
+                    isNew
+                      ? {
+                          backgroundColor: NEW_ROW_HIGHLIGHT,
+                          transition: "background-color 1s ease-out",
+                        }
+                      : undefined
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+                    <td
+                      key={cell.id}
+                      className="p-2 align-top overflow-hidden break-words"
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </td>
                   ))}
-                </TableRow>
+                </tr>
               )
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
       <div className="px-3 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
         {total_count} rows{truncated && " (truncated)"} &middot;{" "}
