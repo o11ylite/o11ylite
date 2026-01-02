@@ -35,7 +35,8 @@
   (:require
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
-   [next.jdbc :as jdbc])
+   [next.jdbc :as jdbc]
+   [o11ylite.store.jdbc-types :as jdbc-types])
   (:import
    [org.duckdb DuckDBConnection]
    [com.zaxxer.hikari HikariConfig HikariDataSource]
@@ -150,12 +151,18 @@
     ;; Validate pool by getting and closing a connection
     (.close (.getConnection datasource))
     (mulog/log ::duckdb-pool-started :data-path data-path)
-    datasource))
+    ;; Wrap with default options for automatic Timestamp -> epoch-ms conversion.
+    ;; Note: jdbc/with-options returns a wrapper that applies these options to
+    ;; all next.jdbc operations. However, raw Java calls like .getConnection
+    ;; bypass the wrapper. Use jdbc/with-transaction+options for transactions.
+    (jdbc/with-options datasource
+      {:builder-fn jdbc-types/as-unqualified-maps})))
 
 (defmethod ig/halt-key! :db/duckdb
   [_ datasource]
   (mulog/log ::duckdb-pool-stopping)
-  (.close ^Closeable datasource)
+  ;; Unwrap the with-options wrapper to get the underlying Closeable datasource
+  (.close ^Closeable (jdbc/get-datasource datasource))
   (mulog/log ::duckdb-pool-stopped))
 
 ;; ---------------------------------------------------------
