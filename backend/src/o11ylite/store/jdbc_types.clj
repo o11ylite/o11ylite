@@ -15,7 +15,8 @@
   (:require
    [next.jdbc.result-set :as rs])
   (:import
-   [java.sql ResultSet ResultSetMetaData Timestamp]))
+   [java.sql ResultSet ResultSetMetaData Timestamp]
+   [java.time ZoneOffset]))
 
 ;; ---------------------------------------------------------
 ;; Timestamp Conversion
@@ -24,14 +25,20 @@
   "Convert java.sql.Timestamp to epoch milliseconds as a double.
    Preserves microsecond precision in the fractional part.
    
-   Example: 2024-01-01T00:00:00.123456Z -> 1704067200123.456"
+   Works around a timezone bug in DuckDB JDBC.
+   See: https://github.com/duckdb/duckdb-java/issues/508
+   
+   Example: 2024-01-01T12:00:00.123456 (stored as UTC) -> 1704110400123.456"
   [^Timestamp ts]
-  (let [epoch-ms (.getTime ts)
-        nanos (.getNanos ts)
-        ;; getNanos includes the ms portion (0-999999999)
-        ;; Extract only the sub-millisecond part (0-999999 nanoseconds)
+  (let [;; Get the raw LocalDateTime (bypasses buggy toSqlTimestamp timezone handling)
+        local-dt (.toLocalDateTime ts)
+        ;; Treat as UTC and convert to Instant
+        instant (.toInstant (.atZone local-dt ZoneOffset/UTC))
+        ;; Get epoch milliseconds
+        epoch-ms (.toEpochMilli instant)
+        ;; Preserve sub-millisecond precision from nanos
+        nanos (.getNano local-dt)
         sub-ms-nanos (mod nanos 1000000)
-        ;; Convert to microseconds (0-999)
         sub-ms-micros (quot sub-ms-nanos 1000)]
     ;; Combine: whole milliseconds + fractional microseconds
     (+ (double epoch-ms) (/ sub-ms-micros 1000.0))))
@@ -70,9 +77,9 @@
   (def raw-ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
   (def ds (jdbc/with-options raw-ds {:builder-fn as-unqualified-maps}))
 
-  ;; Now all queries automatically convert Timestamps
+  ;; Now all queries automatically convert Timestamps (interpreted as UTC)
   (jdbc/execute! ds ["SELECT TIMESTAMP '2024-01-01 12:00:00.123456' AS ts"])
-  ;; => [{:ts 1704106800123.456}]
+  ;; => [{:ts 1704110400123.456}]
 
   (ig/halt-key! :db/duckdb raw-ds)
 
