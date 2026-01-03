@@ -80,8 +80,11 @@
 (defn- -coerce-value
   "Coerce a value for JDBC insertion.
    - Keywords are converted to strings
-   - Instants are converted to LocalDateTime at UTC to avoid JDBC timezone bugs
-   - Other values pass through unchanged"
+   - Instants are converted to LocalDateTime at UTC (see note below)
+   - Other values pass through unchanged
+   
+   Note on Instant conversion: Works around a timezone bug in DuckDB JDBC.
+   See: https://github.com/duckdb/duckdb-java/issues/508"
   [v]
   (cond
     (keyword? v) (name v)
