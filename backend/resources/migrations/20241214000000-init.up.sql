@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS metrics_metadata (
   original_temporality TEXT CHECK(original_temporality IN ('cumulative', 'delta')),
   is_monotonic INTEGER,               -- 0/1, NULL for gauge/histogram
   hist_boundaries TEXT,               -- JSON array: "[0.5, 1.0, 2.5, 5.0, 10.0]"
+  attributes TEXT,                    -- JSON array of attribute names: ["host.name", "cpu.core"]
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

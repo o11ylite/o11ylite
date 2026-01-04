@@ -10,7 +10,8 @@
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
    [o11ylite.otel-grpc.trace :as trace]
-   [o11ylite.otel-grpc.log :as log])
+   [o11ylite.otel-grpc.log :as log]
+   [o11ylite.otel-grpc.metric :as metric])
   (:import
    [io.grpc Server ServerBuilder]
    [java.util.concurrent Executors TimeUnit]))
@@ -26,6 +27,7 @@
                    (.executor executor)
                    (.addService (trace/create-service event-metadata batcher))
                    (.addService (log/create-service event-metadata batcher))
+                   (.addService (metric/create-service))
                    (.build)
                    (.start))]
     (mulog/log ::otel-grpc-server-started :port port)
