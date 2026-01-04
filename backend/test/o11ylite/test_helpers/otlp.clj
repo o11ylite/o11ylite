@@ -12,8 +12,10 @@
    [io.opentelemetry.proto.resource.v1 Resource]
    [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
    [io.opentelemetry.proto.logs.v1 LogRecord SeverityNumber ResourceLogs ScopeLogs]
+   [io.opentelemetry.proto.metrics.v1 Gauge NumberDataPoint ResourceMetrics ScopeMetrics Metric]
    [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
    [io.opentelemetry.proto.collector.logs.v1 LogsServiceGrpc ExportLogsServiceRequest]
+   [io.opentelemetry.proto.collector.metrics.v1 MetricsServiceGrpc ExportMetricsServiceRequest]
    [java.util.concurrent TimeUnit]))
 
 ;; ---------------------------------------------------------
@@ -267,6 +269,93 @@
                     (.build))
         stub (LogsServiceGrpc/newBlockingStub channel)
         request (build-logs-request request-map)]
+    (try
+      (.export stub request)
+      (finally
+        (.shutdown channel)
+        (.awaitTermination channel 5 TimeUnit/SECONDS)))))
+
+;; ---------------------------------------------------------
+;; Metric Builders
+
+(defn- -build-number-data-point
+  "Build a NumberDataPoint protobuf from a map."
+  [{:keys [value time-ns attributes]
+    :or {time-ns (System/nanoTime)
+         attributes {}}}]
+  (-> (NumberDataPoint/newBuilder)
+      (.setTimeUnixNano time-ns)
+      (.setAsDouble (double value))
+      (.addAllAttributes (-attributes attributes))
+      (.build)))
+
+(defn build-gauge-metric
+  "Build a Gauge Metric protobuf from a map.
+
+   Required keys:
+   - :name        - metric name
+
+   Optional keys:
+   - :description - metric description
+   - :unit        - metric unit
+   - :data-points - vector of data point maps with :value, :time-ns, :attributes"
+  [{:keys [name description unit data-points]
+    :or {description ""
+         unit ""
+         data-points [{:value 0.0}]}}]
+  (let [gauge (-> (Gauge/newBuilder)
+                  (.addAllDataPoints (map -build-number-data-point data-points))
+                  (.build))]
+    (-> (Metric/newBuilder)
+        (.setName name)
+        (.setDescription description)
+        (.setUnit unit)
+        (.setGauge gauge)
+        (.build))))
+
+(defn build-metrics-request
+  "Build an ExportMetricsServiceRequest from a flat map.
+
+   Keys:
+   - :service-name   - resource service.name attribute (optional, omit to test rejection)
+   - :resource-attrs - additional resource attributes map (optional)
+   - :meter-name     - instrumentation scope name
+   - :meter-version  - instrumentation scope version (optional)
+   - :metrics        - vector of Metric protobufs (use build-gauge-metric etc.)"
+  [{:keys [service-name resource-attrs meter-name meter-version metrics]
+    :or {meter-version "" resource-attrs {}}}]
+  (let [all-resource-attrs (cond-> resource-attrs
+                             service-name (assoc "service.name" service-name))
+        resource (-> (Resource/newBuilder)
+                     (.addAllAttributes (-attributes all-resource-attrs))
+                     (.build))
+        scope (cond-> (InstrumentationScope/newBuilder)
+                true (.setName meter-name)
+                (seq meter-version) (.setVersion meter-version)
+                true (.build))
+        scope-metrics (-> (ScopeMetrics/newBuilder)
+                          (.setScope scope)
+                          (.addAllMetrics metrics)
+                          (.build))
+        resource-metrics (-> (ResourceMetrics/newBuilder)
+                             (.setResource resource)
+                             (.addScopeMetrics scope-metrics)
+                             (.build))]
+    (-> (ExportMetricsServiceRequest/newBuilder)
+        (.addResourceMetrics resource-metrics)
+        (.build))))
+
+(defn export-metrics!
+  "Export metrics to the test gRPC server.
+   
+   Takes a map with :service-name, :meter-name, :metrics etc.
+   Returns the ExportMetricsServiceResponse."
+  [request-map]
+  (let [channel (-> (ManagedChannelBuilder/forAddress "localhost" test-port)
+                    (.usePlaintext)
+                    (.build))
+        stub (MetricsServiceGrpc/newBlockingStub channel)
+        request (build-metrics-request request-map)]
     (try
       (.export stub request)
       (finally
