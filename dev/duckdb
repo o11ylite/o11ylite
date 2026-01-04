@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Connect to the same DuckLake instance that the dev server uses.
+#
+# NOTE: DuckDB is an in-process database - only one process can attach to a
+# DuckLake file at a time. Stop the dev server before running this script.
+#
+# Usage:
+#   dev/duckdb              # Interactive DuckDB shell with DuckLake attached
+#   dev/duckdb "SELECT 1"   # Run a single query
+#
+# Environment:
+#   DATA_PATH               # Data directory (default: backend/.tmp)
+#
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+__dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+__root="$(cd "$(dirname "${__dir}")" && pwd)"
+
+DATA_PATH="${DATA_PATH:-$__root/backend/.tmp}"
+DUCKLAKE_FILE="$DATA_PATH/o11ylite.ducklake"
+
+if [[ ! -f "$DUCKLAKE_FILE" ]]; then
+  echo "Error: DuckLake file not found at $DUCKLAKE_FILE"
+  echo "Have you started the dev server at least once?"
+  exit 1
+fi
+
+# Build initialization SQL
+INIT_SQL="INSTALL ducklake; LOAD ducklake; ATTACH 'ducklake:$DUCKLAKE_FILE' AS o11ylite; USE o11ylite;"
+
+if [[ $# -gt 0 ]]; then
+  # Run single query
+  duckdb -c "$INIT_SQL $*"
+else
+  # Interactive mode with init commands
+  duckdb -init <(echo "$INIT_SQL")
+fi
