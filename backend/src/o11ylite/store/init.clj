@@ -54,16 +54,46 @@
 (def ^:private set-events-partition-sql
   "ALTER TABLE o11ylite.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), service)")
 
+(def ^:private create-metrics-table-sql
+  "CREATE TABLE IF NOT EXISTS o11ylite.metrics (
+     -- Core identity
+     name VARCHAR NOT NULL,
+     service VARCHAR NOT NULL,
+     timestamp TIMESTAMP NOT NULL,
+
+     -- Gauge/Sum value (0 for histograms, ignored)
+     value DOUBLE NOT NULL DEFAULT 0,
+
+     -- Histogram columns (NULL for gauge/sum)
+     \"hist.counts\" BIGINT[],
+     \"hist.count\" BIGINT,
+     \"hist.sum\" DOUBLE,
+     \"hist.min\" DOUBLE,
+     \"hist.max\" DOUBLE,
+
+     -- Instrumentation scope
+     \"scope.name\" VARCHAR,
+     \"scope.version\" VARCHAR,
+
+     -- Metadata
+     \"meta.observed_time\" TIMESTAMP NOT NULL
+   )")
+
+(def ^:private set-metrics-partition-sql
+  "ALTER TABLE o11ylite.metrics SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), name, service)")
+
 ;; ---------------------------------------------------------
 ;; Public API
 
 (defn init-store!
   "Initialize DuckLake database schema.
-   Creates the events table if it doesn't exist, partitioned by day."
+   Creates the events and metrics tables if they don't exist, partitioned by day."
   [duckdb-ds]
   (mulog/log ::init-store-starting)
   (jdbc/execute! duckdb-ds [create-events-table-sql])
   (jdbc/execute! duckdb-ds [set-events-partition-sql])
+  (jdbc/execute! duckdb-ds [create-metrics-table-sql])
+  (jdbc/execute! duckdb-ds [set-metrics-partition-sql])
   (mulog/log ::init-store-completed))
 
 ;; ---------------------------------------------------------
