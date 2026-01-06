@@ -7,7 +7,8 @@
 (ns o11ylite.otel-grpc.metric
   (:require
    [com.brunobonacci.mulog :as mulog]
-   [o11ylite.otel-grpc.metric-proto :as metric-proto])
+   [o11ylite.otel-grpc.metric-proto :as metric-proto]
+   [o11ylite.store.metrics.ingest :as metrics.ingest])
   (:import
    [io.grpc.stub StreamObserver]
    [io.opentelemetry.proto.collector.metrics.v1
@@ -19,29 +20,32 @@
 
 (defn- -metric-handler
   "Handle incoming metrics export request.
-   Parses metrics to internal format and returns rejection count.
-   
-   TODO: Implement actual metric ingestion"
-  [^ExportMetricsServiceRequest request]
+   Parses metrics to internal format, ingests data, and returns rejection count."
+  [metric-batcher sqlite ^ExportMetricsServiceRequest request]
   (let [{:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request request)
         rejected-count (metric-proto/count-rejected-data-points request)]
     (mulog/log ::metrics-received
                :data-point-count (count data-points)
-               :metrics-metadata-count (count metrics-metadata)
+               :metadata-count (count metrics-metadata)
                :rejected-count rejected-count)
-    ;; TODO: Ingest data-points to DuckDB, upsert metrics-metadata to SQLite
+    (when (or (seq data-points) (seq metrics-metadata))
+      (metrics.ingest/ingest-metrics! metric-batcher sqlite data-points metrics-metadata))
     {:rejected-data-point-count rejected-count}))
 
 ;; ---------------------------------------------------------
 ;; Service factory
 
 (defn create-service
-  "Create a MetricsService gRPC implementation."
-  []
+  "Create a MetricsService gRPC implementation.
+
+   Arguments:
+     metric-batcher - The metric batcher component for ingestion
+     sqlite         - SQLite datasource for cached metadata lookups"
+  [metric-batcher sqlite]
   (proxy [MetricsServiceGrpc$MetricsServiceImplBase] []
     (export [^ExportMetricsServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-metric-handler request)
+        (let [response-map (-metric-handler metric-batcher sqlite request)
               response (metric-proto/metric-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))

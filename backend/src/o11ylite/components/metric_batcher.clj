@@ -1,0 +1,165 @@
+;; ---------------------------------------------------------
+;; o11ylite.components.metric-batcher
+;;
+;; Batches incoming metric data points and flushes them periodically.
+;; Similar structure to event-batcher but for metrics.
+;;
+;; Batch structure:
+;;   {:data-points [...] - Flat maps with attr.* keys
+;;    :fields #{...}     - Set of field names for schema evolution
+;;    :metadata {...}    - Map of metric-name -> {:description :unit :metric_type :attributes}
+;;    :promises [...]}   - Delivery promises for callers
+;; ---------------------------------------------------------
+
+(ns o11ylite.components.metric-batcher
+  (:require
+   [clojure.core.async :as a]
+   [integrant.core :as ig]
+   [com.brunobonacci.mulog :as mulog]
+   [o11ylite.store.metrics.ingest :as metrics.ingest]
+   [o11ylite.util.ticker :as ticker]))
+
+;; ---------------------------------------------------------
+;; Private Helpers
+
+;; Max messages in channel before backpressure kicks in
+(def ^:private ingest-channel-size-limit 1000000)
+
+(defn- -flush!
+  "Flush the batch to storage. Returns true on success, false on failure.
+   On success, all pending promises are delivered true.
+   On failure, all pending promises are delivered false."
+  [duckdb sqlite batch]
+  (let [{:keys [data-points fields metadata promises]} @batch]
+    (vreset! batch {:data-points [] :fields #{} :metadata {} :promises []})
+    (if (and (empty? data-points) (empty? metadata))
+      true
+      (try
+        (metrics.ingest/persist-batch! duckdb sqlite data-points fields metadata)
+        (mulog/log ::batch-flushed
+                   :data-point-count (count data-points)
+                   :field-count (count fields)
+                   :metadata-count (count metadata))
+        ;; Notify all callers of success
+        (doseq [done promises]
+          (deliver done true))
+        true
+        (catch Exception e
+          (mulog/log ::flush-error
+                     :error (.getMessage e)
+                     :data-point-count (count data-points))
+          ;; Notify all callers of failure
+          (doseq [done promises]
+            (deliver done false))
+          false)))))
+
+(defn- -accumulate!
+  "Accumulate an ingest message into the batch.
+   Concatenates data-points, unions fields, merges metadata (last-write-wins), tracks promise."
+  [batch {:keys [data-points fields metadata done]}]
+  (vswap! batch (fn [b]
+                  (-> b
+                      (update :data-points into data-points)
+                      (update :fields into fields)
+                      (update :metadata merge metadata)
+                      (update :promises conj done)))))
+
+(defn- -drain-channel!
+  "Drain remaining messages from channel into batch.
+   Called during shutdown to capture in-flight messages."
+  [ch batch]
+  (loop []
+    (when-let [msg (a/poll! ch)]
+      (-accumulate! batch msg)
+      (recur))))
+
+(defn- -start-event-loop
+  "Start the event loop that handles both ingest and periodic flush.
+   Single thread owns the batch - no contention.
+   Returns component state map."
+  [duckdb sqlite flush-interval-ms]
+  (let [ingest-ch (a/chan ingest-channel-size-limit)
+        ticker (ticker/ticker flush-interval-ms)
+        ticker-ch (:ch ticker)
+        batch (volatile! {:data-points [] :fields #{} :metadata {} :promises []})
+        stopped? (promise)
+        stop-called? (atom false)]
+    ;; Start the event loop
+    (future
+      (loop []
+        ;; Priority true: when both ready, prefer ticker (flush) over ingest
+        (let [[v port] (a/alts!! [ticker-ch ingest-ch] :priority true)]
+          (cond
+            ;; Channel closed - exit loop
+            (nil? v)
+            (do
+              (mulog/log ::event-loop-stopped)
+              (deliver stopped? true))
+
+            ;; Ticker fired - flush batch
+            (= port ticker-ch)
+            (do
+              (-flush! duckdb sqlite batch)
+              (recur))
+
+            ;; Ingest message - accumulate into batch
+            (= port ingest-ch)
+            (do
+              (-accumulate! batch v)
+              (recur))))))
+    ;; Return component state
+    {:ingest-ch ingest-ch
+     :batch batch
+     :stop! (fn []
+              (when (compare-and-set! stop-called? false true)
+                ;; Stop ticker first (closes ticker-ch)
+                (ticker/stop! ticker)
+                ;; Close ingest channel to signal loop to exit
+                (a/close! ingest-ch)
+                ;; Wait for loop to exit
+                (if (deref stopped? 5000 false)
+                  (do
+                    ;; Loop exited cleanly - drain and flush remaining
+                    (-drain-channel! ingest-ch batch)
+                    (-flush! duckdb sqlite batch)
+                    (mulog/log ::metric-batcher-stopped))
+                  ;; Loop did not exit in time - log error
+                  (mulog/log ::metric-batcher-stop-timeout
+                             :error "Failed to stop gracefully"))))}))
+
+;; ---------------------------------------------------------
+;; Public API
+
+(defn stop!
+  "Stop the batcher. Flushes remaining data and stops the event loop."
+  [batcher]
+  ((:stop! batcher)))
+
+;; ---------------------------------------------------------
+;; Component Lifecycle
+
+(defmethod ig/init-key :ingest/metric-batcher
+  [_ {:keys [duckdb sqlite flush-interval-ms]
+      :or {flush-interval-ms 60000}}]
+  (mulog/log ::metric-batcher-starting :flush-interval-ms flush-interval-ms)
+  (let [state (-start-event-loop duckdb sqlite flush-interval-ms)]
+    (mulog/log ::metric-batcher-started)
+    state))
+
+(defmethod ig/halt-key! :ingest/metric-batcher
+  [_ batcher]
+  (stop! batcher))
+
+;; ---------------------------------------------------------
+;; Rich Comment
+(comment
+
+  ;; Start the batcher (requires duckdb, sqlite)
+  ;; (def mb (ig/init-key :ingest/metric-batcher {:duckdb ds :sqlite sq}))
+
+  ;; Ingest example using store.batcher/->batcher! (will block until flushed!)
+  ;; (require '[o11ylite.store.batcher :as batcher])
+  ;; (batcher/->batcher! mb {:data-points [...] :fields #{...} :metadata {...}})
+
+  #_()) ; End of rich comment block
+;; ---------------------------------------------------------

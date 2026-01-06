@@ -20,7 +20,7 @@
 
 (defn- duckdb [] (:db/duckdb h/*system*))
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
-(defn- batcher [] (:ingest/batcher h/*system*))
+(defn- event-batcher [] (:ingest/event-batcher h/*system*))
 
 (defn- query-events
   "Query all events from DuckLake, ordered by name."
@@ -83,7 +83,7 @@
                   (make-event {:name "ingested-span-2"
                                :trace_id "trace-002"
                                :attr.http.status_code 200})]
-          result (events.ingest/ingest-events! (event-metadata) (batcher) events)]
+          result (events.ingest/ingest-events! (event-metadata) (event-batcher) events)]
       (is (true? result) "ingest-events! should return true on success")
       (let [rows (query-events)]
         (is (= 2 (count rows)))
@@ -96,7 +96,7 @@
 (deftest ingest-sample-events-helper-test
   (testing "ingest-sample-events! generates and persists random events"
     (let [n 5
-          events (h/ingest-sample-events! (event-metadata) (batcher) n)
+          events (h/ingest-sample-events! (event-metadata) (event-batcher) n)
           rows (query-events)]
       (is (= n (count events)) "Should return the generated events")
       (is (= n (count rows)) "Should persist all events")

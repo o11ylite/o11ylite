@@ -11,14 +11,14 @@
    [o11ylite.test-helpers :as h]))
 
 ;; Only start components needed for service discovery
-(use-fixtures :each (h/with-partial-system [:discovery/services :cache/event-metadata :ingest/batcher]))
+(use-fixtures :each (h/with-partial-system [:discovery/services :cache/event-metadata :ingest/event-batcher]))
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
 (defn- sqlite [] (:db/sqlite h/*system*))
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
-(defn- batcher [] (:ingest/batcher h/*system*))
+(defn- event-batcher [] (:ingest/event-batcher h/*system*))
 
 ;; ---------------------------------------------------------
 ;; Tests
@@ -28,8 +28,8 @@
     ;; Ingest events for two services with recent timestamps
     ;; (service discovery scan window is ~30s, so we need recent events)
     (let [now (java.time.Instant/now)]
-      (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "api-gateway" :timestamp now})
-      (h/ingest-sample-events! (event-metadata) (batcher) 1 {:service "payment-service" :timestamp now}))
+      (h/ingest-sample-events! (event-metadata) (event-batcher) 1 {:service "api-gateway" :timestamp now})
+      (h/ingest-sample-events! (event-metadata) (event-batcher) 1 {:service "payment-service" :timestamp now}))
 
     ;; Wait for background discovery (test system uses 100ms interval)
     (Thread/sleep 200)

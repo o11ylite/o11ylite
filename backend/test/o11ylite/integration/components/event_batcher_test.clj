@@ -1,14 +1,15 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.components.ingest-batcher-test
+;; o11ylite.integration.components.event-batcher-test
 ;;
-;; Integration tests for the ingest batcher component.
+;; Integration tests for the event batcher component.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.components.ingest-batcher-test
+(ns o11ylite.integration.components.event-batcher-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]
-   [o11ylite.components.ingest-batcher :as batcher]
+   [o11ylite.components.event-batcher :as event-batcher]
+   [o11ylite.store.batcher :as batcher]
    [o11ylite.store.events.ingest :as events.ingest])
   (:import
    [java.time Instant]))
@@ -19,7 +20,7 @@
 ;; Helpers
 
 (defn- batcher-component []
-  (:ingest/batcher h/*system*))
+  (:ingest/event-batcher h/*system*))
 
 (def ^:private base-fields
   "Fields for the minimal valid event structure."
@@ -53,7 +54,7 @@
 (deftest batcher-ingest-returns-true-test
   (testing "Ingest returns true after flush"
     (let [b (batcher-component)
-          result (batcher/ingest! b (make-payload [(make-event {:name "span-1"})]))]
+          result (batcher/->batcher! b (make-payload [(make-event {:name "span-1"})]))]
       (is (true? result) "Ingest should return true on success"))))
 
 (deftest batcher-ingest-multiple-events-test
@@ -62,15 +63,15 @@
           events [(make-event {:name "span-1"})
                   (make-event {:name "span-2"})
                   (make-event {:name "span-3"})]
-          result (batcher/ingest! b (make-payload events))]
+          result (batcher/->batcher! b (make-payload events))]
       (is (true? result) "Ingest should return true"))))
 
 (deftest batcher-ingest-with-fields-test
   (testing "Ingest accepts events with fields map"
     (let [b (batcher-component)
-          result (batcher/ingest! b (make-payload
-                                     [(make-event {:attr.custom.field "value"})]
-                                     {:attr.custom.field {:type :string}}))]
+          result (batcher/->batcher! b (make-payload
+                                        [(make-event {:attr.custom.field "value"})]
+                                        {:attr.custom.field {:type :string}}))]
       (is (true? result) "Ingest with fields should return true"))))
 
 (deftest batcher-concurrent-ingest-test
@@ -79,7 +80,7 @@
           n 10
           futures (doall
                    (for [i (range n)]
-                     (future (batcher/ingest! b (make-payload [(make-event {:name (str "span-" i)})])))))
+                     (future (batcher/->batcher! b (make-payload [(make-event {:name (str "span-" i)})])))))
           results (mapv deref futures)]
       (is (= n (count results)) "All should complete")
       (is (every? true? results) "All should return true"))))
@@ -89,8 +90,8 @@
     (let [b (batcher-component)]
       ;; First stop happens via fixture cleanup
       ;; These should be safe no-ops
-      (batcher/stop! b)
-      (batcher/stop! b)
+      (event-batcher/stop! b)
+      (event-batcher/stop! b)
       (is true "Multiple stops should not throw"))))
 
 (deftest batcher-stop-flushes-pending-test
@@ -99,11 +100,11 @@
           result (promise)]
       ;; Start ingest in background
       (future
-        (deliver result (batcher/ingest! b (make-payload [(make-event)]))))
+        (deliver result (batcher/->batcher! b (make-payload [(make-event)]))))
       ;; Give it time to start blocking
       (Thread/sleep 20)
       ;; Stop should flush and unblock
-      (batcher/stop! b)
+      (event-batcher/stop! b)
       ;; Result should be delivered
       (is (true? (deref result 1000 false)) "Should return true after stop"))))
 
@@ -120,7 +121,7 @@
                       true)]
         (let [futures (doall
                        (for [i (range n)]
-                         (future (batcher/ingest! b (make-payload [(make-event {:name (str "span-" i)})])))))]
+                         (future (batcher/->batcher! b (make-payload [(make-event {:name (str "span-" i)})])))))]
           (doseq [f futures] @f)
           ;; Should have been batched into few persist-batch! calls
           (is (<= (count @persist-calls) 2)
@@ -133,7 +134,7 @@
 (comment
 
   (require '[clojure.test :refer [run-tests]])
-  (run-tests 'o11ylite.integration.ingest-batcher-test)
+  (run-tests 'o11ylite.integration.components.event-batcher-test)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

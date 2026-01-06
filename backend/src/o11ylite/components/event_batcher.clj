@@ -1,15 +1,15 @@
 ;; ---------------------------------------------------------
-;; o11ylite.components.ingest-batcher
+;; o11ylite.components.event-batcher
 ;;
 ;; Batches incoming events and flushes them periodically.
 ;; Uses actor model: single loop handles both ingest and flush via alts!!
 ;;
 ;; Backpressure & Delivery Guarantees:
 ;; -----------------------------------
-;; Callers of ingest! block until their events are successfully flushed to
-;; storage. This provides:
+;; Callers submit via batcher/->batcher! which blocks until events are
+;; flushed to storage. This provides:
 ;;   1. Backpressure - if storage is slow, callers slow down naturally
-;;   2. Delivery guarantee - when ingest! returns true, data is persisted
+;;   2. Delivery guarantee - when ->batcher! returns true, data is persisted
 ;;
 ;; Error Handling Strategy:
 ;; ------------------------
@@ -17,19 +17,19 @@
 ;; succeed or all fail. This is a deliberate simplification:
 ;;   - DuckDB batch inserts are transactional (all-or-nothing)
 ;;   - Partial failure handling would add significant complexity
-;;   - Validation should happen at the caller side before ingest!
+;;   - Validation should happen at the caller side before submission
 ;;   - On flush failure, all callers receive false and can decide to retry
 ;;
 ;; Batch Accumulation:
 ;; -------------------
-;; Each ingest! call submits {:events [...] :fields {name {:type t} ...}}.
+;; Each submission contains {:events [...] :fields {name {:type t} ...}}.
 ;; The batcher accumulates:
 ;;   - events: concatenated into a single vector
 ;;   - fields: merged map of field-name -> {:type ...}
 ;;   - promises: tracked to notify callers on flush
 ;; ---------------------------------------------------------
 
-(ns o11ylite.components.ingest-batcher
+(ns o11ylite.components.event-batcher
   (:require
    [clojure.core.async :as a]
    [integrant.core :as ig]
@@ -138,33 +138,13 @@
                     ;; Loop exited cleanly - drain and flush remaining
                     (-drain-channel! ingest-ch batch)
                     (-flush! duckdb event-metadata batch)
-                    (mulog/log ::ingest-batcher-stopped))
+                    (mulog/log ::event-batcher-stopped))
                   ;; Loop did not exit in time - log error, don't drain/flush
-                  (mulog/log ::ingest-batcher-stop-timeout
+                  (mulog/log ::event-batcher-stop-timeout
                              :error "Failed to stop gracefully, event loop did not stop within timeout"))))}))
 
 ;; ---------------------------------------------------------
 ;; Public API
-
-(defn ingest!
-  "Add events to the batch. Blocks until the events are flushed to storage.
-   
-   Arguments:
-     batcher - The batcher component
-     payload - Map with :events (vector of event maps) and 
-               :fields (map of field-name -> {:type ...})
-   
-   Returns:
-     true if events were persisted, false if flush failed.
-   
-   Callers should validate events before calling ingest! - the batcher
-   treats flush as atomic and does not handle partial failures."
-  [batcher {:keys [events fields]}]
-  (let [done (promise)]
-    (a/>!! (:ingest-ch batcher) {:events events
-                                 :fields (or fields {})
-                                 :done done})
-    @done))
 
 (defn stop!
   "Stop the batcher. Flushes remaining events and stops the event loop."
@@ -174,15 +154,15 @@
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
 
-(defmethod ig/init-key :ingest/batcher
+(defmethod ig/init-key :ingest/event-batcher
   [_ {:keys [duckdb event-metadata flush-interval-ms]
       :or {flush-interval-ms 60000}}]
-  (mulog/log ::ingest-batcher-starting :flush-interval-ms flush-interval-ms)
+  (mulog/log ::event-batcher-starting :flush-interval-ms flush-interval-ms)
   (let [state (-start-event-loop duckdb event-metadata flush-interval-ms)]
-    (mulog/log ::ingest-batcher-started)
+    (mulog/log ::event-batcher-started)
     state))
 
-(defmethod ig/halt-key! :ingest/batcher
+(defmethod ig/halt-key! :ingest/event-batcher
   [_ batcher]
   (stop! batcher))
 
@@ -190,26 +170,28 @@
 ;; Rich Comment
 (comment
 
-  (require '[integrant.core :as ig])
+  (require '[integrant.core :as ig]
+           '[o11ylite.store.batcher :as batcher])
 
   ;; Start the batcher with 5 second flush interval
-  (def batcher
-    (ig/init-key :ingest/batcher {:flush-interval-ms 5000}))
+  (def event-batcher
+    (ig/init-key :ingest/event-batcher {:flush-interval-ms 5000}))
 
   ;; Ingest some events (will block until flushed!)
   ;; Run in separate threads to avoid blocking REPL
   (future
     (println "ingest result:"
-             (ingest! batcher {:events [{:service "test" :name "span-1"}
-                                        {:service "test" :name "span-2"}]
-                               :fields {"service" {:type :string}
-                                        "name" {:type :string}}})))
+             (batcher/->batcher! event-batcher
+                                 {:events [{:service "test" :name "span-1"}
+                                           {:service "test" :name "span-2"}]
+                                  :fields {"service" {:type :string}
+                                           "name" {:type :string}}})))
 
   ;; Check batch contents (for debugging only)
-  @(:batch batcher)
+  @(:batch event-batcher)
 
   ;; Stop the batcher (will flush remaining events)
-  (ig/halt-key! :ingest/batcher batcher)
+  (ig/halt-key! :ingest/event-batcher event-batcher)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

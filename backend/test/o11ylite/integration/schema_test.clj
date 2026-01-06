@@ -34,7 +34,7 @@
         (testing (str "type " type)
           (let [fields-before (schema/fetch-event-fields ds)]
             (is (nil? (get fields-before field)))
-            (schema/add-fields! ds {field {:type type}})
+            (schema/add-event-fields! ds {field {:type type}})
             (let [fields-after (schema/fetch-event-fields ds)]
               (is (= type (:type (get fields-after field)))))))))))
 
@@ -47,7 +47,7 @@
           fields-before (schema/fetch-event-fields ds)]
       (doseq [field-key (keys new-fields)]
         (is (nil? (get fields-before field-key))))
-      (schema/add-fields! ds new-fields)
+      (schema/add-event-fields! ds new-fields)
       (let [fields-after (schema/fetch-event-fields ds)]
         (is (= :string (:type (:multi.string fields-after))))
         (is (= :integer (:type (:multi.integer fields-after))))
@@ -57,7 +57,7 @@
   (testing "add-fields! with empty map is a no-op"
     (let [ds (duckdb)
           fields-before (schema/fetch-event-fields ds)]
-      (schema/add-fields! ds {})
+      (schema/add-event-fields! ds {})
       (let [fields-after (schema/fetch-event-fields ds)]
         (is (= fields-before fields-after))))))
 
@@ -66,11 +66,11 @@
     (let [ds (duckdb)
           field-key :test.idempotent.field
           fields {field-key {:type :string}}]
-      (schema/add-fields! ds fields)
+      (schema/add-event-fields! ds fields)
       (let [fields-after-first (schema/fetch-event-fields ds)]
         (is (= :string (:type (get fields-after-first field-key))))
         ;; Adding same field again should not throw
-        (schema/add-fields! ds fields)
+        (schema/add-event-fields! ds fields)
         (let [fields-after-second (schema/fetch-event-fields ds)]
           (is (= fields-after-first fields-after-second)))))))
 
