@@ -102,27 +102,24 @@
       (is (every? #(instance? Instant (:meta.observed_time %)) data-points)))))
 
 (deftest parse-metrics-request-metadata-test
-  (testing "Extracts metrics metadata with attribute names"
-    (let [{:keys [metrics-metadata]} (metric-proto/parse-metrics-request (build-sample-gauge-request))
-          sorted (sort-by :name metrics-metadata)]
+  (testing "Extracts metrics metadata keyed by name"
+    (let [{:keys [metrics-metadata]} (metric-proto/parse-metrics-request (build-sample-gauge-request))]
 
       (is (= 2 (count metrics-metadata)))
 
       ;; CPU metric metadata
-      (is (= {:name "cpu.utilization"
-              :description "CPU utilization percentage"
+      (is (= {:description "CPU utilization percentage"
               :unit "%"
               :metric_type :gauge
               :attributes #{"cpu.core"}}
-             (nth sorted 0)))
+             (get metrics-metadata "cpu.utilization")))
 
       ;; Memory metric metadata
-      (is (= {:name "memory.used"
-              :description "Memory used"
+      (is (= {:description "Memory used"
               :unit "bytes"
               :metric_type :gauge
               :attributes #{}}
-             (nth sorted 1))))))
+             (get metrics-metadata "memory.used"))))))
 
 (deftest parse-metrics-request-metadata-merge-test
   (testing "Merges metadata when same metric appears multiple times"
@@ -145,19 +142,18 @@
           {:keys [metrics-metadata]} (metric-proto/parse-metrics-request request)]
 
       (is (= 1 (count metrics-metadata)))
-      (is (= {:name "http.requests"
-              :description "HTTP request count"
+      (is (= {:description "HTTP request count"
               :unit "1"
               :metric_type :gauge
               :attributes #{"method" "status"}}
-             (first metrics-metadata))))))
+             (get metrics-metadata "http.requests"))))))
 
 (deftest rejects-metrics-without-service-test
   (testing "Rejects metrics without service.name"
     (let [{:keys [data-points metrics-metadata]}
           (metric-proto/parse-metrics-request (build-request-without-service))]
       (is (= [] data-points))
-      (is (= [] metrics-metadata)))))
+      (is (= {} metrics-metadata)))))
 
 (deftest count-rejected-data-points-test
   (testing "Counts rejected data points correctly"

@@ -21,11 +21,18 @@
   :scan-interval-ms #long #or [#env SERVICE_DISCOVERY_INTERVAL_MS 300000]
   :_storage #ig/ref :storage/init}
 
- :ingest/batcher
+ :ingest/event-batcher
  {:duckdb #ig/ref :db/duckdb
   :event-metadata #ig/ref :cache/event-metadata
   ;; Flush interval in milliseconds (default: 1 second)
   :flush-interval-ms #long #or [#env INGEST_FLUSH_INTERVAL_MS 1000]}
+
+ :ingest/metric-batcher
+ {:duckdb #ig/ref :db/duckdb
+  :sqlite #ig/ref :db/sqlite
+  ;; Flush interval in milliseconds (default: 1 second)
+  :flush-interval-ms #long #or [#env METRIC_FLUSH_INTERVAL_MS 1000]
+  :_storage #ig/ref :storage/init}
 
  :ingest/inlined-data-flusher
  {:duckdb #ig/ref :db/duckdb
@@ -41,7 +48,9 @@
  :server/otel-grpc
  {:port #long #or [#env OTEL_GRPC_PORT 4317]
   :event-metadata #ig/ref :cache/event-metadata
-  :batcher #ig/ref :ingest/batcher}
+  :event-batcher #ig/ref :ingest/event-batcher
+  :metric-batcher #ig/ref :ingest/metric-batcher
+  :sqlite #ig/ref :db/sqlite}
 
  :inertia/config
  {;; Dev mode uses Vite dev server, prod reads from manifest
@@ -65,6 +74,6 @@
   :duckdb #ig/ref :db/duckdb
   :sqlite #ig/ref :db/sqlite
   :event-metadata #ig/ref :cache/event-metadata
-  :batcher #ig/ref :ingest/batcher
+  :event-batcher #ig/ref :ingest/event-batcher
   ;; _storage ensures storage/init runs first so DuckDB tables exist
   :_storage #ig/ref :storage/init}}

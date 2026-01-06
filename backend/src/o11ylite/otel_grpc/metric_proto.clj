@@ -147,19 +147,22 @@
 ;; Metadata merging
 
 (defn- -merge-metadata
-  "Merge multiple metadata entries for the same metric name.
-   Attributes are unioned, other fields use last-write-wins."
+  "Merge multiple metadata entries into a map keyed by metric name.
+   Attributes are unioned, other fields use last-write-wins.
+
+   Returns: {metric-name {:description ... :unit ... :metric_type ... :attributes #{...}}}"
   [metadata-seq]
   (->> metadata-seq
        (group-by :name)
-       (map (fn [[_name entries]]
-              (reduce (fn [acc entry]
-                        (-> acc
-                            (merge (dissoc entry :attributes))
-                            (update :attributes into (:attributes entry))))
-                      (first entries)
-                      (rest entries))))
-       vec))
+       (map (fn [[metric-name entries]]
+              [metric-name
+               (reduce (fn [acc entry]
+                         (-> acc
+                             (merge (dissoc entry :name :attributes))
+                             (update :attributes into (:attributes entry))))
+                       (dissoc (first entries) :name)
+                       (rest entries))]))
+       (into {})))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -168,8 +171,8 @@
   "Parse ExportMetricsServiceRequest protobuf into data points and metadata.
 
    Returns:
-     {:data-points      [...] - Flat maps ready for DuckDB insertion
-      :metrics-metadata [...] - Metric definitions for metadata table}
+     {:data-points       [...] - Flat maps ready for DuckDB insertion (with attr.* keys)
+      :metrics-metadata  {...} - Map of metric-name -> {:description :unit :metric_type :attributes}}
 
    Rejects (skips) resource metrics without service.name."
   [^ExportMetricsServiceRequest request]
@@ -243,12 +246,13 @@
      :attr.host.name "localhost"
      :attr.cpu.core "0"}]
 
+   ;; Metadata keyed by metric name
    :metrics-metadata
-   [{:name "cpu.utilization"
-     :description "CPU utilization percentage"
+   {"cpu.utilization"
+    {:description "CPU utilization percentage"
      :unit "%"
      :metric_type :gauge
-     :attributes #{"host.name" "cpu.core"}}]}
+     :attributes #{"host.name" "cpu.core"}}}}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

@@ -73,9 +73,9 @@
 (defn otlp-routes
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
    These routes handle their own protobuf/JSON parsing."
-  [{:keys [event-metadata batcher]}]
+  [{:keys [event-metadata event-batcher]}]
   (otel-http/routes {:event-metadata event-metadata
-                     :batcher batcher}))
+                     :event-batcher event-batcher}))
 
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."

@@ -138,7 +138,7 @@
 (defn trace-handler
   "Handle POST /v1/traces requests.
    Parses OTLP trace data and ingests into storage."
-  [{:keys [event-metadata batcher]} request]
+  [{:keys [event-metadata event-batcher]} request]
   (try
     (let [proto-request (-parse-trace-request request)
           events (trace-events/trace-request->events proto-request)
@@ -150,7 +150,7 @@
                  :span-event-count span-event-count
                  :rejected-spans rejected-spans)
       (when (seq events)
-        (events.ingest/ingest-events! event-metadata batcher events))
+        (events.ingest/ingest-events! event-metadata event-batcher events))
       (-trace-response request {:rejected-span-count rejected-spans}))
     (catch Exception e
       (mulog/log ::http-trace-error :error (.getMessage e))
@@ -159,7 +159,7 @@
 (defn log-handler
   "Handle POST /v1/logs requests.
    Parses OTLP log data and ingests into storage."
-  [{:keys [event-metadata batcher]} request]
+  [{:keys [event-metadata event-batcher]} request]
   (try
     (let [proto-request (-parse-log-request request)
           events (log-events/log-request->events proto-request)
@@ -169,7 +169,7 @@
                  :log-count log-count
                  :rejected-log-count rejected-log-count)
       (when (seq events)
-        (events.ingest/ingest-events! event-metadata batcher events))
+        (events.ingest/ingest-events! event-metadata event-batcher events))
       (-log-response request {:rejected-log-count rejected-log-count}))
     (catch Exception e
       (mulog/log ::http-log-error :error (.getMessage e))
@@ -182,7 +182,7 @@
   "OTLP HTTP routes.
    
    Arguments:
-     opts - Map with :event-metadata and :batcher components"
+     opts - Map with :event-metadata and :event-batcher components"
   [opts]
   ["/v1"
    ["/traces" {:post {:handler (partial trace-handler opts)}}]

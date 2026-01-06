@@ -19,12 +19,12 @@
 
 (ns o11ylite.store.events.ingest
   (:require
-   [clojure.core.async :as a]
    [clojure.string]
    [com.brunobonacci.mulog :as mulog]
    [next.jdbc.sql :as sql]
    [next.jdbc.quoted]
    [o11ylite.components.event-metadata :as event-metadata]
+   [o11ylite.store.batcher :as batcher]
    [o11ylite.store.schema :as schema])
   (:import
    [java.time Instant LocalDateTime ZoneOffset]))
@@ -119,27 +119,22 @@
    the batch is flushed to storage.
 
    Arguments:
-     event-metadata - The event metadata cache component (for validation)
-     batcher        - The ingest batcher component
-     events         - Collection of event maps to ingest
+     event-metadata  - The event metadata cache component (for validation)
+     event-batcher   - The event batcher component
+     events          - Collection of event maps to ingest
 
    Returns:
      true if all events were persisted successfully
-     false if flush failed (caller should handle retry/logging)
-
-   Note: Uses batcher's ingest channel directly to avoid cyclic dependency."
-  [event-metadata batcher events]
+     false if flush failed (caller should handle retry/logging)"
+  [event-metadata event-batcher events]
   (let [validation (-validate-events event-metadata events)]
     (if-not (:valid? validation)
       (do
         (mulog/log ::validation-failed :errors (:errors validation))
         false)
-      (let [fields (-extract-fields events)
-            done (promise)]
-        (a/>!! (:ingest-ch batcher) {:events events
-                                     :fields fields
-                                     :done done})
-        @done))))
+      (let [fields (-extract-fields events)]
+        (batcher/->batcher! event-batcher {:events events
+                                           :fields fields})))))
 
 (defn persist-batch!
   "Persist a batch of events to DuckLake.
@@ -169,7 +164,7 @@
       ;; Log field names only (not the nested {:type ...} maps) to avoid
       ;; recursive schema evolution when dogfooding mulog -> otel -> o11ylite
       (mulog/log ::schema-evolution :new-field-names (vec (keys new-fields)))
-      (schema/add-fields! duckdb new-fields)
+      (schema/add-event-fields! duckdb new-fields)
       (event-metadata/refresh! event-metadata))
 
     ;; Step 2: Bulk INSERT using [columns rows] form for efficiency

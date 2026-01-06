@@ -138,7 +138,7 @@
 
   ;; In a test with h/*system* bound:
   ;; (ingest-sample-events! (:cache/event-metadata h/*system*)
-  ;;                        (:ingest/batcher h/*system*)
+  ;;                        (:ingest/event-batcher h/*system*)
   ;;                        10)
 
   #_()) ; End of rich comment block
