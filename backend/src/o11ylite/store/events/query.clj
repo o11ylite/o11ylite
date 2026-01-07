@@ -297,14 +297,43 @@
 ;; Trace visualization: Part of v1, accessed via dedicated /trace/:id page.
 ;; Uses /api/query/events with filter: {field: "trace_id", op: "=", value: "<id>"}
 ;; and visualization: {type: "trace"}. Users click trace_id links in table results.
-;; TODO: Implement span retrieval and waterfall data structure.
+
+(def ^:private trace-limit
+  "Maximum number of spans to return for a trace query."
+  1000)
+
+(defn- -build-trace-query
+  "Build HoneySQL query for trace visualization.
+   Fetches spans for a single trace, optimized for waterfall rendering.
+   Timestamp conversion to epoch-ms is handled by jdbc-types/as-unqualified-maps.
+   Note: Dotted column names require aliases since HoneySQL interprets dots as qualifiers."
+  [{:keys [time_range filter]}]
+  (let [trace-id (:value filter)]
+    {:select [:span_id
+              :parent_span_id
+              :name
+              :service
+              [(-field->col "span.status_code") :status_code]
+              [(-field->col "span.duration_ms") :duration_ms]
+              :timestamp]
+     :from [:events]
+     :where [:and
+             [:= :trace_id trace-id]
+             [:= (-field->col "meta.signal_type") "span"]
+             [:>= :timestamp (-epoch-ms->timestamp (:start time_range))]
+             [:< :timestamp (-epoch-ms->timestamp (:end time_range))]]
+     :order-by [[:timestamp :asc]]
+     :limit trace-limit}))
+
 (defn- -execute-trace
-  "Execute a trace visualization query. (TODO - returns empty data)"
-  [_duckdb _query]
-  {:spans []
-   :root_span_id nil
-   :total_count 0
-   :truncated false})
+  "Execute a trace visualization query.
+   Returns spans optimized for waterfall rendering with sub-ms timestamp precision."
+  [duckdb query]
+  (let [hsql-query (-build-trace-query query)
+        [sql-str & params] (sql/format hsql-query {:dialect :ansi})
+        rows (jdbc/execute! duckdb (into [sql-str] params))]
+    {:spans (vec rows)
+     :total_count (count rows)}))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -381,6 +410,23 @@
   ;; => {:data {:bucket_ms 60000
   ;;            :series [{:labels {:service "api"} :name "count(*)" :data [...]}
   ;;                     {:labels {:service "web"} :name "count(*)" :data [...]}]}
+  ;;     :metadata {:query_time_ms N :truncated false}}
+
+  ;; Trace query - fetch spans for a specific trace
+  ;; Timestamp conversion handled by jdbc-types/as-unqualified-maps
+  (execute ds
+           {:time_range {:start 1702000000000 :end 1702003600000}
+            :filter {:field "trace_id" :op "=" :value "abc123"}
+            :visualization {:type "trace"}})
+  ;; => {:data {:spans [{:span_id "def456"
+  ;;                     :parent_span_id nil
+  ;;                     :name "HTTP GET /users"
+  ;;                     :service "api-gateway"
+  ;;                     :status_code "OK"
+  ;;                     :duration_ms 45.2
+  ;;                     :timestamp 1702000000123.456}
+  ;;                    ...]
+  ;;            :total_count 5}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
   (ig/halt-key! :db/duckdb ds)

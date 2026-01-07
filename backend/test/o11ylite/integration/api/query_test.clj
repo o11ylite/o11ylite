@@ -289,7 +289,7 @@
 ;; Users click trace_id links in table results to navigate to the trace page.
 
 (deftest events-query-trace-test
-  (testing "POST /api/query/events with trace visualization (TODO - returns empty data)"
+  (testing "POST /api/query/events with trace visualization"
     (let [response (h/post-json "/api/query/events"
                                 {:time_range {:start 1702000000000
                                               :end 1702003600000}
@@ -299,7 +299,77 @@
                                  :visualization {:type "trace"}})]
       (is (= 200 (h/status response)))
       (is (h/json-response? response))
-      ;; TODO: Implement span retrieval - currently returns empty data
       (is (vector? (get-in response [:body :data :spans])))
-      (is (number? (get-in response [:body :data :total_count])))
-      (is (boolean? (get-in response [:body :data :truncated]))))))
+      (is (number? (get-in response [:body :data :total_count])))))
+
+  (testing "POST /api/query/events trace returns spans ordered by timestamp"
+    (let [now-ms (current-epoch-ms)
+          trace-id "test-trace-12345"
+          root-span-id "root-span-001"
+          child-span-id "child-span-002"
+          base-time (t/instant)]
+
+      ;; Ingest root span
+      (h/ingest-sample-events! (event-metadata) (event-batcher) 1
+                               {:trace_id trace-id
+                                :span_id root-span-id
+                                :parent_span_id nil
+                                :name "HTTP GET /api/users"
+                                :service "api-gateway"
+                                :span.status_code "OK"
+                                :span.duration_ms 100.5
+                                :timestamp base-time
+                                :meta.signal_type :span})
+
+      ;; Ingest child span (starts 10ms after root)
+      (h/ingest-sample-events! (event-metadata) (event-batcher) 1
+                               {:trace_id trace-id
+                                :span_id child-span-id
+                                :parent_span_id root-span-id
+                                :name "DB query"
+                                :service "user-service"
+                                :span.status_code "OK"
+                                :span.duration_ms 45.2
+                                :timestamp (t/>> base-time (t/of-millis 10))
+                                :meta.signal_type :span})
+
+      ;; Ingest a log event (should NOT be returned in trace query)
+      (h/ingest-sample-events! (event-metadata) (event-batcher) 1
+                               {:trace_id trace-id
+                                :span_id child-span-id
+                                :name "log message"
+                                :service "user-service"
+                                :timestamp (t/>> base-time (t/of-millis 15))
+                                :meta.signal_type :log})
+
+      ;; Query the trace
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start (- now-ms 3600000)
+                                                :end (+ now-ms 60000)}
+                                   :filter {:field "trace_id"
+                                            :op "="
+                                            :value trace-id}
+                                   :visualization {:type "trace"}})
+            data (get-in response [:body :data])
+            spans (:spans data)]
+        (is (= 200 (h/status response)))
+        (is (= 2 (:total_count data)) "Should return 2 spans, not the log")
+        (is (= 2 (count spans)))
+
+        ;; Verify response shape and ordering
+        (is (= {:span_id root-span-id
+                :parent_span_id nil
+                :name "HTTP GET /api/users"
+                :service "api-gateway"
+                :status_code "OK"
+                :duration_ms 100.5}
+               (dissoc (first spans) :timestamp)))
+        (is (= {:span_id child-span-id
+                :parent_span_id root-span-id
+                :name "DB query"
+                :service "user-service"
+                :status_code "OK"
+                :duration_ms 45.2}
+               (dissoc (second spans) :timestamp)))
+        (is (number? (:timestamp (first spans))))
+        (is (< (:timestamp (first spans)) (:timestamp (second spans))))))))

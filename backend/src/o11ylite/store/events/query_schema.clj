@@ -147,6 +147,16 @@
     (seq aggregations)
     true))
 
+(defn- -valid-trace-filter?
+  "Trace visualization requires a simple trace_id = X filter at the top level."
+  [{:keys [visualization filter]}]
+  (if (= "trace" (:type visualization))
+    (and (map? filter)
+         (= "trace_id" (:field filter))
+         (= "=" (:op filter))
+         (some? (:value filter)))
+    true))
+
 (def events-query
   "Schema for events query requests."
   [:and
@@ -154,7 +164,9 @@
    [:fn {:error/message "heatmap requires exactly one group_by field"}
     -valid-heatmap-group-by?]
    [:fn {:error/message "time_series requires at least one aggregation"}
-    -valid-time-series-aggregation?]])
+    -valid-time-series-aggregation?]
+   [:fn {:error/message "trace requires a trace_id = <value> filter"}
+    -valid-trace-filter?]])
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -207,6 +219,19 @@
              :filter {:field "service; DROP TABLE events;" :op "=" :value "x"}
              :visualization {:type "table"}})
   ;; => {:error {:filter {:field ["field name must contain only letters, numbers, underscores, and dots"]}}}
+
+  ;; Trace without trace_id filter
+  (validate events-query
+            {:time_range {:start 1702000000000 :end 1702003600000}
+             :visualization {:type "trace"}})
+  ;; => {:error ["trace requires a trace_id = <value> filter"]}
+
+  ;; Valid trace query
+  (validate events-query
+            {:time_range {:start 1702000000000 :end 1702003600000}
+             :filter {:field "trace_id" :op "=" :value "abc123"}
+             :visualization {:type "trace"}})
+  ;; => nil
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
