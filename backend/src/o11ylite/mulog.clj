@@ -7,7 +7,9 @@
 
 (ns o11ylite.mulog
   (:require
-   [com.brunobonacci.mulog :as mulog]))
+   [com.brunobonacci.mulog :as mulog]
+   ;; Require to register :open-telemetry publisher multimethod
+   [com.brunobonacci.mulog.publishers.open-telemetry]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -43,7 +45,7 @@
 
 (defn init!
   "Initialize mulog publisher and global context.
-   
+
    Dev mode: console (pretty) + OpenTelemetry for dogfooding.
    Prod mode: console (JSON) for log collectors."
   [profile]

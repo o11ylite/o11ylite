@@ -16,9 +16,7 @@
   (:require
    ;; REPL Workflow
    [mulog-events]                      ; Event Logging
-   [com.brunobonacci.mulog :as mulog]  ; Global context & Tap publisher
-   [portal]
-   [portal.api :as inspect]                          ; Data inspector
+   [com.brunobonacci.mulog :as mulog]
    [clojure.tools.namespace.repl :as namespace]
    ;; integrant.repl provides convenient functions to start, stop, and reset
    ;; the system during development. It maintains the system state internally.
@@ -46,12 +44,6 @@
   (println "(sync-deps)                    ; load dependencies from deps.edn")
   (println "- deps-* lsp snippets for adding library")
   (println)
-  (println "Portal Inspector:")
-  (println "- portal started by default, listening to all evaluations")
-  (println "(inspect/clear)                ; clear all values in portal")
-  (println "(remove-tap #'inspect/submit)  ; stop sending to portal")
-  (println "(inspect/close)                ; close portal")
-  (println)
   (println "Mulog Publisher:")
   (println "- mulog publisher started by default")
   (println "(mulog-events/stop)            ; stop publishing log events")
@@ -74,13 +66,11 @@
 
 ;; ---------------------------------------------------------
 ;; Mulog event logging
-;; `mulog-publisher` namespace used to launch tap> events to tap-source (portal)
 ;; `mulog-events` namespace sets mulog global context for all events
 
 ;; Example mulog event message
 (mulog/log ::dev-user-ns
-           :message "Example event from user namespace"
-           :ns (ns-publics *ns*))
+           :message "Example event from user namespace")
 ;; ---------------------------------------------------------
 
 ;; ---------------------------------------------------------
@@ -97,26 +87,6 @@
   #_(add-lib 'library-name)   ; find and add library
   #_(sync-deps)               ; load dependencies in deps.edn (if not yet loaded)
   #_()) ; End of rich comment
-;; ---------------------------------------------------------
-
-;; ---------------------------------------------------------
-;; Portal Data Inspector
-(comment
-  ;; Open a portal inspector in browser window - light theme
-  ;; (inspect/open {:portal.colors/theme :portal.colors/solarized-light})
-
-  (inspect/clear) ; Clear all values in portal window (allows garbage collection)
-
-  (remove-tap #'inspect/submit) ; Remove portal from `tap>` sources
-
-  (inspect/close) ; Close the portal window
-
-  (inspect/docs) ; View docs locally via Portal
-
-  (mulog-events/stop)            ; stop publishing log events
-
-  #_()) ; End of rich comment
-
 ;; ---------------------------------------------------------
 
 ;; ---------------------------------------------------------
@@ -157,6 +127,8 @@
   (reset-all)           ; Full refresh + restart
 
   @ig-repl/system       ; Inspect running system state
+
+  (mulog-events/stop)   ; stop publishing log events
 
   #_()) ; End of rich comment
 ;; ---------------------------------------------------------
