@@ -88,8 +88,17 @@
                  :visualization {:type "heatmap" :y_buckets 100}})))
 
   ;; Trace: Part of v1, accessed via dedicated /trace/:id page
-  (testing "trace visualization"
+  (testing "trace visualization requires trace_id = X filter"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :visualization {:type "trace"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "service" :op "=" :value "api"}
+                   :visualization {:type "trace"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "trace_id" :op "contains" :value "abc"}
+                   :visualization {:type "trace"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :filter {:field "trace_id" :op "=" :value "abc123"}
                  :visualization {:type "trace"}}))))
 
 ;; ---------------------------------------------------------
