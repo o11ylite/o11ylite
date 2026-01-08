@@ -65,7 +65,8 @@
                                    :filter {:field "service"
                                             :op "="
                                             :value "test-query-service"}
-                                   :visualization {:type "table" :limit 10}})]
+                                   :limit 10
+                                   :visualization {:type "table"}})]
         (is (= 200 (h/status response)))
         (is (h/json-response? response))
 
@@ -91,7 +92,8 @@
                                    :filter {:field "service"
                                             :op "="
                                             :value "test-timestamp-format"}
-                                   :visualization {:type "table" :limit 1}})
+                                   :limit 1
+                                   :visualization {:type "table"}})
             row (first (get-in response [:body :data :rows]))
             timestamp (:timestamp row)
             observed-time (:meta.observed_time row)]
@@ -152,7 +154,8 @@
                                    :filter {:field "attr.http.method"
                                             :op "="
                                             :value "GET"}
-                                   :visualization {:type "table" :limit 10}})]
+                                   :limit 10
+                                   :visualization {:type "table"}})]
         (is (= 200 (h/status response)))
         (is (h/json-response? response))
 

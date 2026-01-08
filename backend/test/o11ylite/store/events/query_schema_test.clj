@@ -52,9 +52,11 @@
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :visualization {:type "table"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :visualization {:type "table" :limit 100}}))
+                 :limit 100
+                 :visualization {:type "table"}}))
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
-                   :visualization {:type "table" :limit 501}})))
+                   :limit 10001
+                   :visualization {:type "table"}})))
 
   (testing "time_series visualization requires at least one aggregation"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
