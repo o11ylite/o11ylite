@@ -112,11 +112,15 @@ function SpanRow({
   traceStart,
   traceDuration,
   serviceColorMap,
+  isSelected,
+  onClick,
 }: {
   span: SpanNode
   traceStart: number
   traceDuration: number
   serviceColorMap: Map<string, number>
+  isSelected: boolean
+  onClick: () => void
 }) {
   // Calculate bar position and width as percentages
   const durationMs = span["span.duration_ms"]
@@ -135,7 +139,13 @@ function SpanRow({
   const labelInside = barEndPercent > 85
 
   return (
-    <div className="group flex min-h-[40px] border-b border-border hover:bg-muted/50">
+    <div
+      className={cn(
+        "group flex min-h-[40px] cursor-pointer border-b border-border hover:bg-muted/50",
+        isSelected && "bg-accent"
+      )}
+      onClick={onClick}
+    >
       {/* Left column: span info */}
       <div className="flex w-[300px] shrink-0 flex-col justify-center border-r border-border px-2 py-1">
         <div
@@ -221,7 +231,15 @@ function TimelineHeader({ traceDuration }: { traceDuration: number }) {
 // Main Component
 // ============================================================================
 
-export function TraceWaterfall({ spans }: { spans: TraceSpan[] }) {
+export function TraceWaterfall({
+  spans,
+  selectedSpanId,
+  onSpanSelect,
+}: {
+  spans: TraceSpan[]
+  selectedSpanId?: string | null
+  onSpanSelect?: (spanId: string | null) => void
+}) {
   const { flatSpans, traceStart, traceDuration } = useMemo(() => {
     const tree = buildSpanTree(spans)
     const flat = flattenTree(tree)
@@ -263,6 +281,12 @@ export function TraceWaterfall({ spans }: { spans: TraceSpan[] }) {
             traceStart={traceStart}
             traceDuration={traceDuration}
             serviceColorMap={serviceColorMap}
+            isSelected={selectedSpanId === span.span_id}
+            onClick={() => {
+              // Toggle selection: click again to deselect
+              const newSelection = selectedSpanId === span.span_id ? null : span.span_id
+              onSpanSelect?.(newSelection)
+            }}
           />
         ))}
       </div>
