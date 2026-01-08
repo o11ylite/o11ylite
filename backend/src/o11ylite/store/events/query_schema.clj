@@ -84,7 +84,6 @@
 (def table-visualization
   [:map
    [:type [:= "table"]]
-   [:limit {:optional true} [:int {:min 1 :max 500}]]
    [:sort {:optional true} sort-config]])
 
 (def time-series-visualization
@@ -131,6 +130,7 @@
    [:aggregations {:optional true} [:vector aggregation]]
    [:group_by {:optional true} [:vector field-name]]
    [:having {:optional true} filter-expr]
+   [:limit {:optional true} [:int {:min 1 :max 10000}]]
    [:visualization visualization]])
 
 (defn- -valid-heatmap-group-by?
@@ -185,7 +185,8 @@
   ;; Valid table query (timestamps in Unix epoch milliseconds)
   (validate events-query
             {:time_range {:start 1702000000000 :end 1702003600000}
-             :visualization {:type "table" :limit 100}})
+             :limit 100
+             :visualization {:type "table"}})
   ;; => nil
 
   ;; Missing time_range

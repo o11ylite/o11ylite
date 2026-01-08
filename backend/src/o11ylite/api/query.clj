@@ -42,8 +42,8 @@
    :filter {:field "service"
             :op "="
             :value "api-gateway"}
+   :limit 100
    :visualization {:type "table"
-                   :limit 100
                    :sort {:field "timestamp" :order "desc"}}}
 
   #_()) ; End of rich comment block

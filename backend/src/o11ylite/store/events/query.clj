@@ -146,10 +146,14 @@
         (seq group-cols) (assoc :group-by (vec group-cols))))
     hsql-query))
 
+(def ^:private default-limit
+  "Default limit for query results when not specified."
+  200)
+
 (defn- -add-order-and-limit
   "Add ORDER BY and LIMIT to query."
-  [hsql-query {:keys [visualization aggregations]}]
-  (let [limit (or (:limit visualization) 200)
+  [hsql-query {:keys [limit aggregations]}]
+  (let [limit (or limit default-limit)
         ;; If aggregating, don't add default order
         ;; Otherwise order by timestamp desc
         has-aggregations? (seq aggregations)]
@@ -169,7 +173,7 @@
                        (-add-order-and-limit query))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         rows (jdbc/execute! duckdb (into [sql-str] params))
-        limit (or (get-in query [:visualization :limit]) 200)]
+        limit (or (:limit query) default-limit)]
     {:rows rows
      :total_count (count rows)
      :truncated (>= (count rows) limit)}))
@@ -386,7 +390,8 @@
   ;; Table query (timestamps in Unix epoch milliseconds)
   (execute ds
            {:time_range {:start 1702000000000 :end 1702003600000}
-            :visualization {:type "table" :limit 100}})
+            :limit 100
+            :visualization {:type "table"}})
   ;; => {:data {:rows [] :total_count 0 :truncated false}
   ;;     :metadata {:query_time_ms N :truncated false}}
 
