@@ -1,8 +1,9 @@
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
-import { TraceWaterfall } from "@/components/trace-waterfall"
+import { TraceWaterfall, SpanDetailsPanel } from "@/components/trace"
 import { ResultsLoading, ResultsError } from "@/components/results"
 import { useTimeRange, resolveTimeRange } from "@/hooks/use-time-range"
 import type { TraceQueryResult } from "@/types"
@@ -41,6 +42,7 @@ async function fetchTrace(
 export default function Trace() {
   const { traceId } = usePage<{ traceId: string }>().props
   const { from, to } = useTimeRange()
+  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
 
   // Use stable strings for query key to prevent infinite refetch loops.
   // Relative time strings like "now-1h" stay stable; timestamps are resolved fresh in queryFn.
@@ -55,6 +57,15 @@ export default function Trace() {
     },
   })
 
+  // Find the selected span to get its timestamp
+  const selectedSpan = selectedSpanId
+    ? data?.spans.find((s) => s.span_id === selectedSpanId)
+    : null
+
+  const rightPanel = selectedSpan ? (
+    <SpanDetailsPanel spanId={selectedSpan.span_id} spanTimestamp={selectedSpan.timestamp} />
+  ) : undefined
+
   const renderContent = () => {
     if (isLoading) return <ResultsLoading />
     if (error instanceof Error) return <ResultsError message={error.message} />
@@ -65,11 +76,17 @@ export default function Trace() {
         </div>
       )
     }
-    return <TraceWaterfall spans={data.spans} />
+    return (
+      <TraceWaterfall
+        spans={data.spans}
+        selectedSpanId={selectedSpanId}
+        onSpanSelect={setSelectedSpanId}
+      />
+    )
   }
 
   return (
-    <ApplicationLayout title={`Trace: ${traceId}`} showTimeRange>
+    <ApplicationLayout title={`Trace: ${traceId}`} showTimeRange rightPanel={rightPanel}>
       <div className="flex h-full flex-col">{renderContent()}</div>
     </ApplicationLayout>
   )
