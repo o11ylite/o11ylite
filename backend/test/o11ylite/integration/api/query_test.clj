@@ -361,15 +361,15 @@
                 :parent_span_id nil
                 :name "HTTP GET /api/users"
                 :service "api-gateway"
-                :status_code "OK"
-                :duration_ms 100.5}
+                :span.status_code "OK"
+                :span.duration_ms 100.5}
                (dissoc (first spans) :timestamp)))
         (is (= {:span_id child-span-id
                 :parent_span_id root-span-id
                 :name "DB query"
                 :service "user-service"
-                :status_code "OK"
-                :duration_ms 45.2}
+                :span.status_code "OK"
+                :span.duration_ms 45.2}
                (dissoc (second spans) :timestamp)))
         (is (number? (:timestamp (first spans))))
         (is (< (:timestamp (first spans)) (:timestamp (second spans))))))))

@@ -19,6 +19,7 @@
    [o11ylite.otel-http :as otel-http]
    [o11ylite.routes.home :as home]
    [o11ylite.routes.explore :as explore]
+   [o11ylite.routes.trace :as trace]
    [o11ylite.routes.dashboards :as dashboards]
    [o11ylite.routes.monitors :as monitors]))
 
@@ -85,6 +86,7 @@
                     (make-wrap-inertia inertia)]}
    (home/routes {})
    (explore/routes {:sqlite sqlite :event-metadata event-metadata})
+   (trace/routes {})
    (dashboards/routes {})
    (monitors/routes {})])
 
