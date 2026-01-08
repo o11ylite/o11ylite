@@ -305,16 +305,15 @@
 (defn- -build-trace-query
   "Build HoneySQL query for trace visualization.
    Fetches spans for a single trace, optimized for waterfall rendering.
-   Timestamp conversion to epoch-ms is handled by jdbc-types/as-unqualified-maps.
-   Note: Dotted column names require aliases since HoneySQL interprets dots as qualifiers."
+   Timestamp conversion to epoch-ms is handled by jdbc-types/as-unqualified-maps."
   [{:keys [time_range filter]}]
   (let [trace-id (:value filter)]
     {:select [:span_id
               :parent_span_id
               :name
               :service
-              [(-field->col "span.status_code") :status_code]
-              [(-field->col "span.duration_ms") :duration_ms]
+              [(-field->col "span.status_code") :span.status_code]
+              [(-field->col "span.duration_ms") :span.duration_ms]
               :timestamp]
      :from [:events]
      :where [:and

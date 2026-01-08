@@ -1,3 +1,5 @@
+import { Link } from "@inertiajs/react"
+
 import {
   Tooltip,
   TooltipContent,
@@ -16,19 +18,15 @@ export function TraceIdCell({ value }: { value: unknown }) {
   // Show abbreviated version (first 8 chars)
   const abbreviated = traceId.length > 8 ? traceId.slice(0, 8) + "…" : traceId
 
-  // TODO: Update href when trace detail page is implemented
-  const href = `#trace/${traceId}`
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <a
-          href={href}
-          onClick={(e) => e.preventDefault()}
+        <Link
+          href={`/trace/${traceId}`}
           className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
         >
           {abbreviated}
-        </a>
+        </Link>
       </TooltipTrigger>
       <TooltipContent>{traceId}</TooltipContent>
     </Tooltip>

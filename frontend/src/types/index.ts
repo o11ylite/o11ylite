@@ -89,10 +89,11 @@ export interface TimeSeriesVisualization {
   limit_series?: number
 }
 
-// Deferred to post-v1: HeatmapVisualization, TraceVisualization
-// Backend scaffolding exists in query_schema.clj and query.clj
+export interface TraceVisualization {
+  type: "trace"
+}
 
-export type Visualization = TableVisualization | TimeSeriesVisualization
+export type Visualization = TableVisualization | TimeSeriesVisualization | TraceVisualization
 
 // ============================================================================
 // Events Query Types
@@ -159,7 +160,23 @@ export interface TimeSeriesQueryResult {
   series: TimeSeriesSeries[]
 }
 
-export type QueryResult = TableQueryResult | TimeSeriesQueryResult
+// Trace data - a single span in a trace waterfall
+export interface TraceSpan {
+  span_id: string
+  parent_span_id: string | null
+  name: string
+  service: string
+  "span.status_code": string
+  "span.duration_ms": number
+  timestamp: number // epoch ms float
+}
+
+export interface TraceQueryResult {
+  spans: TraceSpan[]
+  total_count: number
+}
+
+export type QueryResult = TableQueryResult | TimeSeriesQueryResult | TraceQueryResult
 
 export interface QueryResponse {
   data: QueryResult
