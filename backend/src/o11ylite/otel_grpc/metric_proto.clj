@@ -18,7 +18,8 @@
    [io.opentelemetry.proto.resource.v1 Resource]
    [io.opentelemetry.proto.metrics.v1
     ResourceMetrics ScopeMetrics Metric Metric$DataCase
-    NumberDataPoint NumberDataPoint$ValueCase]
+    NumberDataPoint NumberDataPoint$ValueCase
+    Sum AggregationTemporality]
    [io.opentelemetry.proto.collector.metrics.v1
     ExportMetricsServiceRequest
     ExportMetricsServiceResponse
@@ -112,6 +113,64 @@
      :attributes all-attr-names}))
 
 ;; ---------------------------------------------------------
+;; Sum metric extraction
+
+(defn- -temporality->keyword
+  "Convert AggregationTemporality enum to keyword."
+  [^AggregationTemporality temporality]
+  (condp = temporality
+    AggregationTemporality/AGGREGATION_TEMPORALITY_DELTA :delta
+    AggregationTemporality/AGGREGATION_TEMPORALITY_CUMULATIVE :cumulative
+    :unspecified))
+
+(defn- -sum-data-point->map
+  "Convert a Sum NumberDataPoint to a data point map.
+   Includes :temporality key for downstream processing."
+  [^NumberDataPoint dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality]
+  (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
+        prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
+    (merge
+     {:name metric-name
+      :service service-name
+      :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
+                     observed-time)
+      :value (-number-data-point-value dp)
+      :temporality temporality
+      :scope.name scope-name
+      :scope.version scope-version
+      :meta.observed_time observed-time}
+     prefixed-attrs)))
+
+(defn- -sum->data-points
+  "Convert Sum metric to sequence of data point maps."
+  [^Metric metric resource-attrs scope-name scope-version service-name observed-time]
+  (let [metric-name (.getName metric)
+        ^Sum sum (.getSum metric)
+        temporality (-temporality->keyword (.getAggregationTemporality sum))]
+    (for [^NumberDataPoint dp (.getDataPointsList sum)]
+      (-sum-data-point->map dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality))))
+
+(defn- -sum->metadata
+  "Extract metadata from a Sum metric.
+   
+   Note on monotonicity: Monotonic sums can only increase (counters).
+   Non-monotonic sums can increase or decrease. Currently we store
+   is_monotonic but don't use it for reset detection.
+   TODO: Implement reset detection for monotonic cumulative sums."
+  [^Metric metric]
+  (let [^Sum sum (.getSum metric)
+        ;; Collect all attribute names across all data points
+        all-attr-names (->> (.getDataPointsList sum)
+                            (mapcat -extract-attribute-names)
+                            set)]
+    {:name (.getName metric)
+     :description (.getDescription metric)
+     :unit (.getUnit metric)
+     :metric_type :sum
+     :is_monotonic (.getIsMonotonic sum)
+     :attributes all-attr-names}))
+
+;; ---------------------------------------------------------
 ;; Metric type dispatch
 
 (defn- -metric->data-points
@@ -121,8 +180,10 @@
     Metric$DataCase/GAUGE
     (-gauge->data-points metric resource-attrs scope-name scope-version service-name observed-time)
 
-    ;; TODO: Implement sum and histogram
-    Metric$DataCase/SUM nil
+    Metric$DataCase/SUM
+    (-sum->data-points metric resource-attrs scope-name scope-version service-name observed-time)
+
+    ;; TODO: Implement histogram
     Metric$DataCase/HISTOGRAM nil
     Metric$DataCase/EXPONENTIAL_HISTOGRAM nil
     Metric$DataCase/SUMMARY nil
@@ -134,9 +195,9 @@
   [^Metric metric]
   (condp = (.getDataCase metric)
     Metric$DataCase/GAUGE (-gauge->metadata metric)
+    Metric$DataCase/SUM (-sum->metadata metric)
 
-    ;; TODO: Implement sum and histogram
-    Metric$DataCase/SUM nil
+    ;; TODO: Implement histogram
     Metric$DataCase/HISTOGRAM nil
     Metric$DataCase/EXPONENTIAL_HISTOGRAM nil
     Metric$DataCase/SUMMARY nil
@@ -208,7 +269,8 @@
        (mapcat (fn [^Metric m]
                  (condp = (.getDataCase m)
                    Metric$DataCase/GAUGE (.getDataPointsList (.getGauge m))
-                   ;; TODO: Handle other metric types
+                   Metric$DataCase/SUM (.getDataPointsList (.getSum m))
+                   ;; TODO: Handle histogram types
                    [])))
        count))
 

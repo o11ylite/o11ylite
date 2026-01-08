@@ -8,9 +8,11 @@
 ;;       │
 ;;       v
 ;;   ingest-metrics! (hot path)
-;;       1. Extract field names from data-points
-;;       2. Filter unchanged metadata (TTL-cached lookup, ~IO-free)
-;;       3. Submit to batcher
+;;       1. Deduplicate data points by series key (keep latest timestamp)
+;;       2. Normalize temporality (cumulative → delta for sums)
+;;       3. Extract field names from data-points
+;;       4. Filter unchanged metadata (TTL-cached lookup, ~IO-free)
+;;       5. Submit to batcher
 ;;       │
 ;;       v
 ;;   batcher accumulates {:data-points [...] :fields #{...} :metadata {...}}
@@ -21,11 +23,14 @@
 ;;       2. ALTER TABLE ADD COLUMN for new attr.* fields
 ;;       3. UPSERT metadata to SQLite (only changed entries)
 ;;       4. Bulk INSERT data points
+;;       5. Update normalizer state (commit-batch!)
 ;;
 ;; Key differences from events:
 ;;   - fields: Set of field names (all attr.* are strings, no type tracking)
 ;;   - metadata: Map of metric-name -> {:description :unit :metric_type :attributes}
 ;;   - TTL-cached metadata lookups to filter unchanged metadata in hot path
+;;   - Deduplication ensures one data point per series per batch
+;;   - Cumulative sums are converted to delta via normalizer
 ;; ---------------------------------------------------------
 
 (ns o11ylite.store.metrics.ingest
@@ -34,8 +39,11 @@
    [com.brunobonacci.mulog :as mulog]
    [next.jdbc.sql :as sql]
    [next.jdbc.quoted]
+   [o11ylite.components.metric-temporality-normalizer :as normalizer]
    [o11ylite.store.batcher :as batcher]
+   [o11ylite.store.metrics.dedupe :as dedupe]
    [o11ylite.store.metrics.metadata :as metadata]
+   [o11ylite.store.metrics.temporality :as temporality]
    [o11ylite.store.schema :as schema])
   (:import
    [java.time Instant LocalDateTime ZoneOffset]))
@@ -56,6 +64,9 @@
   "Filter to only attr.* fields."
   [fields]
   (into #{} (filter #(.startsWith (name %) "attr.")) fields))
+
+;; ---------------------------------------------------------
+;; Private Helpers - Metadata
 
 (defn- -metadata-changed?
   "Check if incoming metadata differs from existing cached metadata.
@@ -108,8 +119,8 @@
   "Ingest metrics into the observability store (hot path).
 
    Called by gRPC handlers to submit metrics. Performs CPU-bound work
-   (field extraction, validation, filtering) then submits to batcher.
-   Blocks until the batch is flushed by persist-batch!.
+   (deduplication, temporality normalization, field extraction, filtering)
+   then submits to batcher. Blocks until the batch is flushed by persist-batch!.
 
    Design rationale - CPU vs IO split:
      The batcher exists to batch IO operations (one flush per second).
@@ -122,46 +133,56 @@
    Arguments:
      metric-batcher   - The metric batcher component
      sqlite           - SQLite datasource (for cached metadata lookups)
+     norm             - Temporality normalizer component (for cumulative→delta)
      data-points      - Collection of data point maps (with attr.* keys)
      metrics-metadata - Map of metric-name -> {:description :unit :metric_type :attributes}
 
    Returns:
      true if all data was persisted successfully
      false if flush failed (caller should handle retry/logging)"
-  [metric-batcher sqlite data-points metrics-metadata]
-  (let [fields (-extract-fields data-points)
+  [metric-batcher sqlite norm data-points metrics-metadata]
+  (let [;; Step 1: Deduplicate by series (sums only, gauges pass through)
+        deduped (dedupe/dedupe-by-series data-points)
+        ;; Step 2: Normalize temporality (cumulative → delta)
+        ;; Returns {:normalized [...] :cumulative-to-commit [...]}
+        {:keys [normalized cumulative-to-commit]} (temporality/normalize-temporality norm deduped)
+        ;; Step 3: Extract fields and filter metadata
+        fields (-extract-fields normalized)
         changed-metadata (-filter-changed-metadata sqlite metrics-metadata)]
-    (batcher/->batcher! metric-batcher {:data-points data-points
-                                        :fields fields
-                                        :metadata changed-metadata})))
+    ;; Send to batcher if we have data to persist or cumulative state to track
+    (if (or (seq normalized) (seq cumulative-to-commit))
+      (batcher/->batcher! metric-batcher {:data-points normalized
+                                          :fields fields
+                                          :metadata changed-metadata
+                                          ;; Cumulative data points for normalizer state update
+                                          :cumulative-to-commit cumulative-to-commit})
+      true)))
 
 (defn persist-batch!
   "Persist a batch of metrics to storage (cold path).
 
-   Called by the metric batcher during flush. Performs IO-bound work only:
+   Called by the metric batcher during flush. Performs IO-bound work:
      1. Schema diff - DESCRIBE TABLE to find new attr.* columns needed
      2. Schema evolution - ALTER TABLE ADD COLUMN for new attr.* fields
      3. Metadata upsert - UPSERT metric metadata to SQLite
      4. Bulk INSERT - INSERT all data points into DuckDB metrics table
-
-   Design rationale - CPU vs IO split:
-     This function should contain only IO operations. CPU-bound work
-     (validation, filtering, transformation) belongs in ingest-metrics!
-     so that IO can be batched efficiently (once per flush interval).
+     5. Update normalizer state - commit cumulative values for next delta calc
 
    Arguments:
-     duckdb           - DuckDB datasource
-     sqlite           - SQLite datasource
-     data-points      - Collection of data point maps
-     fields           - Set of field names in this batch
-     metrics-metadata - Map of metric-name -> {:description :unit :metric_type :attributes}
+     duckdb               - DuckDB datasource
+     sqlite               - SQLite datasource
+     norm                 - Temporality normalizer component
+     data-points          - Collection of data point maps to persist
+     fields               - Set of field names in this batch
+     metrics-metadata     - Map of metric-name -> {:description :unit :metric_type :attributes}
+     cumulative-to-commit - Cumulative data points with original values (for normalizer)
 
    Returns:
      true on success
 
    Throws:
      Exception on failure (batcher will catch and notify callers)."
-  [duckdb sqlite data-points fields metrics-metadata]
+  [duckdb sqlite norm data-points fields metrics-metadata cumulative-to-commit]
   ;; Step 1: Schema evolution - add new attr.* columns if needed
   (let [existing-columns (schema/fetch-metrics-field-names duckdb)
         batch-attr-fields (-attr-fields fields)
@@ -181,10 +202,16 @@
       (sql/insert-multi! duckdb :o11ylite.metrics columns rows
                          {:column-fn next.jdbc.quoted/ansi})))
 
+  ;; Step 4: Update normalizer state AFTER successful persistence
+  ;; Commit all cumulative data points (original values) for next delta calculation
+  (when (seq cumulative-to-commit)
+    (normalizer/commit-batch! norm cumulative-to-commit))
+
   (mulog/log ::persist-batch
              :data-point-count (count data-points)
              :field-count (count fields)
-             :metadata-count (count metrics-metadata))
+             :metadata-count (count metrics-metadata)
+             :cumulative-committed-count (count cumulative-to-commit))
   true)
 
 ;; ---------------------------------------------------------

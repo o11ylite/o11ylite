@@ -177,6 +177,156 @@
           (is (= "ssd" (:attr.disk.type row)) "attr.disk.type should be populated"))))))
 
 ;; ---------------------------------------------------------
+;; Sum Metric Tests
+
+(deftest sum-metric-delta-export-test
+  (testing "MetricsService/Export accepts delta sum metrics"
+    (let [service-name "sum-delta-test-service"
+          metric-name "http.requests.count"
+          response (h/export-metrics!
+                    {:service-name service-name
+                     :meter-name "http-meter"
+                     :metrics [(h/build-sum-metric
+                                {:name metric-name
+                                 :description "Total HTTP requests"
+                                 :unit "requests"
+                                 :temporality :delta
+                                 :monotonic? true
+                                 :data-points [{:value 100
+                                                :attributes {"http.method" "GET"}}]})]})]
+      (is (some? response))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints)))
+      ;; Wait for flush
+      (Thread/sleep 200)
+      ;; Verify data was persisted
+      (let [duckdb (:db/duckdb h/*system*)
+            rows (jdbc/execute! duckdb
+                                ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
+                                 metric-name])]
+        (is (= 1 (count rows)))
+        (is (= 100.0 (:value (first rows))))))))
+
+(deftest sum-metric-cumulative-first-observation-dropped-test
+  (testing "First cumulative observation is dropped (no previous value)"
+    (let [service-name "sum-cumulative-first-service"
+          metric-name "process.cpu.time.first"
+          _response (h/export-metrics!
+                     {:service-name service-name
+                      :meter-name "process-meter"
+                      :metrics [(h/build-sum-metric
+                                 {:name metric-name
+                                  :description "CPU time"
+                                  :unit "seconds"
+                                  :temporality :cumulative
+                                  :monotonic? true
+                                  :data-points [{:value 1000
+                                                 :attributes {"cpu.core" "0"}}]})]})]
+      ;; Wait for flush
+      (Thread/sleep 200)
+      ;; First observation should be dropped
+      (let [duckdb (:db/duckdb h/*system*)
+            rows (jdbc/execute! duckdb
+                                ["SELECT * FROM o11ylite.metrics WHERE name = ?"
+                                 metric-name])]
+        (is (= 0 (count rows)) "First cumulative observation should be dropped")))))
+
+(deftest sum-metric-cumulative-to-delta-conversion-test
+  (testing "Cumulative sum is converted to delta on subsequent observations"
+    (let [service-name "sum-cumulative-delta-service"
+          metric-name "process.cpu.time.delta"
+          ;; First export: cumulative value 1000 (will be dropped, but state stored)
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "process-meter"
+              :metrics [(h/build-sum-metric
+                         {:name metric-name
+                          :description "CPU time"
+                          :unit "seconds"
+                          :temporality :cumulative
+                          :monotonic? true
+                          :data-points [{:value 1000
+                                         :attributes {"cpu.core" "0"}}]})]})
+          ;; Wait for flush so normalizer state is committed
+          _ (Thread/sleep 200)
+          ;; Second export: cumulative value 1500 → delta should be 500
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "process-meter"
+              :metrics [(h/build-sum-metric
+                         {:name metric-name
+                          :unit "seconds"
+                          :temporality :cumulative
+                          :data-points [{:value 1500
+                                         :attributes {"cpu.core" "0"}}]})]})]
+      ;; Wait for flush
+      (Thread/sleep 200)
+      ;; Verify delta was calculated correctly
+      (let [duckdb (:db/duckdb h/*system*)
+            rows (jdbc/execute! duckdb
+                                ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                                 metric-name])]
+        (is (= 1 (count rows)) "Should have one row (delta from second observation)")
+        (is (= 500.0 (:value (first rows))) "Delta should be 1500 - 1000 = 500")))))
+
+(deftest sum-metric-metadata-persists-test
+  (testing "Sum metric metadata includes metric_type as 'sum'"
+    (let [service-name "sum-metadata-test-service"
+          metric-name "network.bytes.sent"
+          _response (h/export-metrics!
+                     {:service-name service-name
+                      :meter-name "network-meter"
+                      :metrics [(h/build-sum-metric
+                                 {:name metric-name
+                                  :description "Bytes sent over network"
+                                  :unit "bytes"
+                                  :temporality :delta
+                                  :monotonic? true
+                                  :data-points [{:value 1024
+                                                 :attributes {"interface" "eth0"}}]})]})]
+      ;; Wait for flush
+      (Thread/sleep 200)
+      ;; Verify metadata
+      (let [sqlite (:db/sqlite h/*system*)
+            rows (jdbc/execute! sqlite
+                                ["SELECT * FROM metrics_metadata WHERE name = ?"
+                                 metric-name])]
+        (is (= 1 (count rows)))
+        (let [row (first rows)]
+          (is (= "sum" (:metrics_metadata/metric_type row)))
+          (is (= "Bytes sent over network" (:metrics_metadata/description row)))
+          (is (= "bytes" (:metrics_metadata/unit row))))))))
+
+(deftest sum-metric-deduplication-test
+  (testing "Multiple data points for same series in one batch are deduplicated"
+    (let [service-name "sum-dedup-test-service"
+          metric-name "api.calls.dedup"
+          now-ns (System/nanoTime)
+          ;; Send two data points for same series in one request
+          ;; Should keep the one with later timestamp
+          _response (h/export-metrics!
+                     {:service-name service-name
+                      :meter-name "api-meter"
+                      :metrics [(h/build-sum-metric
+                                 {:name metric-name
+                                  :unit "calls"
+                                  :temporality :delta
+                                  :data-points [{:value 10
+                                                 :time-ns now-ns
+                                                 :attributes {"endpoint" "/api/v1"}}
+                                                {:value 20
+                                                 :time-ns (+ now-ns 1000000)  ; 1ms later
+                                                 :attributes {"endpoint" "/api/v1"}}]})]})]
+      ;; Wait for flush
+      (Thread/sleep 200)
+      ;; Should only have one row (deduplicated)
+      (let [duckdb (:db/duckdb h/*system*)
+            rows (jdbc/execute! duckdb
+                                ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                                 metric-name])]
+        (is (= 1 (count rows)) "Should deduplicate to one row")
+        (is (= 20.0 (:value (first rows))) "Should keep the later timestamp (value 20)")))))
+
+;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
 

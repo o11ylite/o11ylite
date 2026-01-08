@@ -5,10 +5,11 @@
 ;; Similar structure to event-batcher but for metrics.
 ;;
 ;; Batch structure:
-;;   {:data-points [...] - Flat maps with attr.* keys
-;;    :fields #{...}     - Set of field names for schema evolution
-;;    :metadata {...}    - Map of metric-name -> {:description :unit :metric_type :attributes}
-;;    :promises [...]}   - Delivery promises for callers
+;;   {:data-points [...]          - Flat maps with attr.* keys (normalized, ready to persist)
+;;    :fields #{...}              - Set of field names for schema evolution
+;;    :metadata {...}             - Map of metric-name -> {:description :unit :metric_type :attributes}
+;;    :cumulative-to-commit [...] - Cumulative data points for normalizer state update
+;;    :promises [...]}            - Delivery promises for callers
 ;; ---------------------------------------------------------
 
 (ns o11ylite.components.metric-batcher
@@ -29,13 +30,14 @@
   "Flush the batch to storage. Returns true on success, false on failure.
    On success, all pending promises are delivered true.
    On failure, all pending promises are delivered false."
-  [duckdb sqlite batch]
-  (let [{:keys [data-points fields metadata promises]} @batch]
-    (vreset! batch {:data-points [] :fields #{} :metadata {} :promises []})
-    (if (and (empty? data-points) (empty? metadata))
+  [duckdb sqlite norm batch]
+  (let [{:keys [data-points fields metadata promises cumulative-to-commit]} @batch]
+    (vreset! batch {:data-points [] :fields #{} :metadata {} :promises [] :cumulative-to-commit []})
+    (if (and (empty? data-points) (empty? metadata) (empty? cumulative-to-commit))
       true
       (try
-        (metrics.ingest/persist-batch! duckdb sqlite data-points fields metadata)
+        ;; persist-batch! handles both persistence and normalizer state update
+        (metrics.ingest/persist-batch! duckdb sqlite norm data-points fields metadata cumulative-to-commit)
         (mulog/log ::batch-flushed
                    :data-point-count (count data-points)
                    :field-count (count fields)
@@ -55,14 +57,16 @@
 
 (defn- -accumulate!
   "Accumulate an ingest message into the batch.
-   Concatenates data-points, unions fields, merges metadata (last-write-wins), tracks promise."
-  [batch {:keys [data-points fields metadata done]}]
+   Concatenates data-points, unions fields, merges metadata (last-write-wins), tracks promise.
+   Also accumulates cumulative-to-commit for normalizer state tracking."
+  [batch {:keys [data-points fields metadata done cumulative-to-commit]}]
   (vswap! batch (fn [b]
                   (-> b
                       (update :data-points into data-points)
                       (update :fields into fields)
                       (update :metadata merge metadata)
-                      (update :promises conj done)))))
+                      (update :promises conj done)
+                      (update :cumulative-to-commit into (or cumulative-to-commit []))))))
 
 (defn- -drain-channel!
   "Drain remaining messages from channel into batch.
@@ -77,11 +81,11 @@
   "Start the event loop that handles both ingest and periodic flush.
    Single thread owns the batch - no contention.
    Returns component state map."
-  [duckdb sqlite flush-interval-ms]
+  [duckdb sqlite norm flush-interval-ms]
   (let [ingest-ch (a/chan ingest-channel-size-limit)
         ticker (ticker/ticker flush-interval-ms)
         ticker-ch (:ch ticker)
-        batch (volatile! {:data-points [] :fields #{} :metadata {} :promises []})
+        batch (volatile! {:data-points [] :fields #{} :metadata {} :promises [] :cumulative-to-commit []})
         stopped? (promise)
         stop-called? (atom false)]
     ;; Start the event loop
@@ -99,7 +103,7 @@
             ;; Ticker fired - flush batch
             (= port ticker-ch)
             (do
-              (-flush! duckdb sqlite batch)
+              (-flush! duckdb sqlite norm batch)
               (recur))
 
             ;; Ingest message - accumulate into batch
@@ -121,7 +125,7 @@
                   (do
                     ;; Loop exited cleanly - drain and flush remaining
                     (-drain-channel! ingest-ch batch)
-                    (-flush! duckdb sqlite batch)
+                    (-flush! duckdb sqlite norm batch)
                     (mulog/log ::metric-batcher-stopped))
                   ;; Loop did not exit in time - log error
                   (mulog/log ::metric-batcher-stop-timeout
@@ -139,10 +143,10 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/metric-batcher
-  [_ {:keys [duckdb sqlite flush-interval-ms]
+  [_ {:keys [duckdb sqlite normalizer flush-interval-ms]
       :or {flush-interval-ms 60000}}]
   (mulog/log ::metric-batcher-starting :flush-interval-ms flush-interval-ms)
-  (let [state (-start-event-loop duckdb sqlite flush-interval-ms)]
+  (let [state (-start-event-loop duckdb sqlite normalizer flush-interval-ms)]
     (mulog/log ::metric-batcher-started)
     state))
 

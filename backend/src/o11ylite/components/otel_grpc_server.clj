@@ -20,14 +20,14 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :server/otel-grpc
-  [_ {:keys [port event-metadata event-batcher metric-batcher sqlite]}]
+  [_ {:keys [port event-metadata event-batcher metric-batcher metric-normalizer sqlite]}]
   (mulog/log ::otel-grpc-server-starting :port port)
   (let [executor (Executors/newVirtualThreadPerTaskExecutor)
         server (-> (ServerBuilder/forPort port)
                    (.executor executor)
                    (.addService (trace/create-service event-metadata event-batcher))
                    (.addService (log/create-service event-metadata event-batcher))
-                   (.addService (metric/create-service metric-batcher sqlite))
+                   (.addService (metric/create-service metric-batcher sqlite metric-normalizer))
                    (.build)
                    (.start))]
     (mulog/log ::otel-grpc-server-started :port port)
