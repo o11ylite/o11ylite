@@ -12,7 +12,7 @@
    [io.opentelemetry.proto.resource.v1 Resource]
    [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
    [io.opentelemetry.proto.logs.v1 LogRecord SeverityNumber ResourceLogs ScopeLogs]
-   [io.opentelemetry.proto.metrics.v1 Gauge NumberDataPoint ResourceMetrics ScopeMetrics Metric]
+   [io.opentelemetry.proto.metrics.v1 Gauge Sum AggregationTemporality NumberDataPoint ResourceMetrics ScopeMetrics Metric]
    [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
    [io.opentelemetry.proto.collector.logs.v1 LogsServiceGrpc ExportLogsServiceRequest]
    [io.opentelemetry.proto.collector.metrics.v1 MetricsServiceGrpc ExportMetricsServiceRequest]
@@ -311,6 +311,44 @@
         (.setDescription description)
         (.setUnit unit)
         (.setGauge gauge)
+        (.build))))
+
+(defn- -aggregation-temporality
+  "Convert keyword to AggregationTemporality enum."
+  [temporality]
+  (case temporality
+    :delta AggregationTemporality/AGGREGATION_TEMPORALITY_DELTA
+    :cumulative AggregationTemporality/AGGREGATION_TEMPORALITY_CUMULATIVE
+    AggregationTemporality/AGGREGATION_TEMPORALITY_UNSPECIFIED))
+
+(defn build-sum-metric
+  "Build a Sum Metric protobuf from a map.
+
+   Required keys:
+   - :name        - metric name
+
+   Optional keys:
+   - :description  - metric description
+   - :unit         - metric unit
+   - :temporality  - :delta or :cumulative (default: :delta)
+   - :monotonic?   - whether the sum is monotonic (default: true)
+   - :data-points  - vector of data point maps with :value, :time-ns, :attributes"
+  [{:keys [name description unit temporality monotonic? data-points]
+    :or {description ""
+         unit ""
+         temporality :delta
+         monotonic? true
+         data-points [{:value 0.0}]}}]
+  (let [sum (-> (Sum/newBuilder)
+                (.setAggregationTemporality (-aggregation-temporality temporality))
+                (.setIsMonotonic monotonic?)
+                (.addAllDataPoints (map -build-number-data-point data-points))
+                (.build))]
+    (-> (Metric/newBuilder)
+        (.setName name)
+        (.setDescription description)
+        (.setUnit unit)
+        (.setSum sum)
         (.build))))
 
 (defn build-metrics-request

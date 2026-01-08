@@ -21,7 +21,7 @@
 (defn- -metric-handler
   "Handle incoming metrics export request.
    Parses metrics to internal format, ingests data, and returns rejection count."
-  [metric-batcher sqlite ^ExportMetricsServiceRequest request]
+  [metric-batcher sqlite normalizer ^ExportMetricsServiceRequest request]
   (let [{:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request request)
         rejected-count (metric-proto/count-rejected-data-points request)]
     (mulog/log ::metrics-received
@@ -29,7 +29,7 @@
                :metadata-count (count metrics-metadata)
                :rejected-count rejected-count)
     (when (or (seq data-points) (seq metrics-metadata))
-      (metrics.ingest/ingest-metrics! metric-batcher sqlite data-points metrics-metadata))
+      (metrics.ingest/ingest-metrics! metric-batcher sqlite normalizer data-points metrics-metadata))
     {:rejected-data-point-count rejected-count}))
 
 ;; ---------------------------------------------------------
@@ -39,13 +39,14 @@
   "Create a MetricsService gRPC implementation.
 
    Arguments:
-     metric-batcher - The metric batcher component for ingestion
-     sqlite         - SQLite datasource for cached metadata lookups"
-  [metric-batcher sqlite]
+     metric-batcher    - The metric batcher component for ingestion
+     sqlite            - SQLite datasource for cached metadata lookups
+     metric-normalizer - Temporality normalizer for cumulative→delta conversion"
+  [metric-batcher sqlite metric-normalizer]
   (proxy [MetricsServiceGrpc$MetricsServiceImplBase] []
     (export [^ExportMetricsServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-metric-handler metric-batcher sqlite request)
+        (let [response-map (-metric-handler metric-batcher sqlite metric-normalizer request)
               response (metric-proto/metric-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))

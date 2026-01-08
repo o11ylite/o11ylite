@@ -27,9 +27,16 @@
   ;; Flush interval in milliseconds (default: 1 second)
   :flush-interval-ms #long #or [#env INGEST_FLUSH_INTERVAL_MS 1000]}
 
+ :ingest/metric-normalizer
+ {;; TTL for series state in milliseconds (default: 30 minutes)
+  :ttl-ms #long #or [#env METRIC_NORMALIZER_TTL_MS 1800000]
+  ;; Cleanup interval in milliseconds (default: 1 minute)
+  :cleanup-interval-ms #long #or [#env METRIC_NORMALIZER_CLEANUP_MS 60000]}
+
  :ingest/metric-batcher
  {:duckdb #ig/ref :db/duckdb
   :sqlite #ig/ref :db/sqlite
+  :normalizer #ig/ref :ingest/metric-normalizer
   ;; Flush interval in milliseconds (default: 1 second)
   :flush-interval-ms #long #or [#env METRIC_FLUSH_INTERVAL_MS 1000]
   :_storage #ig/ref :storage/init}
@@ -50,6 +57,7 @@
   :event-metadata #ig/ref :cache/event-metadata
   :event-batcher #ig/ref :ingest/event-batcher
   :metric-batcher #ig/ref :ingest/metric-batcher
+  :metric-normalizer #ig/ref :ingest/metric-normalizer
   :sqlite #ig/ref :db/sqlite}
 
  :inertia/config

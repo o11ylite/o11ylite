@@ -146,6 +146,7 @@
 (def export-logs! otlp/export-logs!)
 
 (def build-gauge-metric otlp/build-gauge-metric)
+(def build-sum-metric otlp/build-sum-metric)
 (def build-metrics-request otlp/build-metrics-request)
 (def export-metrics! otlp/export-metrics!)
 
