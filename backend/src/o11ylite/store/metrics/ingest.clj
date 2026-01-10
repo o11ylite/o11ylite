@@ -143,9 +143,9 @@
   [metric-batcher sqlite norm data-points metrics-metadata]
   (let [;; Step 1: Deduplicate by series (sums only, gauges pass through)
         deduped (dedupe/dedupe-by-series data-points)
-        ;; Step 2: Normalize temporality (cumulative → delta)
+        ;; Step 2: Normalize temporality (cumulative → delta, with reset detection)
         ;; Returns {:normalized [...] :cumulative-to-commit [...]}
-        {:keys [normalized cumulative-to-commit]} (temporality/normalize-temporality norm deduped)
+        {:keys [normalized cumulative-to-commit]} (temporality/normalize-temporality norm deduped metrics-metadata)
         ;; Step 3: Extract fields and filter metadata
         fields (-extract-fields normalized)
         changed-metadata (-filter-changed-metadata sqlite metrics-metadata)]

@@ -296,6 +296,48 @@
           (is (= "Bytes sent over network" (:metrics_metadata/description row)))
           (is (= "bytes" (:metrics_metadata/unit row))))))))
 
+(deftest sum-metric-monotonic-reset-detection-test
+  (testing "Monotonic sum reset is detected and handled correctly"
+    (let [service-name "sum-reset-test-service"
+          metric-name "process.requests.total"
+          ;; First export: cumulative value 1000 (dropped, state stored)
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "process-meter"
+              :metrics [(h/build-sum-metric
+                         {:name metric-name
+                          :description "Total requests processed"
+                          :unit "requests"
+                          :temporality :cumulative
+                          :monotonic? true
+                          :data-points [{:value 1000
+                                         :attributes {"instance" "pod-1"}}]})]})
+          ;; Wait for flush so normalizer state is committed
+          _ (Thread/sleep 200)
+          ;; Second export: cumulative value 50 (simulates service restart)
+          ;; Without reset detection, delta would be 50 - 1000 = -950
+          ;; With reset detection, delta should be 50 (the current value)
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "process-meter"
+              :metrics [(h/build-sum-metric
+                         {:name metric-name
+                          :unit "requests"
+                          :temporality :cumulative
+                          :monotonic? true
+                          :data-points [{:value 50
+                                         :attributes {"instance" "pod-1"}}]})]})]
+      ;; Wait for flush
+      (Thread/sleep 200)
+      ;; Verify reset was detected and current value used as delta
+      (let [duckdb (:db/duckdb h/*system*)
+            rows (jdbc/execute! duckdb
+                                ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                                 metric-name])]
+        (is (= 1 (count rows)) "Should have one row from reset observation")
+        (is (= 50.0 (:value (first rows)))
+            "Reset detection should use current value (50) as delta, not -950")))))
+
 (deftest sum-metric-deduplication-test
   (testing "Multiple data points for same series in one batch are deduplicated"
     (let [service-name "sum-dedup-test-service"
