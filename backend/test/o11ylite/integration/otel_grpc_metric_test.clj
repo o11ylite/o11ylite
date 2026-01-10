@@ -69,18 +69,15 @@
                                   :description "System CPU usage"
                                   :unit "%"
                                   :data-points [{:value 75.5
-                                                 :attributes {"host.name" "server-1"}}]})]})]
-      ;; Wait for batcher to flush (test config uses 100ms interval)
-      (Thread/sleep 200)
-      ;; Query DuckDB for persisted data
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT name, service, value FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should have one metric row")
-        (is (= metric-name (:name (first rows))))
-        (is (= service-name (:service (first rows))))
-        (is (= 75.5 (:value (first rows))))))))
+                                                 :attributes {"host.name" "server-1"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT name, service, value FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one metric row")
+      (is (= metric-name (:name (first rows))))
+      (is (= service-name (:service (first rows))))
+      (is (= 75.5 (:value (first rows)))))))
 
 (deftest metric-metadata-persists-to-sqlite-test
   (testing "Metric metadata is persisted to SQLite"
@@ -94,23 +91,20 @@
                                   :description "Heap memory usage"
                                   :unit "bytes"
                                   :data-points [{:value 1024000
-                                                 :attributes {"process.pid" "12345"}}]})]})]
-      ;; Wait for batcher to flush
-      (Thread/sleep 200)
-      ;; Query SQLite for metadata
-      (let [sqlite (:db/sqlite h/*system*)
-            rows (jdbc/execute! sqlite
-                                ["SELECT * FROM metrics_metadata WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should have one metadata row")
-        (let [row (first rows)]
-          (is (= metric-name (:metrics_metadata/name row)))
-          (is (= "Heap memory usage" (:metrics_metadata/description row)))
-          (is (= "bytes" (:metrics_metadata/unit row)))
-          (is (= "gauge" (:metrics_metadata/metric_type row)))
-          ;; Attributes are stored as JSON array string
-          (let [attrs (json/read-value (:metrics_metadata/attributes row))]
-            (is (some #{"process.pid"} attrs))))))))
+                                                 :attributes {"process.pid" "12345"}}]})]})
+          sqlite (:db/sqlite h/*system*)
+          rows (jdbc/execute! sqlite
+                              ["SELECT * FROM metrics_metadata WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one metadata row")
+      (let [row (first rows)]
+        (is (= metric-name (:metrics_metadata/name row)))
+        (is (= "Heap memory usage" (:metrics_metadata/description row)))
+        (is (= "bytes" (:metrics_metadata/unit row)))
+        (is (= "gauge" (:metrics_metadata/metric_type row)))
+        ;; Attributes are stored as JSON array string
+        (let [attrs (json/read-value (:metrics_metadata/attributes row))]
+          (is (some #{"process.pid"} attrs)))))))
 
 (deftest metric-metadata-merges-attributes-test
   (testing "Metric metadata merges attributes from multiple exports"
@@ -134,20 +128,17 @@
                          {:name metric-name
                           :unit "ms"
                           :data-points [{:value 200
-                                         :attributes {"http.status_code" "200"}}]})]})]
-      ;; Wait for batcher to flush
-      (Thread/sleep 200)
-      ;; Query SQLite for merged metadata
-      (let [sqlite (:db/sqlite h/*system*)
-            rows (jdbc/execute! sqlite
-                                ["SELECT * FROM metrics_metadata WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should still have one metadata row")
-        (let [attrs-json (:metrics_metadata/attributes (first rows))
-              attrs (set (json/read-value attrs-json))]
-          ;; Both attributes should be merged
-          (is (contains? attrs "http.method"))
-          (is (contains? attrs "http.status_code")))))))
+                                         :attributes {"http.status_code" "200"}}]})]})
+          sqlite (:db/sqlite h/*system*)
+          rows (jdbc/execute! sqlite
+                              ["SELECT * FROM metrics_metadata WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should still have one metadata row")
+      (let [attrs-json (:metrics_metadata/attributes (first rows))
+            attrs (set (json/read-value attrs-json))]
+        ;; Both attributes should be merged
+        (is (contains? attrs "http.method"))
+        (is (contains? attrs "http.status_code"))))))
 
 (deftest metric-schema-evolution-adds-attr-columns-test
   (testing "Schema evolution adds attr.* columns to metrics table"
@@ -162,19 +153,16 @@
                                   :unit "ops"
                                   :data-points [{:value 1500
                                                  :attributes {"disk.device" "sda1"
-                                                              "disk.type" "ssd"}}]})]})]
-      ;; Wait for batcher to flush
-      (Thread/sleep 200)
-      ;; Query DuckDB to verify attr columns exist and have values
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT name, service, value, \"attr.disk.device\", \"attr.disk.type\"
-                                  FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should have one metric row")
-        (let [row (first rows)]
-          (is (= "sda1" (:attr.disk.device row)) "attr.disk.device should be populated")
-          (is (= "ssd" (:attr.disk.type row)) "attr.disk.type should be populated"))))))
+                                                              "disk.type" "ssd"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT name, service, value, \"attr.disk.device\", \"attr.disk.type\"
+                                FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one metric row")
+      (let [row (first rows)]
+        (is (= "sda1" (:attr.disk.device row)) "attr.disk.device should be populated")
+        (is (= "ssd" (:attr.disk.type row)) "attr.disk.type should be populated")))))
 
 ;; ---------------------------------------------------------
 ;; Sum Metric Tests
@@ -193,18 +181,15 @@
                                  :temporality :delta
                                  :monotonic? true
                                  :data-points [{:value 100
-                                                :attributes {"http.method" "GET"}}]})]})]
+                                                :attributes {"http.method" "GET"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
       (is (some? response))
       (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints)))
-      ;; Wait for flush
-      (Thread/sleep 200)
-      ;; Verify data was persisted
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)))
-        (is (= 100.0 (:value (first rows))))))))
+      (is (= 1 (count rows)))
+      (is (= 100.0 (:value (first rows)))))))
 
 (deftest sum-metric-cumulative-first-observation-dropped-test
   (testing "First cumulative observation is dropped (no previous value)"
@@ -220,15 +205,12 @@
                                   :temporality :cumulative
                                   :monotonic? true
                                   :data-points [{:value 1000
-                                                 :attributes {"cpu.core" "0"}}]})]})]
-      ;; Wait for flush
-      (Thread/sleep 200)
-      ;; First observation should be dropped
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT * FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 0 (count rows)) "First cumulative observation should be dropped")))))
+                                                 :attributes {"cpu.core" "0"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT * FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 0 (count rows)) "First cumulative observation should be dropped"))))
 
 (deftest sum-metric-cumulative-to-delta-conversion-test
   (testing "Cumulative sum is converted to delta on subsequent observations"
@@ -246,8 +228,6 @@
                           :monotonic? true
                           :data-points [{:value 1000
                                          :attributes {"cpu.core" "0"}}]})]})
-          ;; Wait for flush so normalizer state is committed
-          _ (Thread/sleep 200)
           ;; Second export: cumulative value 1500 → delta should be 500
           _ (h/export-metrics!
              {:service-name service-name
@@ -257,16 +237,13 @@
                           :unit "seconds"
                           :temporality :cumulative
                           :data-points [{:value 1500
-                                         :attributes {"cpu.core" "0"}}]})]})]
-      ;; Wait for flush
-      (Thread/sleep 200)
-      ;; Verify delta was calculated correctly
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT value FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should have one row (delta from second observation)")
-        (is (= 500.0 (:value (first rows))) "Delta should be 1500 - 1000 = 500")))))
+                                         :attributes {"cpu.core" "0"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one row (delta from second observation)")
+      (is (= 500.0 (:value (first rows))) "Delta should be 1500 - 1000 = 500"))))
 
 (deftest sum-metric-metadata-persists-test
   (testing "Sum metric metadata includes metric_type as 'sum'"
@@ -282,19 +259,16 @@
                                   :temporality :delta
                                   :monotonic? true
                                   :data-points [{:value 1024
-                                                 :attributes {"interface" "eth0"}}]})]})]
-      ;; Wait for flush
-      (Thread/sleep 200)
-      ;; Verify metadata
-      (let [sqlite (:db/sqlite h/*system*)
-            rows (jdbc/execute! sqlite
-                                ["SELECT * FROM metrics_metadata WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)))
-        (let [row (first rows)]
-          (is (= "sum" (:metrics_metadata/metric_type row)))
-          (is (= "Bytes sent over network" (:metrics_metadata/description row)))
-          (is (= "bytes" (:metrics_metadata/unit row))))))))
+                                                 :attributes {"interface" "eth0"}}]})]})
+          sqlite (:db/sqlite h/*system*)
+          rows (jdbc/execute! sqlite
+                              ["SELECT * FROM metrics_metadata WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)))
+      (let [row (first rows)]
+        (is (= "sum" (:metrics_metadata/metric_type row)))
+        (is (= "Bytes sent over network" (:metrics_metadata/description row)))
+        (is (= "bytes" (:metrics_metadata/unit row)))))))
 
 (deftest sum-metric-monotonic-reset-detection-test
   (testing "Monotonic sum reset is detected and handled correctly"
@@ -312,8 +286,6 @@
                           :monotonic? true
                           :data-points [{:value 1000
                                          :attributes {"instance" "pod-1"}}]})]})
-          ;; Wait for flush so normalizer state is committed
-          _ (Thread/sleep 200)
           ;; Second export: cumulative value 50 (simulates service restart)
           ;; Without reset detection, delta would be 50 - 1000 = -950
           ;; With reset detection, delta should be 50 (the current value)
@@ -326,17 +298,14 @@
                           :temporality :cumulative
                           :monotonic? true
                           :data-points [{:value 50
-                                         :attributes {"instance" "pod-1"}}]})]})]
-      ;; Wait for flush
-      (Thread/sleep 200)
-      ;; Verify reset was detected and current value used as delta
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT value FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should have one row from reset observation")
-        (is (= 50.0 (:value (first rows)))
-            "Reset detection should use current value (50) as delta, not -950")))))
+                                         :attributes {"instance" "pod-1"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one row from reset observation")
+      (is (= 50.0 (:value (first rows)))
+          "Reset detection should use current value (50) as delta, not -950"))))
 
 (deftest sum-metric-deduplication-test
   (testing "Multiple data points for same series in one batch are deduplicated"
@@ -357,16 +326,13 @@
                                                  :attributes {"endpoint" "/api/v1"}}
                                                 {:value 20
                                                  :time-ns (+ now-ns 1000000)  ; 1ms later
-                                                 :attributes {"endpoint" "/api/v1"}}]})]})]
-      ;; Wait for flush
-      (Thread/sleep 200)
-      ;; Should only have one row (deduplicated)
-      (let [duckdb (:db/duckdb h/*system*)
-            rows (jdbc/execute! duckdb
-                                ["SELECT value FROM o11ylite.metrics WHERE name = ?"
-                                 metric-name])]
-        (is (= 1 (count rows)) "Should deduplicate to one row")
-        (is (= 20.0 (:value (first rows))) "Should keep the later timestamp (value 20)")))))
+                                                 :attributes {"endpoint" "/api/v1"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should deduplicate to one row")
+      (is (= 20.0 (:value (first rows))) "Should keep the later timestamp (value 20)"))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
