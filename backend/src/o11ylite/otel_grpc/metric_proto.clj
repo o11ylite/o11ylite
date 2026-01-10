@@ -19,7 +19,8 @@
    [io.opentelemetry.proto.metrics.v1
     ResourceMetrics ScopeMetrics Metric Metric$DataCase
     NumberDataPoint NumberDataPoint$ValueCase
-    Sum AggregationTemporality]
+    Sum AggregationTemporality
+    Histogram HistogramDataPoint]
    [io.opentelemetry.proto.collector.metrics.v1
     ExportMetricsServiceRequest
     ExportMetricsServiceResponse
@@ -152,7 +153,7 @@
 
 (defn- -sum->metadata
   "Extract metadata from a Sum metric.
-   
+
    Note on monotonicity: Monotonic sums can only increase (counters).
    Non-monotonic sums can increase or decrease. Currently we store
    is_monotonic but don't use it for reset detection.
@@ -171,6 +172,68 @@
      :attributes all-attr-names}))
 
 ;; ---------------------------------------------------------
+;; Histogram metric extraction
+
+(defn- -extract-histogram-attribute-names
+  "Extract attribute names (without prefix) from a HistogramDataPoint."
+  [^HistogramDataPoint dp]
+  (->> (.getAttributesList dp)
+       (map #(.getKey ^io.opentelemetry.proto.common.v1.KeyValue %))
+       set))
+
+(defn- -histogram-data-point->map
+  "Convert a HistogramDataPoint to a data point map.
+   Includes :temporality key for downstream processing."
+  [^HistogramDataPoint dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality]
+  (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
+        prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
+    (merge
+     {:name metric-name
+      :service service-name
+      :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
+                     observed-time)
+      :temporality temporality
+      ;; Histogram-specific fields
+      :hist.counts (vec (.getBucketCountsList dp))
+      :hist.count (.getCount dp)
+      :hist.sum (when (.hasSum dp) (.getSum dp))
+      :hist.min (when (.hasMin dp) (.getMin dp))
+      :hist.max (when (.hasMax dp) (.getMax dp))
+      :scope.name scope-name
+      :scope.version scope-version
+      :meta.observed_time observed-time}
+     prefixed-attrs)))
+
+(defn- -histogram->data-points
+  "Convert Histogram metric to sequence of data point maps."
+  [^Metric metric resource-attrs scope-name scope-version service-name observed-time]
+  (let [metric-name (.getName metric)
+        ^Histogram histogram (.getHistogram metric)
+        temporality (-temporality->keyword (.getAggregationTemporality histogram))]
+    (for [^HistogramDataPoint dp (.getDataPointsList histogram)]
+      (-histogram-data-point->map dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality))))
+
+(defn- -histogram->metadata
+  "Extract metadata from a Histogram metric.
+   Includes hist_boundaries from the first data point (boundaries are metric-level, not per-point)."
+  [^Metric metric]
+  (let [^Histogram histogram (.getHistogram metric)
+        data-points (.getDataPointsList histogram)
+        ;; Boundaries come from the first data point (they're consistent across all points)
+        hist-boundaries (when (seq data-points)
+                          (vec (.getExplicitBoundsList ^HistogramDataPoint (first data-points))))
+        ;; Collect all attribute names across all data points
+        all-attr-names (->> data-points
+                            (mapcat -extract-histogram-attribute-names)
+                            set)]
+    {:name (.getName metric)
+     :description (.getDescription metric)
+     :unit (.getUnit metric)
+     :metric_type :histogram
+     :hist_boundaries hist-boundaries
+     :attributes all-attr-names}))
+
+;; ---------------------------------------------------------
 ;; Metric type dispatch
 
 (defn- -metric->data-points
@@ -183,8 +246,10 @@
     Metric$DataCase/SUM
     (-sum->data-points metric resource-attrs scope-name scope-version service-name observed-time)
 
-    ;; TODO: Implement histogram
-    Metric$DataCase/HISTOGRAM nil
+    Metric$DataCase/HISTOGRAM
+    (-histogram->data-points metric resource-attrs scope-name scope-version service-name observed-time)
+
+    ;; Not implemented - deferred
     Metric$DataCase/EXPONENTIAL_HISTOGRAM nil
     Metric$DataCase/SUMMARY nil
 
@@ -196,9 +261,9 @@
   (condp = (.getDataCase metric)
     Metric$DataCase/GAUGE (-gauge->metadata metric)
     Metric$DataCase/SUM (-sum->metadata metric)
+    Metric$DataCase/HISTOGRAM (-histogram->metadata metric)
 
-    ;; TODO: Implement histogram
-    Metric$DataCase/HISTOGRAM nil
+    ;; Not implemented - deferred
     Metric$DataCase/EXPONENTIAL_HISTOGRAM nil
     Metric$DataCase/SUMMARY nil
 
@@ -258,21 +323,6 @@
         all-metadata (map :metadata results)]
     {:data-points (vec all-data-points)
      :metrics-metadata (-merge-metadata all-metadata)}))
-
-(defn count-rejected-data-points
-  "Count data points that would be rejected (no service.name)."
-  [^ExportMetricsServiceRequest request]
-  (->> (.getResourceMetricsList request)
-       (filter #(nil? (proto/extract-service-name (.getResource ^ResourceMetrics %))))
-       (mapcat #(.getScopeMetricsList ^ResourceMetrics %))
-       (mapcat #(.getMetricsList ^ScopeMetrics %))
-       (mapcat (fn [^Metric m]
-                 (condp = (.getDataCase m)
-                   Metric$DataCase/GAUGE (.getDataPointsList (.getGauge m))
-                   Metric$DataCase/SUM (.getDataPointsList (.getSum m))
-                   ;; TODO: Handle histogram types
-                   [])))
-       count))
 
 (defn metric-response->proto
   "Convert Clojure response map to ExportMetricsServiceResponse.

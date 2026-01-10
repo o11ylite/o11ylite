@@ -12,7 +12,7 @@
    [io.opentelemetry.proto.resource.v1 Resource]
    [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
    [io.opentelemetry.proto.logs.v1 LogRecord SeverityNumber ResourceLogs ScopeLogs]
-   [io.opentelemetry.proto.metrics.v1 Gauge Sum AggregationTemporality NumberDataPoint ResourceMetrics ScopeMetrics Metric]
+   [io.opentelemetry.proto.metrics.v1 Gauge Sum Histogram AggregationTemporality NumberDataPoint HistogramDataPoint ResourceMetrics ScopeMetrics Metric]
    [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
    [io.opentelemetry.proto.collector.logs.v1 LogsServiceGrpc ExportLogsServiceRequest]
    [io.opentelemetry.proto.collector.metrics.v1 MetricsServiceGrpc ExportMetricsServiceRequest]
@@ -349,6 +349,59 @@
         (.setDescription description)
         (.setUnit unit)
         (.setSum sum)
+        (.build))))
+
+(defn- -build-histogram-data-point
+  "Build a HistogramDataPoint protobuf from a map."
+  [{:keys [bucket-counts boundaries count sum min max time-ns attributes]
+    :or {time-ns (System/nanoTime)
+         attributes {}}}]
+  (cond-> (HistogramDataPoint/newBuilder)
+    true (.setTimeUnixNano time-ns)
+    true (.addAllBucketCounts (map long bucket-counts))
+    true (.addAllExplicitBounds (map double boundaries))
+    true (.setCount (long count))
+    sum (.setSum (double sum))
+    min (.setMin (double min))
+    max (.setMax (double max))
+    true (.addAllAttributes (-attributes attributes))
+    true (.build)))
+
+(defn build-histogram-metric
+  "Build a Histogram Metric protobuf from a map.
+
+   Required keys:
+   - :name        - metric name
+   - :boundaries  - vector of bucket boundaries (e.g. [0.005 0.01 0.025 0.05 0.1])
+
+   Optional keys:
+   - :description  - metric description
+   - :unit         - metric unit
+   - :temporality  - :delta or :cumulative (default: :delta)
+   - :data-points  - vector of data point maps with:
+                     :bucket-counts - vector of counts (length = boundaries + 1)
+                     :count         - total count
+                     :sum           - total sum (optional)
+                     :min           - minimum value (optional)
+                     :max           - maximum value (optional)
+                     :time-ns       - timestamp (optional)
+                     :attributes    - map of attributes (optional)"
+  [{:keys [name description unit temporality boundaries data-points]
+    :or {description ""
+         unit ""
+         temporality :delta
+         data-points [{:bucket-counts [0] :count 0}]}}]
+  ;; Inject boundaries into each data point (boundaries are metric-level but stored per-point in proto)
+  (let [data-points-with-boundaries (map #(assoc % :boundaries boundaries) data-points)
+        histogram (-> (Histogram/newBuilder)
+                      (.setAggregationTemporality (-aggregation-temporality temporality))
+                      (.addAllDataPoints (map -build-histogram-data-point data-points-with-boundaries))
+                      (.build))]
+    (-> (Metric/newBuilder)
+        (.setName name)
+        (.setDescription description)
+        (.setUnit unit)
+        (.setHistogram histogram)
         (.build))))
 
 (defn build-metrics-request

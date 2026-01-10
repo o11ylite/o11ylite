@@ -216,14 +216,13 @@
   [{:keys [metric-batcher metric-normalizer sqlite]} request]
   (try
     (let [proto-request (-parse-metric-request request)
-          {:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request proto-request)
-          rejected-count (metric-proto/count-rejected-data-points proto-request)]
-      (mulog/log ::http-metrics-received
-                 :data-point-count (count data-points)
-                 :rejected-count rejected-count)
-      (when (or (seq data-points) (seq metrics-metadata))
-        (metrics.ingest/ingest-metrics! metric-batcher sqlite metric-normalizer data-points metrics-metadata))
-      (-metric-response request {:rejected-data-point-count rejected-count}))
+          {:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request proto-request)]
+      (mulog/log ::http-metrics-received :data-point-count (count data-points))
+      (if (or (seq data-points) (seq metrics-metadata))
+        (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher sqlite metric-normalizer data-points metrics-metadata)]
+          (-metric-response request {:rejected-data-point-count (or rejected-count 0)
+                                     :error-message (or error-message "")}))
+        (-metric-response request {})))
     (catch Exception e
       (mulog/log ::http-metric-error :error (.getMessage e))
       (-error-response 400 (.getMessage e)))))

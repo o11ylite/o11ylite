@@ -47,15 +47,17 @@
       (is (some? response))
       (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints))))))
 
-(deftest metric-export-rejects-without-service-test
-  (testing "MetricsService/Export rejects metrics without service.name"
+(deftest metric-export-without-service-test
+  (testing "MetricsService/Export silently drops metrics without service.name"
     (let [response (h/export-metrics!
                     {:meter-name "test-meter"
                      :metrics [(h/build-gauge-metric
                                 {:name "orphan.metric"
                                  :data-points [{:value 100}]})]})]
+      ;; Metrics without service.name are filtered at parse time
+      ;; No rejection count since nothing was attempted to ingest
       (is (some? response))
-      (is (= 1 (-> response .getPartialSuccess .getRejectedDataPoints))))))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints))))))
 
 (deftest metric-ingestion-persists-to-duckdb-test
   (testing "Metrics are persisted to DuckDB after flush"
@@ -333,6 +335,215 @@
                                metric-name])]
       (is (= 1 (count rows)) "Should deduplicate to one row")
       (is (= 20.0 (:value (first rows))) "Should keep the later timestamp (value 20)"))))
+
+;; ---------------------------------------------------------
+;; Histogram Metric Tests
+
+(deftest histogram-metric-delta-export-test
+  (testing "MetricsService/Export accepts delta histogram metrics"
+    (let [service-name "histogram-delta-test-service"
+          metric-name "http.request.duration"
+          boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0]
+          response (h/export-metrics!
+                    {:service-name service-name
+                     :meter-name "http-meter"
+                     :metrics [(h/build-histogram-metric
+                                {:name metric-name
+                                 :description "HTTP request duration"
+                                 :unit "s"
+                                 :temporality :delta
+                                 :boundaries boundaries
+                                 :data-points [{:bucket-counts [10 20 30 25 10 3 1 0 1]
+                                                :count 100
+                                                :sum 15.5
+                                                :min 0.001
+                                                :max 1.5
+                                                :attributes {"http.method" "GET"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT name, service, \"hist.count\", \"hist.sum\", \"hist.min\", \"hist.max\"
+                                FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (some? response))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints)))
+      (is (= 1 (count rows)))
+      (let [row (first rows)]
+        (is (= metric-name (:name row)))
+        (is (= service-name (:service row)))
+        (is (= 100 (:hist.count row)))
+        (is (= 15.5 (:hist.sum row)))
+        (is (= 0.001 (:hist.min row)))
+        (is (= 1.5 (:hist.max row)))))))
+
+(deftest histogram-metric-metadata-persists-test
+  (testing "Histogram metadata includes boundaries"
+    (let [service-name "histogram-metadata-test-service"
+          metric-name "db.query.duration"
+          boundaries [0.001 0.005 0.01 0.05 0.1 0.5 1.0 5.0]
+          _response (h/export-metrics!
+                     {:service-name service-name
+                      :meter-name "db-meter"
+                      :metrics [(h/build-histogram-metric
+                                 {:name metric-name
+                                  :description "Database query duration"
+                                  :unit "s"
+                                  :temporality :delta
+                                  :boundaries boundaries
+                                  :data-points [{:bucket-counts [5 10 15 20 15 10 5 3 2]
+                                                 :count 85
+                                                 :sum 42.5
+                                                 :attributes {"db.system" "postgresql"}}]})]})
+          sqlite (:db/sqlite h/*system*)
+          rows (jdbc/execute! sqlite
+                              ["SELECT * FROM metrics_metadata WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)))
+      (let [row (first rows)]
+        (is (= "histogram" (:metrics_metadata/metric_type row)))
+        (is (= "Database query duration" (:metrics_metadata/description row)))
+        (is (= "s" (:metrics_metadata/unit row)))
+        ;; Boundaries stored as JSON array
+        (let [stored-boundaries (json/read-value (:metrics_metadata/hist_boundaries row))]
+          (is (= boundaries stored-boundaries)))))))
+
+(deftest histogram-cumulative-first-observation-dropped-test
+  (testing "First cumulative histogram observation is dropped"
+    (let [service-name "histogram-cumulative-first-service"
+          metric-name "cache.latency.first"
+          boundaries [0.001 0.01 0.1 1.0]
+          _response (h/export-metrics!
+                     {:service-name service-name
+                      :meter-name "cache-meter"
+                      :metrics [(h/build-histogram-metric
+                                 {:name metric-name
+                                  :unit "s"
+                                  :temporality :cumulative
+                                  :boundaries boundaries
+                                  :data-points [{:bucket-counts [100 200 50 25 25]
+                                                 :count 400
+                                                 :sum 45.0}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT * FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 0 (count rows)) "First cumulative histogram observation should be dropped"))))
+
+(deftest histogram-cumulative-to-delta-conversion-test
+  (testing "Cumulative histogram is converted to delta"
+    (let [service-name "histogram-cumulative-delta-service"
+          metric-name "rpc.latency.delta"
+          boundaries [0.01 0.05 0.1 0.5 1.0]
+          ;; First export: cumulative (will be dropped, state stored)
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "rpc-meter"
+              :metrics [(h/build-histogram-metric
+                         {:name metric-name
+                          :unit "s"
+                          :temporality :cumulative
+                          :boundaries boundaries
+                          :data-points [{:bucket-counts [10 20 30 20 15 5]
+                                         :count 100
+                                         :sum 25.0
+                                         :attributes {"rpc.method" "GetUser"}}]})]})
+          ;; Second export: cumulative values increased
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "rpc-meter"
+              :metrics [(h/build-histogram-metric
+                         {:name metric-name
+                          :unit "s"
+                          :temporality :cumulative
+                          :boundaries boundaries
+                          :data-points [{:bucket-counts [15 30 45 30 20 10]
+                                         :count 150
+                                         :sum 40.0
+                                         :attributes {"rpc.method" "GetUser"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one row (delta from second observation)")
+      (let [row (first rows)]
+        ;; Delta: 150 - 100 = 50
+        (is (= 50 (:hist.count row)) "hist.count delta should be 150 - 100 = 50")
+        ;; Delta: 40.0 - 25.0 = 15.0
+        (is (= 15.0 (:hist.sum row)) "hist.sum delta should be 40.0 - 25.0 = 15.0")))))
+
+(deftest histogram-reset-detection-test
+  (testing "Histogram reset is detected when bucket counts decrease"
+    (let [service-name "histogram-reset-test-service"
+          metric-name "worker.task.duration"
+          boundaries [0.1 0.5 1.0 5.0]
+          ;; First export: cumulative (dropped, state stored)
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "worker-meter"
+              :metrics [(h/build-histogram-metric
+                         {:name metric-name
+                          :unit "s"
+                          :temporality :cumulative
+                          :boundaries boundaries
+                          :data-points [{:bucket-counts [100 200 150 50 25]
+                                         :count 525
+                                         :sum 500.0
+                                         :attributes {"worker.id" "w1"}}]})]})
+          ;; Second export: lower cumulative values (service restart)
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "worker-meter"
+              :metrics [(h/build-histogram-metric
+                         {:name metric-name
+                          :unit "s"
+                          :temporality :cumulative
+                          :boundaries boundaries
+                          :data-points [{:bucket-counts [5 10 8 3 2]
+                                         :count 28
+                                         :sum 25.0
+                                         :attributes {"worker.id" "w1"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      (is (= 1 (count rows)) "Should have one row from reset observation")
+      (let [row (first rows)]
+        ;; Reset detection should use current values as delta
+        (is (= 28 (:hist.count row)) "Reset should use current count (28) as delta")
+        (is (= 25.0 (:hist.sum row)) "Reset should use current sum (25.0) as delta")))))
+
+;; ---------------------------------------------------------
+;; Immutable Field Validation Tests
+
+(deftest immutable-field-unit-conflict-test
+  (testing "Metrics with conflicting unit are rejected"
+    (let [service-name "unit-conflict-test-service"
+          metric-name "request.latency.unit"
+          ;; First export: unit is "ms"
+          _ (h/export-metrics!
+             {:service-name service-name
+              :meter-name "test-meter"
+              :metrics [(h/build-gauge-metric
+                         {:name metric-name
+                          :description "Request latency"
+                          :unit "ms"
+                          :data-points [{:value 100}]})]})
+          ;; Second export: try to change unit to "s" (should be rejected)
+          response (h/export-metrics!
+                    {:service-name service-name
+                     :meter-name "test-meter"
+                     :metrics [(h/build-gauge-metric
+                                {:name metric-name
+                                 :unit "s"
+                                 :data-points [{:value 0.1}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT value FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      ;; Should have rejected the second export
+      (is (= 1 (-> response .getPartialSuccess .getRejectedDataPoints)))
+      ;; Only first data point should be persisted
+      (is (= 1 (count rows)))
+      (is (= 100.0 (:value (first rows)))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

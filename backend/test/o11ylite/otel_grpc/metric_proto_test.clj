@@ -155,11 +155,6 @@
       (is (= [] data-points))
       (is (= {} metrics-metadata)))))
 
-(deftest count-rejected-data-points-test
-  (testing "Counts rejected data points correctly"
-    (is (= 0 (metric-proto/count-rejected-data-points (build-sample-gauge-request))))
-    (is (= 1 (metric-proto/count-rejected-data-points (build-request-without-service))))))
-
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
