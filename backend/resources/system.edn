@@ -83,5 +83,7 @@
   :sqlite #ig/ref :db/sqlite
   :event-metadata #ig/ref :cache/event-metadata
   :event-batcher #ig/ref :ingest/event-batcher
+  :metric-batcher #ig/ref :ingest/metric-batcher
+  :metric-normalizer #ig/ref :ingest/metric-normalizer
   ;; _storage ensures storage/init runs first so DuckDB tables exist
   :_storage #ig/ref :storage/init}}

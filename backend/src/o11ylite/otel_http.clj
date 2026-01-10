@@ -1,7 +1,7 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.otel-http
 ;;
-;; OTLP HTTP endpoints for traces and logs.
+;; OTLP HTTP endpoints for traces, logs, and metrics.
 ;; Supports both protobuf binary and JSON content types.
 ;; Reuses conversion logic from otel_grpc/*_events namespaces.
 ;;
@@ -25,12 +25,15 @@
   (:require
    [com.brunobonacci.mulog :as mulog]
    [o11ylite.store.events.ingest :as events.ingest]
+   [o11ylite.store.metrics.ingest :as metrics.ingest]
    [o11ylite.otel-grpc.trace-events :as trace-events]
-   [o11ylite.otel-grpc.log-events :as log-events])
+   [o11ylite.otel-grpc.log-events :as log-events]
+   [o11ylite.otel-grpc.metric-proto :as metric-proto])
   (:import
    [com.google.protobuf.util JsonFormat]
    [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest]
    [io.opentelemetry.proto.collector.logs.v1 ExportLogsServiceRequest]
+   [io.opentelemetry.proto.collector.metrics.v1 ExportMetricsServiceRequest]
    [java.io InputStream]))
 
 ;; ---------------------------------------------------------
@@ -90,6 +93,22 @@
         (.merge (JsonFormat/parser) json-str builder)
         (.build builder)))))
 
+(defn- -parse-metric-request
+  "Parse request body into ExportMetricsServiceRequest.
+   Supports both protobuf binary and JSON."
+  [request]
+  (let [content-type (-get-content-type request)
+        body (:body request)]
+    (case content-type
+      :protobuf
+      (ExportMetricsServiceRequest/parseFrom ^InputStream body)
+
+      :json
+      (let [json-str (if (string? body) body (slurp body))
+            builder (ExportMetricsServiceRequest/newBuilder)]
+        (.merge (JsonFormat/parser) json-str builder)
+        (.build builder)))))
+
 ;; ---------------------------------------------------------
 ;; Response Building
 
@@ -116,6 +135,22 @@
             :or {rejected-log-count 0 error-message ""}}]
   (let [proto-response (log-events/log-response->proto
                         {:rejected-log-count rejected-log-count
+                         :error-message error-message})]
+    (if (-accepts-protobuf? request)
+      {:status 200
+       :headers {"Content-Type" content-type-protobuf}
+       :body (.toByteArray proto-response)}
+      {:status 200
+       :headers {"Content-Type" content-type-json}
+       :body (.print (JsonFormat/printer) proto-response)})))
+
+(defn- -metric-response
+  "Build HTTP response for metric export.
+   Returns protobuf or JSON based on Accept header."
+  [request {:keys [rejected-data-point-count error-message]
+            :or {rejected-data-point-count 0 error-message ""}}]
+  (let [proto-response (metric-proto/metric-response->proto
+                        {:rejected-data-point-count rejected-data-point-count
                          :error-message error-message})]
     (if (-accepts-protobuf? request)
       {:status 200
@@ -175,6 +210,24 @@
       (mulog/log ::http-log-error :error (.getMessage e))
       (-error-response 400 (.getMessage e)))))
 
+(defn metric-handler
+  "Handle POST /v1/metrics requests.
+   Parses OTLP metric data and ingests into storage."
+  [{:keys [metric-batcher metric-normalizer sqlite]} request]
+  (try
+    (let [proto-request (-parse-metric-request request)
+          {:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request proto-request)
+          rejected-count (metric-proto/count-rejected-data-points proto-request)]
+      (mulog/log ::http-metrics-received
+                 :data-point-count (count data-points)
+                 :rejected-count rejected-count)
+      (when (or (seq data-points) (seq metrics-metadata))
+        (metrics.ingest/ingest-metrics! metric-batcher sqlite metric-normalizer data-points metrics-metadata))
+      (-metric-response request {:rejected-data-point-count rejected-count}))
+    (catch Exception e
+      (mulog/log ::http-metric-error :error (.getMessage e))
+      (-error-response 400 (.getMessage e)))))
+
 ;; ---------------------------------------------------------
 ;; Routes
 
@@ -182,11 +235,12 @@
   "OTLP HTTP routes.
    
    Arguments:
-     opts - Map with :event-metadata and :event-batcher components"
+     opts - Map with :event-metadata, :event-batcher, :metric-batcher, :metric-normalizer, and :sqlite components"
   [opts]
   ["/v1"
    ["/traces" {:post {:handler (partial trace-handler opts)}}]
-   ["/logs" {:post {:handler (partial log-handler opts)}}]])
+   ["/logs" {:post {:handler (partial log-handler opts)}}]
+   ["/metrics" {:post {:handler (partial metric-handler opts)}}]])
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
