@@ -22,15 +22,15 @@
   "Handle incoming metrics export request.
    Parses metrics to internal format, ingests data, and returns rejection count."
   [metric-batcher sqlite normalizer ^ExportMetricsServiceRequest request]
-  (let [{:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request request)
-        rejected-count (metric-proto/count-rejected-data-points request)]
+  (let [{:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request request)]
     (mulog/log ::metrics-received
                :data-point-count (count data-points)
-               :metadata-count (count metrics-metadata)
-               :rejected-count rejected-count)
-    (when (or (seq data-points) (seq metrics-metadata))
-      (metrics.ingest/ingest-metrics! metric-batcher sqlite normalizer data-points metrics-metadata))
-    {:rejected-data-point-count rejected-count}))
+               :metadata-count (count metrics-metadata))
+    (if (or (seq data-points) (seq metrics-metadata))
+      (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher sqlite normalizer data-points metrics-metadata)]
+        {:rejected-data-point-count (or rejected-count 0)
+         :error-message (or error-message "")})
+      {})))
 
 ;; ---------------------------------------------------------
 ;; Service factory

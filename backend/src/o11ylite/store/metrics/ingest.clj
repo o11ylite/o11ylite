@@ -4,38 +4,37 @@
 ;; Metrics ingestion: validation and storage for time-series metrics.
 ;;
 ;; Flow:
-;;   gRPC handler
+;;   gRPC/HTTP handler
 ;;       │
 ;;       v
 ;;   ingest-metrics! (hot path)
 ;;       1. Deduplicate data points by series key (keep latest timestamp)
-;;       2. Normalize temporality (cumulative → delta for sums)
-;;       3. Extract field names from data-points
-;;       4. Filter unchanged metadata (TTL-cached lookup, ~IO-free)
-;;       5. Submit to batcher
+;;       2. Partition metadata: valid vs immutable-field-conflicts
+;;       3. Reject data points for metrics with immutable field conflicts
+;;       4. Normalize temporality (cumulative → delta for sums/histograms)
+;;       5. Extract field names and submit to batcher
 ;;       │
 ;;       v
 ;;   batcher accumulates {:data-points [...] :fields #{...} :metadata {...}}
 ;;       │
 ;;       v (periodic flush)
 ;;   persist-batch! (cold path)
-;;       1. DESCRIBE TABLE to get current columns
-;;       2. ALTER TABLE ADD COLUMN for new attr.* fields
-;;       3. UPSERT metadata to SQLite (only changed entries)
-;;       4. Bulk INSERT data points
-;;       5. Update normalizer state (commit-batch!)
+;;       1. Schema evolution - ALTER TABLE ADD COLUMN for new attr.* fields
+;;       2. UPSERT metadata to SQLite (only changed entries)
+;;       3. Bulk INSERT data points into DuckDB
+;;       4. Update normalizer state (commit-batch!)
 ;;
-;; Key differences from events:
-;;   - fields: Set of field names (all attr.* are strings, no type tracking)
-;;   - metadata: Map of metric-name -> {:description :unit :metric_type :attributes}
-;;   - TTL-cached metadata lookups to filter unchanged metadata in hot path
-;;   - Deduplication ensures one data point per series per batch
-;;   - Cumulative sums are converted to delta via normalizer
+;; Immutable metadata fields (rejected if changed):
+;;   - unit, metric_type, hist_boundaries
+;;
+;; Mutable metadata fields (updated on change):
+;;   - description, attributes
 ;; ---------------------------------------------------------
 
 (ns o11ylite.store.metrics.ingest
   (:require
    [clojure.set :as set]
+   [clojure.string :as str]
    [com.brunobonacci.mulog :as mulog]
    [next.jdbc.sql :as sql]
    [next.jdbc.quoted]
@@ -68,24 +67,64 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers - Metadata
 
-(defn- -metadata-changed?
-  "Check if incoming metadata differs from existing cached metadata.
-   Returns true if this is a new metric or if description/attributes changed.
-   Unit and metric_type are immutable so we don't check them."
-  [sqlite metric-name {:keys [description attributes]}]
-  (if-let [existing (metadata/get-metric sqlite metric-name)]
-    (or (not= description (:description existing))
-        (not= attributes (:attributes existing)))
-    true))
+(defn- -immutable-fields-conflict?
+  "Check if incoming metadata has immutable field conflicts with existing metric.
+   Immutable fields: unit, metric_type, hist_boundaries.
+   Returns error message string if conflict, nil if OK (new metric or no conflict)."
+  [existing incoming]
+  (when existing
+    (let [conflicts (cond-> []
+                      (and (:unit existing) (:unit incoming)
+                           (not= (:unit existing) (:unit incoming)))
+                      (conj (format "unit: %s → %s" (:unit existing) (:unit incoming)))
 
-(defn- -filter-changed-metadata
-  "Filter metrics-metadata to only include new or changed entries.
-   Uses TTL-cached get-metric to avoid IO on repeated calls."
+                      (and (:metric_type existing) (:metric_type incoming)
+                           (not= (:metric_type existing) (:metric_type incoming)))
+                      (conj (format "metric_type: %s → %s" (name (:metric_type existing)) (name (:metric_type incoming))))
+
+                      (and (:hist_boundaries existing) (:hist_boundaries incoming)
+                           (not= (:hist_boundaries existing) (:hist_boundaries incoming)))
+                      (conj "hist_boundaries changed"))]
+      (when (seq conflicts)
+        (str/join ", " conflicts)))))
+
+(defn- -categorize-metadata
+  "Categorize metrics-metadata into changed (new or mutable updates) and invalid (immutable field conflicts).
+   Returns {:changed-metadata {...} :invalid-metrics #{...} :errors [...]}."
   [sqlite metrics-metadata]
-  (->> metrics-metadata
-       (filter (fn [[metric-name meta-entry]]
-                 (-metadata-changed? sqlite metric-name meta-entry)))
-       (into {})))
+  (reduce-kv
+   (fn [acc metric-name meta-entry]
+     (let [existing (metadata/get-metric sqlite metric-name)]
+       (if-let [conflict (-immutable-fields-conflict? existing meta-entry)]
+         ;; Immutable field conflict - mark metric as invalid
+         (-> acc
+             (update :invalid-metrics conj metric-name)
+             (update :errors conj (format "'%s': %s" metric-name conflict)))
+         ;; Check if metadata actually changed (for new metrics or mutable field changes)
+         (if (or (nil? existing)
+                 (not= (:description meta-entry) (:description existing))
+                 (not= (:attributes meta-entry) (:attributes existing)))
+           (update acc :changed-metadata assoc metric-name meta-entry)
+           acc))))
+   {:changed-metadata {} :invalid-metrics #{} :errors []}
+   metrics-metadata))
+
+(defn- -reject-invalid-data-points
+  "Remove data points belonging to metrics with immutable field conflicts.
+   Returns {:valid [...] :rejected-count N :error-message \"...\"}."
+  [data-points invalid-metrics errors]
+  (if (empty? invalid-metrics)
+    {:valid data-points :rejected-count 0 :error-message nil}
+    (let [{valid true rejected false} (group-by #(not (contains? invalid-metrics (:name %))) data-points)
+          rejected-count (count rejected)]
+      (mulog/log ::immutable-field-conflict
+                 :rejected-count rejected-count
+                 :metric-names (vec invalid-metrics)
+                 :errors errors)
+      {:valid (vec (or valid []))
+       :rejected-count rejected-count
+       :error-message (format "Rejected %d data points due to immutable field conflicts: %s"
+                              rejected-count (str/join "; " errors))})))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - Value Coercion
@@ -94,11 +133,14 @@
   "Coerce a value for JDBC insertion.
    - Keywords are converted to strings
    - Instants are converted to LocalDateTime at UTC
+   - Vectors (for hist.counts) are converted to DuckDB array string format
    - Other values pass through unchanged"
   [v]
   (cond
     (keyword? v) (name v)
     (instance? Instant v) (LocalDateTime/ofInstant v ZoneOffset/UTC)
+    ;; DuckDB JDBC doesn't accept Java arrays directly, but can parse string format
+    (vector? v) (str "[" (str/join ", " v) "]")
     :else v))
 
 (defn- -data-point->row
@@ -119,7 +161,7 @@
   "Ingest metrics into the observability store (hot path).
 
    Called by gRPC handlers to submit metrics. Performs CPU-bound work
-   (deduplication, temporality normalization, field extraction, filtering)
+   (deduplication, metadata validation, temporality normalization, field extraction)
    then submits to batcher. Blocks until the batch is flushed by persist-batch!.
 
    Design rationale - CPU vs IO split:
@@ -135,28 +177,33 @@
      sqlite           - SQLite datasource (for cached metadata lookups)
      norm             - Temporality normalizer component (for cumulative→delta)
      data-points      - Collection of data point maps (with attr.* keys)
-     metrics-metadata - Map of metric-name -> {:description :unit :metric_type :attributes}
+     metrics-metadata - Map of metric-name -> {:description :unit :metric_type :attributes :hist_boundaries}
 
    Returns:
-     true if all data was persisted successfully
-     false if flush failed (caller should handle retry/logging)"
+     {:success true/false
+      :rejected-count N
+      :error-message \"...\" or nil}"
   [metric-batcher sqlite norm data-points metrics-metadata]
-  (let [;; Step 1: Deduplicate by series (sums only, gauges pass through)
+  (let [;; Step 1: Deduplicate by series (sums/histograms dedupe, gauges pass through)
         deduped (dedupe/dedupe-by-series data-points)
-        ;; Step 2: Normalize temporality (cumulative → delta, with reset detection)
-        ;; Returns {:normalized [...] :cumulative-to-commit [...]}
-        {:keys [normalized cumulative-to-commit]} (temporality/normalize-temporality norm deduped metrics-metadata)
-        ;; Step 3: Extract fields and filter metadata
+        ;; Step 2: Categorize metadata into changed vs immutable-field-conflicts
+        {:keys [changed-metadata invalid-metrics errors]} (-categorize-metadata sqlite metrics-metadata)
+        ;; Step 3: Reject data points for metrics with immutable field conflicts
+        {:keys [valid rejected-count error-message]} (-reject-invalid-data-points deduped invalid-metrics errors)
+        ;; Step 4: Normalize temporality (cumulative → delta, with reset detection)
+        {:keys [normalized cumulative-to-commit]} (temporality/normalize-temporality norm valid metrics-metadata)
+        ;; Step 5: Extract fields from normalized data points
         fields (-extract-fields normalized)
-        changed-metadata (-filter-changed-metadata sqlite metrics-metadata)]
-    ;; Send to batcher if we have data to persist or cumulative state to track
-    (if (or (seq normalized) (seq cumulative-to-commit))
-      (batcher/->batcher! metric-batcher {:data-points normalized
-                                          :fields fields
-                                          :metadata changed-metadata
-                                          ;; Cumulative data points for normalizer state update
-                                          :cumulative-to-commit cumulative-to-commit})
-      true)))
+        ;; Step 6: Send to batcher if we have data to persist or cumulative state to track
+        success (if (or (seq normalized) (seq cumulative-to-commit))
+                  (batcher/->batcher! metric-batcher {:data-points normalized
+                                                      :fields fields
+                                                      :metadata changed-metadata
+                                                      :cumulative-to-commit cumulative-to-commit})
+                  true)]
+    {:success success
+     :rejected-count rejected-count
+     :error-message error-message}))
 
 (defn persist-batch!
   "Persist a batch of metrics to storage (cold path).

@@ -11,6 +11,14 @@
 ;; when current < previous, it indicates a counter reset (e.g., service restart).
 ;; In this case, the current value is used as the delta instead of a negative value.
 ;;
+;; Note on monotonicity:
+;; - Sum metrics have an is_monotonic field (from OTLP proto) that indicates
+;;   whether the counter can only increase.
+;; - Histogram metrics do NOT have an is_monotonic field in OTLP because
+;;   histograms are inherently monotonic: bucket counts can only increase
+;;   within an aggregation period (you can't "un-record" an observation).
+;;   Reset detection always applies to cumulative histograms.
+;;
 ;; This module works with the metric-temporality-normalizer component,
 ;; which maintains the in-memory state of previous values per series.
 ;; ---------------------------------------------------------
@@ -23,8 +31,13 @@
 ;; ---------------------------------------------------------
 ;; Normalization
 
-(defn- -normalize-cumulative
-  "Normalize a cumulative data point to delta.
+(defn- -histogram-data-point?
+  "Check if data point is a histogram (has :hist.counts key)."
+  [data-point]
+  (contains? data-point :hist.counts))
+
+(defn- -normalize-cumulative-sum
+  "Normalize a cumulative sum data point to delta.
    
    For monotonic sums, detects resets (current < previous) and uses
    the current value as delta instead of computing a negative delta.
@@ -54,6 +67,55 @@
     ;; First observation - drop but track for state initialization
     {:normalized nil
      :original data-point}))
+
+(defn- -normalize-cumulative-histogram
+  "Normalize a cumulative histogram data point to delta.
+   
+   Computes element-wise delta for bucket counts, scalar delta for count/sum.
+   hist.min and hist.max pass through unchanged (they're per-interval values).
+   
+   Detects resets (any bucket count goes negative) and uses current values as delta.
+   Histograms are inherently monotonic (bucket counts can only increase within an
+   aggregation period), so reset detection always applies.
+   
+   Arguments:
+     norm       - The normalizer component
+     data-point - The cumulative histogram data point
+   
+   Returns a map with:
+     :normalized - data point with delta values, or nil if first-seen
+     :original   - original data point (always, for normalizer state tracking)"
+  [norm data-point]
+  (if-let [delta-result (normalizer/compute-delta norm data-point)]
+    ;; Has previous state - convert to delta
+    ;; Check for reset: any bucket count delta is negative indicates a counter reset
+    (let [reset? (some neg? (:hist.counts delta-result))]
+      (if reset?
+        ;; Reset detected - use current values as delta
+        (do
+          (mulog/log ::histogram-reset-detected
+                     :metric-name (:name data-point))
+          {:normalized (dissoc data-point :temporality)
+           :original data-point})
+        ;; Normal case - apply computed deltas
+        {:normalized (-> data-point
+                         (assoc :hist.counts (:hist.counts delta-result))
+                         (assoc :hist.count (:hist.count delta-result))
+                         (cond-> (:hist.sum delta-result)
+                           (assoc :hist.sum (:hist.sum delta-result)))
+                         (dissoc :temporality))
+         :original data-point}))
+    ;; First observation - drop but track for state initialization
+    {:normalized nil
+     :original data-point}))
+
+(defn- -normalize-cumulative
+  "Normalize a cumulative data point (sum or histogram) to delta.
+   Dispatches to appropriate handler based on data point type."
+  [norm data-point is-monotonic?]
+  (if (-histogram-data-point? data-point)
+    (-normalize-cumulative-histogram norm data-point)
+    (-normalize-cumulative-sum norm data-point is-monotonic?)))
 
 (defn normalize-temporality
   "Normalize temporality for all data points.

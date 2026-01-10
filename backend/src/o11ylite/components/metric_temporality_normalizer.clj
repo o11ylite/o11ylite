@@ -5,7 +5,8 @@
 ;; Converts cumulative sum metrics to delta by tracking previous values.
 ;;
 ;; State structure:
-;;   {series-key -> {:value <number> :last-seen <instant>}}
+;;   For sums:       {series-key -> {:value <number> :last-seen <instant>}}
+;;   For histograms: {series-key -> {:hist.counts [...] :hist.count N :hist.sum X :last-seen <instant>}}
 ;;
 ;; Series key is derived from (metric-name, sorted-attributes).
 ;;
@@ -61,20 +62,58 @@
 ;; ---------------------------------------------------------
 ;; Public API
 
-(defn compute-delta
-  "Compute delta value for a cumulative data point.
+(defn- -histogram-data-point?
+  "Check if data point is a histogram (has :hist.counts key)."
+  [data-point]
+  (contains? data-point :hist.counts))
+
+(defn- -compute-histogram-delta
+  "Compute delta for histogram fields.
+   Returns map with delta values: {:hist.counts [...] :hist.count N :hist.sum X}.
    
-   Returns:
-     {:delta <number>} if previous value exists
-     nil if this is the first observation (caller should drop the data point)
+   Note: Delta values may be negative if a reset occurred. Caller is responsible
+   for reset detection and handling (see o11ylite.store.metrics.temporality)."
+  [current-dp prev-entry]
+  (let [prev-counts (:hist.counts prev-entry)
+        curr-counts (:hist.counts current-dp)
+        delta-counts (mapv - curr-counts prev-counts)]
+    {:hist.counts delta-counts
+     :hist.count (- (:hist.count current-dp) (:hist.count prev-entry))
+     :hist.sum (when (and (:hist.sum current-dp) (:hist.sum prev-entry))
+                 (- (:hist.sum current-dp) (:hist.sum prev-entry)))}))
+
+(defn compute-delta
+  "Compute delta value for a cumulative data point (sum or histogram).
+   
+   For sums:
+     Returns {:delta <number>} if previous value exists
+   
+   For histograms:
+     Returns {:hist.counts [...] :hist.count N :hist.sum X} if previous state exists
+     Note: Values may be negative if a reset occurred - caller handles reset detection
+   
+   Returns nil if this is the first observation (caller should drop the data point)
    
    Note: Does NOT update state. Call commit-batch! after persist-batch!."
   [normalizer data-point]
   (let [state-atom (:state normalizer)
-        key (series/series-key data-point)
-        current-value (:value data-point)]
+        key (series/series-key data-point)]
     (when-let [entry (get @state-atom key)]
-      {:delta (- current-value (:value entry))})))
+      (if (-histogram-data-point? data-point)
+        (-compute-histogram-delta data-point entry)
+        {:delta (- (:value data-point) (:value entry))}))))
+
+(defn- -data-point->state-entry
+  "Convert a data point to a state entry for storage.
+   Sums store :value, histograms store :hist.counts, :hist.count, :hist.sum."
+  [data-point now]
+  (if (-histogram-data-point? data-point)
+    {:hist.counts (:hist.counts data-point)
+     :hist.count (:hist.count data-point)
+     :hist.sum (:hist.sum data-point)
+     :last-seen now}
+    {:value (:value data-point)
+     :last-seen now}))
 
 (defn commit-batch!
   "Update normalizer state with values from a persisted batch.
@@ -82,7 +121,8 @@
    Should be called AFTER persist-batch! succeeds to ensure we only
    track values that were durably written.
    
-   For each series in the batch, stores the last value seen."
+   For each series in the batch, stores the last value seen.
+   Works for both sum metrics (:value) and histograms (:hist.* fields)."
   [normalizer data-points]
   (let [state-atom (:state normalizer)
         now (Instant/now)
@@ -90,8 +130,7 @@
         by-series (group-by series/series-key data-points)
         updates (into {}
                       (map (fn [[key dps]]
-                             [key {:value (:value (last dps))
-                                   :last-seen now}]))
+                             [key (-data-point->state-entry (last dps) now)]))
                       by-series)]
     (swap! state-atom merge updates)
     (mulog/log ::batch-committed
