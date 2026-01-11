@@ -125,9 +125,8 @@
     :unspecified))
 
 (defn- -sum-data-point->map
-  "Convert a Sum NumberDataPoint to a data point map.
-   Includes :temporality key for downstream processing."
-  [^NumberDataPoint dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality]
+  "Convert a Sum NumberDataPoint to a data point map."
+  [^NumberDataPoint dp metric-name resource-attrs scope-name scope-version service-name observed-time]
   (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
         prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
     (merge
@@ -136,7 +135,6 @@
       :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
                      observed-time)
       :value (-number-data-point-value dp)
-      :temporality temporality
       :scope.name scope-name
       :scope.version scope-version
       :meta.observed_time observed-time}
@@ -146,18 +144,15 @@
   "Convert Sum metric to sequence of data point maps."
   [^Metric metric resource-attrs scope-name scope-version service-name observed-time]
   (let [metric-name (.getName metric)
-        ^Sum sum (.getSum metric)
-        temporality (-temporality->keyword (.getAggregationTemporality sum))]
+        ^Sum sum (.getSum metric)]
     (for [^NumberDataPoint dp (.getDataPointsList sum)]
-      (-sum-data-point->map dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality))))
+      (-sum-data-point->map dp metric-name resource-attrs scope-name scope-version service-name observed-time))))
 
 (defn- -sum->metadata
   "Extract metadata from a Sum metric.
 
    Note on monotonicity: Monotonic sums can only increase (counters).
-   Non-monotonic sums can increase or decrease. Currently we store
-   is_monotonic but don't use it for reset detection.
-   TODO: Implement reset detection for monotonic cumulative sums."
+   Non-monotonic sums can increase or decrease."
   [^Metric metric]
   (let [^Sum sum (.getSum metric)
         ;; Collect all attribute names across all data points
@@ -168,6 +163,7 @@
      :description (.getDescription metric)
      :unit (.getUnit metric)
      :metric_type :sum
+     :temporality (-temporality->keyword (.getAggregationTemporality sum))
      :is_monotonic (.getIsMonotonic sum)
      :attributes all-attr-names}))
 
@@ -182,9 +178,8 @@
        set))
 
 (defn- -histogram-data-point->map
-  "Convert a HistogramDataPoint to a data point map.
-   Includes :temporality key for downstream processing."
-  [^HistogramDataPoint dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality]
+  "Convert a HistogramDataPoint to a data point map."
+  [^HistogramDataPoint dp metric-name resource-attrs scope-name scope-version service-name observed-time]
   (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
         prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
     (merge
@@ -192,7 +187,6 @@
       :service service-name
       :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
                      observed-time)
-      :temporality temporality
       ;; Histogram-specific fields
       :hist.counts (vec (.getBucketCountsList dp))
       :hist.count (.getCount dp)
@@ -208,10 +202,9 @@
   "Convert Histogram metric to sequence of data point maps."
   [^Metric metric resource-attrs scope-name scope-version service-name observed-time]
   (let [metric-name (.getName metric)
-        ^Histogram histogram (.getHistogram metric)
-        temporality (-temporality->keyword (.getAggregationTemporality histogram))]
+        ^Histogram histogram (.getHistogram metric)]
     (for [^HistogramDataPoint dp (.getDataPointsList histogram)]
-      (-histogram-data-point->map dp metric-name resource-attrs scope-name scope-version service-name observed-time temporality))))
+      (-histogram-data-point->map dp metric-name resource-attrs scope-name scope-version service-name observed-time))))
 
 (defn- -histogram->metadata
   "Extract metadata from a Histogram metric.
@@ -230,6 +223,7 @@
      :description (.getDescription metric)
      :unit (.getUnit metric)
      :metric_type :histogram
+     :temporality (-temporality->keyword (.getAggregationTemporality histogram))
      :hist_boundaries hist-boundaries
      :attributes all-attr-names}))
 

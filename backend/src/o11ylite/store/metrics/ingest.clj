@@ -25,7 +25,7 @@
 ;;       4. Update normalizer state (commit-batch!)
 ;;
 ;; Immutable metadata fields (rejected if changed):
-;;   - unit, metric_type, hist_boundaries
+;;   - unit, metric_type, temporality, hist_boundaries
 ;;
 ;; Mutable metadata fields (updated on change):
 ;;   - description, attributes
@@ -69,7 +69,7 @@
 
 (defn- -immutable-fields-conflict?
   "Check if incoming metadata has immutable field conflicts with existing metric.
-   Immutable fields: unit, metric_type, hist_boundaries.
+   Immutable fields: unit, metric_type, temporality, hist_boundaries.
    Returns error message string if conflict, nil if OK (new metric or no conflict)."
   [existing incoming]
   (when existing
@@ -81,6 +81,10 @@
                       (and (:metric_type existing) (:metric_type incoming)
                            (not= (:metric_type existing) (:metric_type incoming)))
                       (conj (format "metric_type: %s → %s" (name (:metric_type existing)) (name (:metric_type incoming))))
+
+                      (and (:temporality existing) (:temporality incoming)
+                           (not= (:temporality existing) (:temporality incoming)))
+                      (conj (format "temporality: %s → %s" (name (:temporality existing)) (name (:temporality incoming))))
 
                       (and (:hist_boundaries existing) (:hist_boundaries incoming)
                            (not= (:hist_boundaries existing) (:hist_boundaries incoming)))
@@ -185,7 +189,7 @@
       :error-message \"...\" or nil}"
   [metric-batcher sqlite norm data-points metrics-metadata]
   (let [;; Step 1: Deduplicate by series (sums/histograms dedupe, gauges pass through)
-        deduped (dedupe/dedupe-by-series data-points)
+        deduped (dedupe/dedupe-by-series data-points metrics-metadata)
         ;; Step 2: Categorize metadata into changed vs immutable-field-conflicts
         {:keys [changed-metadata invalid-metrics errors]} (-categorize-metadata sqlite metrics-metadata)
         ;; Step 3: Reject data points for metrics with immutable field conflicts

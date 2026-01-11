@@ -60,9 +60,7 @@
                    :metric-name (:name data-point)
                    :previous-value (+ (:value data-point) (- delta)) ; reconstruct previous
                    :current-value (:value data-point)))
-      {:normalized (-> data-point
-                       (assoc :value effective-delta)
-                       (dissoc :temporality))
+      {:normalized (assoc data-point :value effective-delta)
        :original data-point})
     ;; First observation - drop but track for state initialization
     {:normalized nil
@@ -95,15 +93,14 @@
         (do
           (mulog/log ::histogram-reset-detected
                      :metric-name (:name data-point))
-          {:normalized (dissoc data-point :temporality)
+          {:normalized data-point
            :original data-point})
         ;; Normal case - apply computed deltas
         {:normalized (-> data-point
                          (assoc :hist.counts (:hist.counts delta-result))
                          (assoc :hist.count (:hist.count delta-result))
                          (cond-> (:hist.sum delta-result)
-                           (assoc :hist.sum (:hist.sum delta-result)))
-                         (dissoc :temporality))
+                           (assoc :hist.sum (:hist.sum delta-result))))
          :original data-point}))
     ;; First observation - drop but track for state initialization
     {:normalized nil
@@ -120,17 +117,17 @@
 (defn normalize-temporality
   "Normalize temporality for all data points.
    
-   Processing by temporality type:
+   Processing by temporality (from metrics-metadata):
    - :cumulative - Convert to delta using normalizer state
                    First-seen series are dropped but tracked for state commit
                    For monotonic sums, resets are detected and handled
-   - :delta      - Pass through, remove :temporality key
+   - :delta      - Pass through unchanged
    - nil/other   - Pass through unchanged (gauges, etc.)
    
    Arguments:
      normalizer       - The metric-temporality-normalizer component
-     data-points      - Collection of data point maps (may include :temporality key)
-     metrics-metadata - Map of metric-name -> {:is_monotonic bool, ...}
+     data-points      - Collection of data point maps
+     metrics-metadata - Map of metric-name -> {:temporality :cumulative/:delta, :is_monotonic bool, ...}
    
    Returns:
      {:normalized           [...] - Data points to persist (delta values, gauges)
@@ -138,14 +135,16 @@
                                     (for normalizer state update after persist)}"
   [normalizer data-points metrics-metadata]
   (let [results (map (fn [dp]
-                       (case (:temporality dp)
-                         :cumulative (let [is-monotonic? (get-in metrics-metadata [(:name dp) :is_monotonic] false)]
-                                       (-normalize-cumulative normalizer dp is-monotonic?))
-                         :delta {:normalized (dissoc dp :temporality)
-                                 :original nil}
-                         ;; Gauges and other types pass through unchanged
-                         {:normalized dp
-                          :original nil}))
+                       (let [meta (get metrics-metadata (:name dp))
+                             temporality (:temporality meta)]
+                         (case temporality
+                           :cumulative (let [is-monotonic? (:is_monotonic meta false)]
+                                         (-normalize-cumulative normalizer dp is-monotonic?))
+                           :delta {:normalized dp
+                                   :original nil}
+                           ;; Gauges and other types pass through unchanged
+                           {:normalized dp
+                            :original nil})))
                      data-points)]
     {:normalized (vec (keep :normalized results))
      :cumulative-to-commit (vec (keep :original results))}))
@@ -156,32 +155,38 @@
 
   ;; Example: normalizing cumulative to delta
   ;; (requires a running normalizer component)
+  ;; Note: temporality comes from metrics-metadata, not from data points
 
   ;; First observation (cumulative = 100)
+  ;; Data point: {:name "m" :value 100}
+  ;; Metadata: {"m" {:temporality :cumulative}}
   ;; normalize-temporality returns:
   ;;   {:normalized []
-  ;;    :cumulative-to-commit [{:name "m" :value 100 :temporality :cumulative}]}
+  ;;    :cumulative-to-commit [{:name "m" :value 100}]}
   ;; -> Nothing persisted, but commit-batch! will track value=100
 
   ;; Second observation (cumulative = 150)
   ;; normalize-temporality returns:
   ;;   {:normalized [{:name "m" :value 50}]  ; delta = 150 - 100
-  ;;    :cumulative-to-commit [{:name "m" :value 150 :temporality :cumulative}]}
+  ;;    :cumulative-to-commit [{:name "m" :value 150}]}
   ;; -> Persist delta=50, then commit-batch! updates state to value=150
 
   ;; Reset detection (monotonic sum, current < previous):
   ;; Previous state = 1000, current observation = 50 (service restarted)
+  ;; Metadata: {"m" {:temporality :cumulative :is_monotonic true}}
   ;; normalize-temporality returns:
   ;;   {:normalized [{:name "m" :value 50}]  ; use current as delta, not -950
-  ;;    :cumulative-to-commit [{:name "m" :value 50 :temporality :cumulative}]}
+  ;;    :cumulative-to-commit [{:name "m" :value 50}]}
   ;; -> Logs ::monotonic-reset-detected, persists delta=50
 
-  ;; Delta metrics pass through unchanged (just remove :temporality)
-  ;; {:name "m" :value 10 :temporality :delta}
+  ;; Delta metrics pass through unchanged
+  ;; Data point: {:name "m" :value 10}
+  ;; Metadata: {"m" {:temporality :delta}}
   ;; -> in :normalized as {:name "m" :value 10}
 
-  ;; Gauges have no :temporality, pass through as-is
-  ;; {:name "g" :value 42}
+  ;; Gauges have no temporality in metadata, pass through as-is
+  ;; Data point: {:name "g" :value 42}
+  ;; Metadata: {"g" {:metric_type :gauge}}  ; no :temporality key
   ;; -> in :normalized as {:name "g" :value 42}
 
   #_()) ; End of rich comment block
