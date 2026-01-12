@@ -138,15 +138,6 @@
           event (-span->events span resource-attrs scope-attrs scope-name scope-version service-name observed-time)]
       event)))
 
-(defn count-rejected-spans
-  "Count spans that would be rejected (no service.name)."
-  [^ExportTraceServiceRequest request]
-  (->> (.getResourceSpansList request)
-       (filter #(nil? (proto/extract-service-name (.getResource ^ResourceSpans %))))
-       (mapcat #(.getScopeSpansList ^ResourceSpans %))
-       (mapcat #(.getSpansList ^ScopeSpans %))
-       count))
-
 (defn trace-response->proto
   "Convert Clojure response map to ExportTraceServiceResponse.
 

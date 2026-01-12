@@ -109,10 +109,7 @@
     (let [events (trace-events/trace-request->events (build-request-without-service))]
       (is (empty? events)))))
 
-(deftest count-rejected-spans-test
-  (testing "Counts rejected spans correctly"
-    (is (= 0 (trace-events/count-rejected-spans (build-sample-request))))
-    (is (= 1 (trace-events/count-rejected-spans (build-request-without-service))))))
+
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

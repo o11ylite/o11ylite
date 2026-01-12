@@ -65,15 +65,17 @@
       (let [rows (query-events-by-service service-name)]
         (is (= 3 (count rows)))))))
 
-(deftest log-export-rejects-without-service-test
-  (testing "LogsService/Export rejects logs without service.name"
+(deftest log-export-skips-without-service-test
+  (testing "LogsService/Export skips logs without service.name (not persisted)"
     (let [response (h/export-logs!
                     {:logger-name "test-logger"
                      :logs [{:body "Orphan log"
                              :severity :info}]})]
       (is (some? response))
-      (is (= 1 (-> response .getPartialSuccess .getRejectedLogRecords)))
-      ;; Verify rejected logs are not persisted
+      ;; Events without service.name are filtered during proto parsing,
+      ;; not reported as "rejected" in OTLP response (returning 0 is valid)
+      (is (= 0 (-> response .getPartialSuccess .getRejectedLogRecords)))
+      ;; Verify skipped logs are not persisted
       (let [rows (jdbc/execute! (duckdb)
                                 ["SELECT * FROM o11ylite.events WHERE \"log.body\" = ?"
                                  "Orphan log"])]

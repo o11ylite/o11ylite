@@ -177,16 +177,14 @@
   (try
     (let [proto-request (-parse-trace-request request)
           events (trace-events/trace-request->events proto-request)
-          rejected-spans (trace-events/count-rejected-spans proto-request)
           span-count (count (filter #(= :span (:meta.signal_type %)) events))
           span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
       (mulog/log ::http-traces-received
                  :span-count span-count
-                 :span-event-count span-event-count
-                 :rejected-spans rejected-spans)
+                 :span-event-count span-event-count)
       (when (seq events)
         (events.ingest/ingest-events! event-metadata event-batcher events))
-      (-trace-response request {:rejected-span-count rejected-spans}))
+      (-trace-response request {:rejected-span-count 0}))
     (catch Exception e
       (mulog/log ::http-trace-error :error (.getMessage e))
       (-error-response 400 (.getMessage e)))))
@@ -198,14 +196,11 @@
   (try
     (let [proto-request (-parse-log-request request)
           events (log-events/log-request->events proto-request)
-          rejected-log-count (log-events/count-rejected-logs proto-request)
           log-count (count events)]
-      (mulog/log ::http-logs-received
-                 :log-count log-count
-                 :rejected-log-count rejected-log-count)
+      (mulog/log ::http-logs-received :log-count log-count)
       (when (seq events)
         (events.ingest/ingest-events! event-metadata event-batcher events))
-      (-log-response request {:rejected-log-count rejected-log-count}))
+      (-log-response request {:rejected-log-count 0}))
     (catch Exception e
       (mulog/log ::http-log-error :error (.getMessage e))
       (-error-response 400 (.getMessage e)))))

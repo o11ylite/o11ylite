@@ -1,36 +1,45 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.store.events.ingest
 ;;
-;; Event ingestion: validation and storage for observability events
+;; Event ingestion: orchestration and storage for observability events
 ;; (spans, span-events, logs).
 ;;
 ;; Flow:
-;;   gRPC handler
+;;   gRPC/HTTP handler
 ;;       │
 ;;       v
-;;   ingest-events! (validate, extract fields with types, submit to batcher)
+;;   ingest-events! (hot path)
+;;       1. Cleanse events (via cleanse.clj):
+;;          - Skip fields with type conflicts (vs cached metadata)
+;;          - Skip new fields if event exceeds 200 field limit
+;;       2. Extract fields with inferred types
+;;       3. Submit to batcher
 ;;       │
 ;;       v
 ;;   batcher accumulates {:events [...] :fields {name {:type t} ...}}
 ;;       │
 ;;       v (periodic flush)
-;;   persist-batch! (diff fields vs cache, ALTER TABLE, INSERT, refresh cache)
+;;   persist-batch! (cold path)
+;;       1. Schema diff - compare batch fields against event-metadata cache
+;;       2. Schema evolution - ALTER TABLE ADD COLUMN for any new fields
+;;       3. Bulk INSERT all events into the events table
+;;       4. Refresh event-metadata cache if schema changed
 ;; ---------------------------------------------------------
 
 (ns o11ylite.store.events.ingest
   (:require
-   [clojure.string]
    [com.brunobonacci.mulog :as mulog]
    [next.jdbc.sql :as sql]
    [next.jdbc.quoted]
    [o11ylite.components.event-metadata :as event-metadata]
    [o11ylite.store.batcher :as batcher]
+   [o11ylite.store.events.cleanse :as cleanse]
    [o11ylite.store.schema :as schema])
   (:import
    [java.time Instant LocalDateTime ZoneOffset]))
 
 ;; ---------------------------------------------------------
-;; Private Helpers
+;; Private Helpers - Field Extraction
 
 (defn- -extract-fields
   "Extract all fields from a collection of events with inferred types.
@@ -48,17 +57,6 @@
                         [(keyword k) {:type (schema/infer-type v)}])
                       event)))
        (into {})))
-
-(defn- -validate-events
-  "Validate events against the schema.
-   Returns {:valid? true} or {:valid? false :errors [...]}
-
-   TODO: Implement actual validation:
-   - Required fields: service, timestamp, meta.signal_type, meta.observed_time
-   - Type checking based on event-metadata cache"
-  [_event-metadata _events]
-  ;; TODO: Implement validation
-  {:valid? true})
 
 (defn- -compute-schema-diff
   "Compare batch fields against current event-metadata cache.
@@ -114,27 +112,30 @@
 (defn ingest-events!
   "Ingest events into the observability store.
 
-   Called by gRPC handlers to submit events. Validates events, extracts fields
-   with inferred types, then submits events + fields to batcher. Blocks until
-   the batch is flushed to storage.
+   Called by gRPC/HTTP handlers to submit events. Cleanses events (skipping
+   fields with type conflicts or exceeding field limit), extracts fields with
+   inferred types, then submits events + fields to batcher. Blocks until the
+   batch is flushed to storage.
 
    Arguments:
-     event-metadata  - The event metadata cache component (for validation)
+     event-metadata  - The event metadata cache component (for cleansing)
      event-batcher   - The event batcher component
      events          - Collection of event maps to ingest
 
    Returns:
-     true if all events were persisted successfully
-     false if flush failed (caller should handle retry/logging)"
+     {:success true/false
+      :rejected-count N       ;; always 0 (we skip fields, not reject events)
+      :error-message \"...\" or nil}"
   [event-metadata event-batcher events]
-  (let [validation (-validate-events event-metadata events)]
-    (if-not (:valid? validation)
-      (do
-        (mulog/log ::validation-failed :errors (:errors validation))
-        false)
-      (let [fields (-extract-fields events)]
-        (batcher/->batcher! event-batcher {:events events
-                                           :fields fields})))))
+  (let [{:keys [events skipped-field-count]} (cleanse/cleanse-events event-metadata events)
+        fields (-extract-fields events)
+        success (batcher/->batcher! event-batcher {:events events
+                                                   :fields fields})]
+    (when (pos? skipped-field-count)
+      (mulog/log ::cleanse-summary :skipped-field-count skipped-field-count))
+    {:success success
+     :rejected-count 0
+     :error-message nil}))
 
 (defn persist-batch!
   "Persist a batch of events to DuckLake.

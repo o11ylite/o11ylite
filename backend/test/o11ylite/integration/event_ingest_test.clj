@@ -83,8 +83,9 @@
                   (make-event {:name "ingested-span-2"
                                :trace_id "trace-002"
                                :attr.http.status_code 200})]
-          result (events.ingest/ingest-events! (event-metadata) (event-batcher) events)]
-      (is (true? result) "ingest-events! should return true on success")
+          {:keys [success rejected-count]} (events.ingest/ingest-events! (event-metadata) (event-batcher) events)]
+      (is (true? success) "ingest-events! should return success true")
+      (is (= 0 rejected-count) "No events should be rejected")
       (let [rows (query-events)]
         (is (= 2 (count rows)))
         (is (= "ingested-span-1" (:name (first rows))))
