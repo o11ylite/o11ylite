@@ -9,6 +9,7 @@
 (ns o11ylite.api.query
   (:require
    [o11ylite.store.events.query :as events.query]
+   [o11ylite.store.metrics.query :as metrics.query]
    [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
@@ -23,14 +24,24 @@
         (response/json 400 error)
         (response/json 200 (events.query/execute duckdb query))))))
 
+(defn- -make-metrics-handler
+  "Create the metrics query handler with duckdb and sqlite dependencies."
+  [duckdb sqlite]
+  (fn [request]
+    (let [query (:body request)]
+      (if-let [error (metrics.query/validate query)]
+        (response/json 400 error)
+        (response/json 200 (metrics.query/execute duckdb sqlite query))))))
+
 ;; ---------------------------------------------------------
 ;; Routes
 
 (defn routes
   "Query API routes."
-  [{:keys [duckdb]}]
+  [{:keys [duckdb sqlite]}]
   [["/query"
-    ["/events" {:post {:handler (-make-events-handler duckdb)}}]]])
+    ["/events" {:post {:handler (-make-events-handler duckdb)}}]
+    ["/metrics" {:post {:handler (-make-metrics-handler duckdb sqlite)}}]]])
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -45,6 +56,28 @@
    :limit 100
    :visualization {:type "table"
                    :sort {:field "timestamp" :order "desc"}}}
+
+  ;; Example metrics query - CPU utilization by host
+  {:time_range {:start 1702000000000
+                :end 1702003600000}
+   :metrics [{:id "A"
+              :name "cpu.utilization"
+              :agg "avg"}]
+   :group_by ["attr.host.name"]}
+
+  ;; Example metrics query - error rate setup
+  {:time_range {:start 1702000000000
+                :end 1702003600000}
+   :bucket_ms 60000
+   :filter {:field "attr.env" :op "=" :value "prod"}
+   :metrics [{:id "A"
+              :name "http.server.errors"
+              :agg "sum"
+              :filter {:field "attr.status_code" :op ">=" :value "500"}}
+             {:id "B"
+              :name "http.server.requests"
+              :agg "sum"}]
+   :group_by ["attr.service"]}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

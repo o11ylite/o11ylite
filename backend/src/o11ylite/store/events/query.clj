@@ -14,7 +14,8 @@
    [clojure.string :as str]
    [honey.sql :as sql]
    [next.jdbc :as jdbc]
-   [o11ylite.store.events.query-schema :as query-schema]))
+   [o11ylite.store.events.query-schema :as query-schema]
+   [o11ylite.store.query-util :as query-util]))
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -178,35 +179,7 @@
      :total_count (count rows)
      :truncated (>= (count rows) limit)}))
 
-(def ^:private -bucket-sizes-ms
-  "Allowed bucket sizes in milliseconds, ascending order.
-   These are 'nice' intervals that align naturally to time boundaries."
-  [1000        ; 1s
-   5000        ; 5s
-   10000       ; 10s
-   20000       ; 20s
-   30000       ; 30s
-   60000       ; 1m
-   120000      ; 2m
-   300000      ; 5m
-   600000      ; 10m
-   1200000     ; 20m
-   1800000     ; 30m
-   3600000     ; 1h
-   7200000     ; 2h
-   14400000    ; 4h
-   21600000    ; 6h
-   43200000    ; 12h
-   86400000])  ; 1d
 
-(defn- -select-bucket-ms
-  "Select the smallest 'nice' bucket size that yields ~100 buckets for the given range.
-   Returns a bucket size from -bucket-sizes-ms that produces approximately 100 buckets."
-  [range-ms]
-  (let [target-buckets 100
-        ideal-bucket (quot range-ms target-buckets)]
-    (or (first (filter #(>= % ideal-bucket) -bucket-sizes-ms))
-        (last -bucket-sizes-ms))))
 
 (defn- -bucket-ms->interval
   "Convert bucket size in milliseconds to DuckDB INTERVAL expression.
@@ -258,20 +231,16 @@
                     {:timestamp (:bucket row)
                      :value (get row agg-alias)}))})))
 
-(defn- -align-to-bucket
-  "Align a timestamp (in milliseconds) down to the nearest bucket boundary.
-   Returns the aligned timestamp in milliseconds."
-  [epoch-ms bucket-ms]
-  (- epoch-ms (mod epoch-ms bucket-ms)))
+
 
 (defn- -execute-time-series
   "Execute a time series visualization query."
   [duckdb {:keys [visualization aggregations group_by time_range] :as query}]
   (let [range-ms (- (:end time_range) (:start time_range))
         bucket-ms (or (:bucket_ms visualization)
-                      (-select-bucket-ms range-ms))
-        start-ms (-align-to-bucket (:start time_range) bucket-ms)
-        end-ms (-align-to-bucket (:end time_range) bucket-ms)
+                      (query-util/select-bucket-ms range-ms))
+        start-ms (query-util/align-to-bucket (:start time_range) bucket-ms)
+        end-ms (query-util/align-to-bucket (:end time_range) bucket-ms)
         hsql-query (-build-time-series-query (assoc query :bucket-ms bucket-ms))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         rows (jdbc/execute! duckdb (into [sql-str] params))
