@@ -24,6 +24,7 @@
 (ns o11ylite.store.metrics.query
   (:require
    [o11ylite.store.metrics.query-schema :as query-schema]
+   [o11ylite.store.metrics.query-validation :as query-validation]
    [o11ylite.store.query-util :as query-util]))
 
 ;; ---------------------------------------------------------
@@ -31,9 +32,11 @@
 
 (defn validate
   "Validate a metrics query request.
-   Returns nil if valid, or error map with :error key if invalid."
-  [query]
-  (query-schema/validate query-schema/metrics-query query))
+   Performs schema validation, then metadata-aware validation.
+   Returns nil if valid, or {:error ...} if invalid."
+  [sqlite query]
+  (or (query-schema/validate query-schema/metrics-query query)
+      (query-validation/validate-with-metadata sqlite query)))
 
 
 
@@ -93,8 +96,8 @@
                 :agg "avg"}]
      :group_by ["attr.host.name"]})
 
-  ;; Validate
-  (validate sample-query)
+  ;; Validate (pass nil for sqlite to skip metadata validation)
+  (validate nil sample-query)
   ;; => nil
 
   ;; Execute (returns stub response)
@@ -119,7 +122,7 @@
                 :agg "sum"}]
      :group_by ["attr.service"]})
 
-  (validate error-rate-query)
+  (validate nil error-rate-query)
   ;; => nil
 
   ;; Bucket size selection (using shared query-util functions)

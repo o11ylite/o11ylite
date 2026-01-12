@@ -29,7 +29,7 @@
   [duckdb sqlite]
   (fn [request]
     (let [query (:body request)]
-      (if-let [error (metrics.query/validate query)]
+      (if-let [error (metrics.query/validate sqlite query)]
         (response/json 400 error)
         (response/json 200 (metrics.query/execute duckdb sqlite query))))))
 
