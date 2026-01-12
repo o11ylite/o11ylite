@@ -1,11 +1,11 @@
 ;; ---------------------------------------------------------
-;; o11ylite.integration.api.query-test
+;; o11ylite.integration.api.event-query-test
 ;;
-;; Integration tests for query API endpoints.
-;; Tests HTTP behavior, not schema details (see store/events/query_test).
+;; Integration tests for events query API endpoint.
+;; Tests HTTP behavior, not schema details (see store/events/query_schema_test).
 ;; ---------------------------------------------------------
 
-(ns o11ylite.integration.api.query-test
+(ns o11ylite.integration.api.event-query-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.test-helpers :as h]
