@@ -8,6 +8,7 @@
 (ns o11ylite.integration.api.metric-query-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [o11ylite.store.metrics.metadata :as metadata]
    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
@@ -149,3 +150,29 @@
                                             :agg "avg"}]
                                  :group_by ["attr.service" "attr.method"]})]
       (is (= 200 (h/status response))))))
+
+;; ---------------------------------------------------------
+;; Metadata-Aware Validation
+
+(defn- sqlite [] (:db/sqlite h/*system*))
+
+(deftest metrics-query-invalid-aggregation-test
+  (testing "POST /api/query/metrics returns 400 for invalid aggregation on known metric"
+    ;; Setup: create a sum (counter) metric
+    (metadata/upsert-metrics! (sqlite)
+                              {"http.requests.total"
+                               {:metric_type :sum
+                                :unit "1"
+                                :attributes #{}}})
+
+    ;; avg is not valid for sum metrics
+    (let [response (h/post-json "/api/query/metrics"
+                                {:time_range {:start 1702000000000
+                                              :end 1702003600000}
+                                 :metrics [{:id "A"
+                                            :name "http.requests.total"
+                                            :agg "avg"}]})]
+      (is (= 400 (h/status response)))
+      (is (h/json-response? response))
+      (is (string? (get-in response [:body :error])))
+      (is (re-find #"not valid for sum" (get-in response [:body :error]))))))
