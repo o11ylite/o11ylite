@@ -96,15 +96,6 @@
           ^LogRecord log (.getLogRecordsList scope-logs)]
       (-log-record->event log resource-attrs scope-attrs scope-name scope-version service-name observed-time))))
 
-(defn count-rejected-logs
-  "Count log records that would be rejected (no service.name)."
-  [^ExportLogsServiceRequest request]
-  (->> (.getResourceLogsList request)
-       (filter #(nil? (proto/extract-service-name (.getResource ^ResourceLogs %))))
-       (mapcat #(.getScopeLogsList ^ResourceLogs %))
-       (mapcat #(.getLogRecordsList ^ScopeLogs %))
-       count))
-
 (defn log-response->proto
   "Convert Clojure response map to ExportLogsServiceResponse.
 

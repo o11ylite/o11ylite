@@ -20,17 +20,14 @@
 
 (defn- -log-handler
   "Handle incoming log export request.
-   Converts log records to unified events, persists them, and returns rejection count."
+   Converts log records to unified events and persists them."
   [event-metadata batcher ^ExportLogsServiceRequest request]
   (let [events (log-events/log-request->events request)
-        rejected-log-count (log-events/count-rejected-logs request)
         log-count (count events)]
-    (mulog/log ::logs-received
-               :log-count log-count
-               :rejected-log-count rejected-log-count)
+    (mulog/log ::logs-received :log-count log-count)
     (when (seq events)
       (events.ingest/ingest-events! event-metadata batcher events))
-    {:rejected-log-count rejected-log-count}))
+    {:rejected-log-count 0}))
 
 ;; ---------------------------------------------------------
 ;; Service factory

@@ -20,19 +20,17 @@
 
 (defn- -trace-handler
   "Handle incoming trace export request.
-   Converts spans to unified events, persists them, and returns rejection count."
+   Converts spans to unified events and persists them."
   [event-metadata batcher ^ExportTraceServiceRequest request]
   (let [events (trace-events/trace-request->events request)
-        rejected-spans (trace-events/count-rejected-spans request)
         span-count (count (filter #(= :span (:meta.signal_type %)) events))
         span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
     (mulog/log ::traces-received
                :span-count span-count
-               :span-event-count span-event-count
-               :rejected-spans rejected-spans)
+               :span-event-count span-event-count)
     (when (seq events)
       (events.ingest/ingest-events! event-metadata batcher events))
-    {:rejected-span-count rejected-spans}))
+    {:rejected-span-count 0}))
 
 ;; ---------------------------------------------------------
 ;; Service factory
