@@ -11,7 +11,6 @@
 
 (ns o11ylite.store.events.query
   (:require
-   [clojure.string :as str]
    [honey.sql :as sql]
    [next.jdbc :as jdbc]
    [o11ylite.store.events.query-schema :as query-schema]
@@ -27,60 +26,14 @@
   (query-schema/validate query-schema/events-query query))
 
 ;; ---------------------------------------------------------
-;; Column Name Handling
+;; Column Name Handling (delegated to query-util)
 
-(defn- -field->col
-  "Convert a field name string to a HoneySQL column reference.
-   Field names containing dots need special handling because HoneySQL
-   interprets dots as namespace separators. For example, :attr.http.method
-   becomes \"attr\".\"http\".\"method\" which is incorrect.
-   Instead, we use [:raw ...] to preserve the literal column name."
-  [field]
-  (if (str/includes? field ".")
-    [:raw (str "\"" field "\"")]
-    (keyword field)))
+(def ^:private -field->col query-util/field->col)
 
 ;; ---------------------------------------------------------
-;; Filter Building
+;; Filter Building (delegated to query-util)
 
-(defn- -filter-op->sql
-  "Convert filter operator string to HoneySQL operator."
-  [op]
-  (case op
-    "=" :=
-    "!=" :<>
-    ">" :>
-    "<" :<
-    ">=" :>=
-    "<=" :<=
-    "contains" :like
-    "exists" :is-not))
-
-(defn- -build-simple-filter
-  "Build a HoneySQL clause from a simple filter."
-  [{:keys [field op value]}]
-  (let [sql-op (-filter-op->sql op)
-        col (-field->col field)]
-    (case op
-      "contains" [sql-op col (str "%" value "%")]
-      "exists" [sql-op col nil]
-      [sql-op col value])))
-
-(defn- -build-filter-clause
-  "Recursively build HoneySQL WHERE clause from filter expression."
-  [filter-expr]
-  (cond
-    ;; Compound AND
-    (:and filter-expr)
-    (into [:and] (map -build-filter-clause (:and filter-expr)))
-
-    ;; Compound OR
-    (:or filter-expr)
-    (into [:or] (map -build-filter-clause (:or filter-expr)))
-
-    ;; Simple filter
-    :else
-    (-build-simple-filter filter-expr)))
+(def ^:private -build-filter-clause query-util/build-filter-clause)
 
 ;; ---------------------------------------------------------
 ;; Aggregation Building
@@ -109,12 +62,7 @@
 ;; ---------------------------------------------------------
 ;; Query Building
 
-(defn- -epoch-ms->timestamp
-  "Convert epoch milliseconds to DuckDB TIMESTAMP.
-   Uses epoch_ms() which interprets the input as milliseconds since Unix epoch (UTC).
-   This matches how events are stored: Instant values converted to LocalDateTime at UTC."
-  [epoch-ms]
-  [:epoch_ms epoch-ms])
+(def ^:private -epoch-ms->timestamp query-util/epoch-ms->timestamp)
 
 (defn- -build-base-query
   "Build the base HoneySQL query with time range filter.
@@ -181,12 +129,7 @@
 
 
 
-(defn- -bucket-ms->interval
-  "Convert bucket size in milliseconds to DuckDB INTERVAL expression.
-   Uses raw SQL since HoneySQL doesn't have built-in interval support."
-  [bucket-ms]
-  (let [seconds (quot bucket-ms 1000)]
-    [:raw (str "INTERVAL '" seconds " seconds'")]))
+(def ^:private -bucket-ms->interval query-util/bucket-ms->interval)
 
 (defn- -build-time-series-query
   "Build HoneySQL query for time series visualization.
