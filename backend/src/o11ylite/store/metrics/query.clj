@@ -24,6 +24,7 @@
   (:require
    [honey.sql :as sql]
    [next.jdbc :as jdbc]
+   [o11ylite.store.metrics.metadata :as metadata]
    [o11ylite.store.metrics.query-schema :as query-schema]
    [o11ylite.store.metrics.query-validation :as query-validation]
    [o11ylite.store.query-util :as query-util]))
@@ -44,9 +45,29 @@
 ;; ---------------------------------------------------------
 ;; Query Building
 
-(defn- -build-agg-expr
-  "Build aggregation expression for a metric.
-   For gauge/sum: aggregates on the `value` column.
+(defn- -build-histogram-agg-expr
+  "Build aggregation expression for histogram metrics.
+   Histograms store distribution data in hist.* columns:
+     - hist.count: total observation count
+     - hist.sum: sum of all observed values
+     - hist.min: minimum observed value
+     - hist.max: maximum observed value
+   
+   TODO: Histogram percentiles (p50, p90, p99)
+   Requires fetching bucket boundaries from metadata (hist_boundaries in SQLite)
+   and implementing linear interpolation within buckets, or using DuckDB's
+   approx_quantile on an expanded representation."
+  [agg]
+  (case agg
+    "count" [:sum [:raw "\"hist.count\""]]
+    "sum"   [:sum [:raw "\"hist.sum\""]]
+    "avg"   [:/ [:sum [:raw "\"hist.sum\""]] [:sum [:raw "\"hist.count\""]]]
+    "min"   [:min [:raw "\"hist.min\""]]
+    "max"   [:max [:raw "\"hist.max\""]]))
+
+(defn- -build-gauge-sum-agg-expr
+  "Build aggregation expression for gauge/sum metrics.
+   Aggregates on the `value` column.
    Rate is sum divided by bucket seconds."
   [agg bucket-ms]
   (let [bucket-seconds (quot bucket-ms 1000)]
@@ -58,6 +79,14 @@
       "last" [:last :value]
       "rate" [:/ [:sum :value] bucket-seconds]
       "count" [:count :*])))
+
+(defn- -build-agg-expr
+  "Build aggregation expression for a metric based on its type.
+   Dispatches to histogram-specific or gauge/sum logic."
+  [metric-type agg bucket-ms]
+  (if (= metric-type :histogram)
+    (-build-histogram-agg-expr agg)
+    (-build-gauge-sum-agg-expr agg bucket-ms)))
 
 (defn- -merge-filters
   "Merge global filter with per-metric filter using AND.
@@ -77,14 +106,14 @@
    
    Group by columns use numbered aliases (g0, g1, ...) to avoid DuckDB's
    alias resolution issues with dotted column names that don't exist yet."
-  [{:keys [time_range filter group_by]} metric bucket-ms]
+  [{:keys [time_range filter group_by]} metric metric-type bucket-ms]
   (let [{metric-name :name agg :agg metric-filter :filter} metric
         merged-filter (-merge-filters filter metric-filter)
         bucket-interval (query-util/bucket-ms->interval bucket-ms)
         time-bucket-expr [:time_bucket bucket-interval :timestamp]
         bucket-epoch-expr [:epoch_ms time-bucket-expr]
         bucket-expr [bucket-epoch-expr :bucket]
-        agg-expr [(-build-agg-expr agg bucket-ms) :value]
+        agg-expr [(-build-agg-expr metric-type agg bucket-ms) :value]
         ;; Group by columns with numbered aliases to avoid DuckDB alias issues
         ;; When column doesn't exist, DuckDB confuses column ref with alias
         group-by-fields (or group_by [])
@@ -148,10 +177,14 @@
 
 (defn- -execute-metric
   "Execute query for a single metric and return series.
+   Looks up metric type from metadata to select appropriate aggregation columns.
    Returns empty series if referenced columns don't exist (graceful degradation)."
-  [duckdb query metric bucket-ms]
+  [duckdb sqlite query metric bucket-ms]
   (let [{:keys [id name agg]} metric
-        hsql-query (-build-metric-query query metric bucket-ms)
+        ;; Lookup metric type; default to :gauge for unknown metrics (graceful degradation)
+        metric-type (or (some-> (metadata/get-metric sqlite name) :metric_type)
+                        :gauge)
+        hsql-query (-build-metric-query query metric metric-type bucket-ms)
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         group-by-fields (or (:group_by query) [])]
     (try
@@ -172,7 +205,7 @@
 
    Arguments:
      duckdb - DuckDB datasource
-     sqlite - SQLite datasource (for metric metadata lookups, unused currently)
+     sqlite - SQLite datasource (for metric metadata lookups to determine type)
      query  - Validated query map
 
    Returns:
@@ -186,7 +219,7 @@
                        :data [{:timestamp N :value N} ...]}
                       ...]}
       :metadata {:query_time_ms N}}"
-  [duckdb _sqlite query]
+  [duckdb sqlite query]
   (let [start-time (System/currentTimeMillis)
         {:keys [time_range bucket_ms metrics]} query
         range-ms (- (:end time_range) (:start time_range))
@@ -194,7 +227,7 @@
         start-ms (query-util/align-to-bucket (:start time_range) resolved-bucket-ms)
         end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
         ;; Execute query for each metric and collect all series
-        all-series (mapcat #(-execute-metric duckdb query % resolved-bucket-ms) metrics)
+        all-series (mapcat #(-execute-metric duckdb sqlite query % resolved-bucket-ms) metrics)
         query-time-ms (- (System/currentTimeMillis) start-time)]
     {:data {:bucket_ms resolved-bucket-ms
             :start_ms start-ms
@@ -250,18 +283,26 @@
   (validate nil error-rate-query)
   ;; => nil
 
-  ;; Build query for inspection
-  (-build-metric-query sample-query (first (:metrics sample-query)) 60000)
+  ;; Build query for inspection (gauge metric)
+  (-build-metric-query sample-query (first (:metrics sample-query)) :gauge 60000)
   ;; => {:select [[[:epoch_ms [:time_bucket ...]] :bucket]
-  ;;              [[:raw "\"attr.host.name\""] :attr.host.name]
+  ;;              [[:raw "\"attr.host.name\""] :g0]
   ;;              [[:avg :value] :value]]
   ;;     :from [:o11ylite.metrics]
   ;;     :where [:and
   ;;             [:= :name "cpu.utilization"]
   ;;             [:>= :timestamp [:epoch_ms 1702000000000]]
   ;;             [:< :timestamp [:epoch_ms 1702003600000]]]
-  ;;     :group-by [:bucket [:raw "\"attr.host.name\""]]
+  ;;     :group-by [:bucket :g0]
   ;;     :order-by [[:bucket :asc]]}
+
+  ;; Build query for histogram metric
+  (-build-metric-query {:time_range {:start 1702000000000 :end 1702003600000}
+                        :metrics [{:id "A" :name "http.duration" :agg "avg"}]}
+                       {:id "A" :name "http.duration" :agg "avg"}
+                       :histogram
+                       60000)
+  ;; => Uses hist.sum / hist.count for avg aggregation
 
   ;; Bucket size selection (using shared query-util functions)
   (query-util/select-bucket-ms 3600000)   ;; 1 hour => 60000 (1 min buckets, ~60 buckets)
