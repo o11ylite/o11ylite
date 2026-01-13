@@ -6,7 +6,7 @@ import { setupServer } from "msw/node"
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest"
 import * as React from "react"
 
-import type { QueryResponse, EventsQuery } from "@/types"
+import type { QueryResponse, EventsQuery, MetricsQuery } from "@/types"
 
 // ============================================================================
 // MSW Server Setup
@@ -24,9 +24,57 @@ const mockQueryResponse: QueryResponse = {
   },
 }
 
+const mockMetricsQueryResponse: QueryResponse = {
+  data: {
+    bucket_ms: 60000,
+    start_ms: 1704067200000,
+    end_ms: 1704070800000,
+    series: [
+      {
+        labels: { "attr.host": "server-1" },
+        name: "A",
+        data: [
+          { timestamp: 1704067200000, value: 42.5 },
+          { timestamp: 1704067260000, value: 45.2 },
+        ],
+      },
+    ],
+  },
+  metadata: {
+    query_time_ms: 10,
+    truncated: false,
+  },
+}
+
+const mockMetricsList = [
+  { name: "cpu.utilization", metric_type: "gauge", unit: "%" },
+  { name: "http.requests.total", metric_type: "sum", unit: "1" },
+  { name: "http.server.duration", metric_type: "histogram", unit: "ms" },
+]
+
 const server = setupServer(
   http.post("/api/query/events", () => {
     return HttpResponse.json(mockQueryResponse)
+  }),
+  http.post("/api/query/metrics", () => {
+    return HttpResponse.json(mockMetricsQueryResponse)
+  }),
+  http.get("/api/metrics", () => {
+    return HttpResponse.json(mockMetricsList)
+  }),
+  http.get("/api/metrics/:name", ({ params }) => {
+    const name = params.name as string
+    const metric = mockMetricsList.find((m) => m.name === name)
+    if (!metric) {
+      return HttpResponse.json({ error: "metric_not_found" }, { status: 404 })
+    }
+    return HttpResponse.json({
+      ...metric,
+      description: `${name} metric`,
+      temporality: "delta",
+      attributes: ["host", "region"],
+      hist_boundaries: metric.metric_type === "histogram" ? [0.01, 0.1, 1, 10] : null,
+    })
   })
 )
 
@@ -159,38 +207,152 @@ describe("Explore", () => {
     mockState.url = `https://localhost/explore?from=${encodeURIComponent(FIXED_FROM)}&to=${encodeURIComponent(FIXED_TO)}`
   })
 
-  it("sends API request and renders results when Run is clicked", async () => {
-    const user = userEvent.setup()
+  describe("Events Mode", () => {
+    it("sends API request and renders results when Run is clicked", async () => {
+      const user = userEvent.setup()
 
-    let requestBody: EventsQuery | null = null
+      let requestBody: EventsQuery | null = null
 
-    server.use(
-      http.post("/api/query/events", async ({ request }) => {
-        requestBody = (await request.json()) as EventsQuery
-        return HttpResponse.json(mockQueryResponse)
+      server.use(
+        http.post("/api/query/events", async ({ request }) => {
+          requestBody = (await request.json()) as EventsQuery
+          return HttpResponse.json(mockQueryResponse)
+        })
+      )
+
+      renderExplore()
+
+      // Click the Run button
+      const runButton = screen.getByRole("button", { name: /run/i })
+      await user.click(runButton)
+
+      // Verify URL was updated with query state
+      expect(mockRouterPush).toHaveBeenCalledTimes(1)
+      const pushArg = mockRouterPush.mock.calls[0][0] as { url: string }
+      expect(pushArg.url).toContain("?q=")
+
+      // Wait for API request and results
+      await waitFor(() => {
+        expect(screen.getByText("api-gateway")).toBeInTheDocument()
       })
-    )
 
-    renderExplore()
+      // Verify the request body structure
+      expect(requestBody).not.toBeNull()
+      expect(requestBody!.time_range.start).toBeTypeOf("number")
+      expect(requestBody!.time_range.end).toBeTypeOf("number")
+      expect(requestBody!.visualization).toEqual({ type: "table", limit: 100 })
+    })
+  })
 
-    // Click the Run button
-    const runButton = screen.getByRole("button", { name: /run/i })
-    await user.click(runButton)
+  describe("Metrics Mode", () => {
+    it("switches to metrics tab and shows metrics section", async () => {
+      const user = userEvent.setup()
+      renderExplore()
 
-    // Verify URL was updated with query state
-    expect(mockRouterPush).toHaveBeenCalledTimes(1)
-    const pushArg = mockRouterPush.mock.calls[0][0] as { url: string }
-    expect(pushArg.url).toContain("?q=")
+      // Find and click the Metrics tab
+      const metricsTab = screen.getByRole("tab", { name: /metrics/i })
+      await user.click(metricsTab)
 
-    // Wait for API request and results
-    await waitFor(() => {
-      expect(screen.getByText("api-gateway")).toBeInTheDocument()
+      // Should show "Add a metric" prompt when no metrics are added
+      await waitFor(() => {
+        expect(screen.getByText(/add a metric/i)).toBeInTheDocument()
+      })
+
+      // Should show Add Metric button
+      expect(screen.getByRole("button", { name: /add metric/i })).toBeInTheDocument()
     })
 
-    // Verify the request body structure
-    expect(requestBody).not.toBeNull()
-    expect(requestBody!.time_range.start).toBeTypeOf("number")
-    expect(requestBody!.time_range.end).toBeTypeOf("number")
-    expect(requestBody!.visualization).toEqual({ type: "table", limit: 100 })
+    it("adds a metric and shows metric picker", async () => {
+      const user = userEvent.setup()
+      renderExplore()
+
+      // Switch to metrics tab
+      const metricsTab = screen.getByRole("tab", { name: /metrics/i })
+      await user.click(metricsTab)
+
+      // Click Add Metric button
+      const addButton = await screen.findByRole("button", { name: /add metric/i })
+      await user.click(addButton)
+
+      // Should show a metric row with letter "A"
+      await waitFor(() => {
+        expect(screen.getByText("A")).toBeInTheDocument()
+      })
+
+      // Should show metric picker placeholder
+      expect(screen.getByText(/select metric/i)).toBeInTheDocument()
+    })
+
+    it("sends metrics API request when metric is selected and Run is clicked", async () => {
+      const user = userEvent.setup()
+
+      let requestBody: MetricsQuery | null = null
+
+      server.use(
+        http.post("/api/query/metrics", async ({ request }) => {
+          requestBody = (await request.json()) as MetricsQuery
+          return HttpResponse.json(mockMetricsQueryResponse)
+        })
+      )
+
+      renderExplore()
+
+      // Switch to metrics tab
+      const metricsTab = screen.getByRole("tab", { name: /metrics/i })
+      await user.click(metricsTab)
+
+      // Add a metric
+      const addButton = await screen.findByRole("button", { name: /add metric/i })
+      await user.click(addButton)
+
+      // Open metric picker - find by text content
+      const metricPickerButton = await screen.findByText(/select metric/i)
+      await user.click(metricPickerButton)
+
+      // Wait for metrics to load and select one
+      await waitFor(() => {
+        expect(screen.getByText("cpu.utilization")).toBeInTheDocument()
+      })
+      await user.click(screen.getByText("cpu.utilization"))
+
+      // Click Run
+      const runButton = screen.getByRole("button", { name: /run/i })
+      await user.click(runButton)
+
+      // Verify URL was updated
+      expect(mockRouterPush).toHaveBeenCalled()
+
+      // Wait for API request
+      await waitFor(() => {
+        expect(requestBody).not.toBeNull()
+      })
+
+      // Verify the request body structure
+      expect(requestBody!.time_range.start).toBeTypeOf("number")
+      expect(requestBody!.time_range.end).toBeTypeOf("number")
+      expect(requestBody!.metrics).toHaveLength(1)
+      expect(requestBody!.metrics[0].id).toBe("A")
+      expect(requestBody!.metrics[0].name).toBe("cpu.utilization")
+      expect(requestBody!.metrics[0].agg).toBe("avg") // default for gauge
+    })
+
+    it("hides visualization toggle in metrics mode", async () => {
+      const user = userEvent.setup()
+      renderExplore()
+
+      // In events mode, should see table/time_series toggle
+      expect(screen.getByTitle("Table")).toBeInTheDocument()
+      expect(screen.getByTitle("Time series")).toBeInTheDocument()
+
+      // Switch to metrics tab
+      const metricsTab = screen.getByRole("tab", { name: /metrics/i })
+      await user.click(metricsTab)
+
+      // Visualization toggle should be hidden
+      await waitFor(() => {
+        expect(screen.queryByTitle("Table")).not.toBeInTheDocument()
+      })
+      expect(screen.queryByTitle("Time series")).not.toBeInTheDocument()
+    })
   })
 })

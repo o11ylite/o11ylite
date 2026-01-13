@@ -3,7 +3,7 @@ import { useMemo, useCallback } from "react"
 
 import { urlSafeEncode, urlSafeDecode } from "@/lib/url-codec"
 import { DISPLAYED_FIELDS_PARAM } from "@/hooks/use-displayed-fields"
-import type { QueryBuilderState, Aggregation } from "@/types"
+import type { QueryBuilderState, Aggregation, MetricDefinition } from "@/types"
 
 // ============================================================================
 // Constants
@@ -12,10 +12,12 @@ import type { QueryBuilderState, Aggregation } from "@/types"
 const QUERY_PARAM = "q"
 
 const DEFAULT_STATE: QueryBuilderState = {
+  mode: "events",
   filters: [],
   aggregations: [],
   groupBy: [],
   visualization: { type: "table", limit: 100 },
+  metrics: [],
 }
 
 // ============================================================================
@@ -25,9 +27,10 @@ const DEFAULT_STATE: QueryBuilderState = {
 /**
  * Computes a fingerprint of the query's "result column shape".
  *
- * The columns returned by a query depend on aggregations and groupBy:
- * - Raw event query: returns all event fields
- * - Aggregation query: returns groupBy fields + aggregation result columns
+ * The columns returned by a query depend on mode, aggregations, groupBy, and metrics:
+ * - Events raw query: returns all event fields
+ * - Events aggregation query: returns groupBy fields + aggregation result columns
+ * - Metrics query: returns time-series with metric labels
  *
  * When this fingerprint changes, the user's displayed field selection becomes
  * invalid (the columns no longer exist), so we clear the `fields` URL param.
@@ -35,12 +38,26 @@ const DEFAULT_STATE: QueryBuilderState = {
  * Note: Filters and time range don't affect which columns are returned.
  */
 function computeResultColumnFingerprint(state: QueryBuilderState): string {
+  // Mode change always changes result shape
+  const modeKey = state.mode
+
+  if (state.mode === "metrics") {
+    // For metrics, result shape depends on selected metrics and groupBy
+    const metricsKey = (state.metrics ?? [])
+      .map((m: MetricDefinition) => `${m.id}:${m.name}:${m.agg}`)
+      .sort()
+      .join(",")
+    const groupKey = [...state.groupBy].sort().join(",")
+    return `mode=${modeKey}|metrics=${metricsKey}|group=${groupKey}`
+  }
+
+  // Events mode
   const aggKey = state.aggregations
     .map((a: Aggregation) => `${a.function}:${a.field ?? "*"}`)
     .sort()
     .join(",")
   const groupKey = [...state.groupBy].sort().join(",")
-  return `agg=${aggKey}|group=${groupKey}`
+  return `mode=${modeKey}|agg=${aggKey}|group=${groupKey}`
 }
 
 // ============================================================================
@@ -115,8 +132,16 @@ export function useQueryState() {
 
   const hasQuery = useMemo(() => {
     const urlObj = new URL(url, window.location.origin)
-    return urlObj.searchParams.has(QUERY_PARAM)
-  }, [url])
+    if (!urlObj.searchParams.has(QUERY_PARAM)) {
+      return false
+    }
+    // For metrics mode, require at least one metric with a name
+    if (state.mode === "metrics") {
+      return (state.metrics ?? []).some((m) => m.name)
+    }
+    // For events mode, having the param is enough
+    return true
+  }, [url, state.mode, state.metrics])
 
   const setState = useCallback(
     (newState: QueryBuilderState) => {

@@ -14,3 +14,14 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 })
+
+// Mock ResizeObserver for jsdom (used by cmdk/Command component)
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+window.ResizeObserver = ResizeObserverMock
+
+// Mock scrollIntoView for jsdom (used by cmdk/Command component)
+Element.prototype.scrollIntoView = () => {}

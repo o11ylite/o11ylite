@@ -21,6 +21,8 @@ import type {
   Field,
   Service,
   EventsQuery,
+  MetricsQuery,
+  MetricDefinition,
   QueryResponse,
   SimpleFilter,
   FilterExpr,
@@ -32,6 +34,21 @@ import type {
 
 async function fetchEventsQuery(query: EventsQuery): Promise<QueryResponse> {
   const response = await fetch("/api/query/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(query),
+  })
+
+  if (!response.ok) {
+    const errorData = (await response.json()) as { error?: string }
+    throw new Error(errorData.error ?? "Query failed")
+  }
+
+  return response.json() as Promise<QueryResponse>
+}
+
+async function fetchMetricsQuery(query: MetricsQuery): Promise<QueryResponse> {
+  const response = await fetch("/api/query/metrics", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(query),
@@ -65,14 +82,31 @@ export default function Explore() {
   const { state, setState, hasQuery } = useQueryState()
   const { from, to, live } = useTimeRange()
 
-  // Build the query payload (without time_range for stable key in live mode)
-  const queryPayload = hasQuery
+  const mode = state.mode ?? "events"
+  const isEventsMode = mode === "events"
+  const isMetricsMode = mode === "metrics"
+
+  // Build the events query payload (without time_range for stable key in live mode)
+  const eventsPayload = isEventsMode && hasQuery
     ? {
         filter: buildFilterExpr(state.filters),
         aggregations:
           state.aggregations.length > 0 ? state.aggregations : undefined,
         group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
         visualization: state.visualization,
+      }
+    : null
+
+  // Build the metrics query payload
+  // Filter to only include metrics with names selected
+  const validMetrics = (state.metrics ?? []).filter(
+    (m: MetricDefinition) => m.name
+  )
+  const metricsPayload = isMetricsMode && validMetrics.length > 0
+    ? {
+        filter: buildFilterExpr(state.filters),
+        group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
+        metrics: validMetrics,
       }
     : null
 
@@ -89,28 +123,54 @@ export default function Explore() {
         end: Math.floor(resolved.to.getTime() / 1000) * 1000,
       }
 
-  // TanStack Query for fetching results
+  // TanStack Query for events
   // In live mode, refetchInterval triggers periodic re-fetches with fresh timestamps
   const {
-    data: queryResult,
-    isLoading,
-    error,
+    data: eventsResult,
+    isLoading: eventsLoading,
+    error: eventsError,
   } = useQuery({
-    queryKey: ["events-query", queryKeyTimeRange, queryPayload],
+    queryKey: ["events-query", queryKeyTimeRange, eventsPayload],
     queryFn: () => {
       // Resolve time range fresh on each fetch
       const freshResolved = resolveTimeRange({ from, to })
       return fetchEventsQuery({
-        ...queryPayload!,
+        ...eventsPayload!,
         time_range: {
           start: Math.floor(freshResolved.from.getTime() / 1000) * 1000,
           end: Math.floor(freshResolved.to.getTime() / 1000) * 1000,
         },
       })
     },
-    enabled: queryPayload !== null,
+    enabled: eventsPayload !== null,
     refetchInterval: live ? LIVE_REFRESH_INTERVAL : false,
   })
+
+  // TanStack Query for metrics
+  const {
+    data: metricsResult,
+    isLoading: metricsLoading,
+    error: metricsError,
+  } = useQuery({
+    queryKey: ["metrics-query", queryKeyTimeRange, metricsPayload],
+    queryFn: () => {
+      const freshResolved = resolveTimeRange({ from, to })
+      return fetchMetricsQuery({
+        ...metricsPayload!,
+        time_range: {
+          start: Math.floor(freshResolved.from.getTime() / 1000) * 1000,
+          end: Math.floor(freshResolved.to.getTime() / 1000) * 1000,
+        },
+      })
+    },
+    enabled: metricsPayload !== null,
+    refetchInterval: live ? LIVE_REFRESH_INTERVAL : false,
+  })
+
+  // Select the appropriate result based on mode
+  const queryResult = isEventsMode ? eventsResult : metricsResult
+  const isLoading = isEventsMode ? eventsLoading : metricsLoading
+  const error = isEventsMode ? eventsError : metricsError
 
   // Called when user clicks "Run" - updates URL which triggers refetch
   const handleSubmit = (newState: typeof state) => {
@@ -132,6 +192,12 @@ export default function Explore() {
     if (error instanceof Error) return <ResultsError message={error.message} />
     if (!queryResult) return <ResultsPlaceholder />
 
+    // Metrics mode always shows time series with connected lines
+    if (isMetricsMode) {
+      return <ResultsTimeSeries data={queryResult} connectNulls />
+    }
+
+    // Events mode respects visualization setting
     switch (state.visualization.type) {
       case "time_series":
         return <ResultsTimeSeries data={queryResult} />
