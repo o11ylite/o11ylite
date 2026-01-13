@@ -81,6 +81,19 @@
                             ["SELECT name FROM metrics_metadata ORDER BY name"])]
     (mapv :metrics_metadata/name rows)))
 
+(defn list-metrics-summary
+  "Get lightweight summary of all metrics for picker UI.
+   Returns a vector of {:name :metric_type :unit} maps, sorted by name."
+  [sqlite]
+  (let [rows (jdbc/execute! sqlite
+                            ["SELECT name, metric_type, unit
+                              FROM metrics_metadata ORDER BY name"])]
+    (mapv (fn [row]
+            {:name (:metrics_metadata/name row)
+             :metric_type (some-> (:metrics_metadata/metric_type row) keyword)
+             :unit (:metrics_metadata/unit row)})
+          rows)))
+
 ;; ---------------------------------------------------------
 ;; Writes
 
@@ -134,9 +147,15 @@
   ;;     :metric_type :gauge
   ;;     :attributes #{"host.name" "cpu.core"}}
 
-  ;; List all metrics
+  ;; List all metric names
   ;; (list-metric-names sqlite)
   ;; => ["cpu.utilization" "http.request.duration" ...]
+
+  ;; List lightweight summary for picker UI
+  ;; (list-metrics-summary sqlite)
+  ;; => [{:name "cpu.utilization" :metric_type :gauge :unit "%"}
+  ;;     {:name "http.request.duration" :metric_type :histogram :unit "ms"}
+  ;;     ...]
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
