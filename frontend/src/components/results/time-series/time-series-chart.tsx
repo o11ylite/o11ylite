@@ -16,9 +16,10 @@ import { transformData, createTimestampFormatter } from "./utils"
 interface TimeSeriesChartProps {
   data: TimeSeriesQueryResult
   title?: string
+  connectNulls?: boolean
 }
 
-export function TimeSeriesChart({ data, title }: TimeSeriesChartProps) {
+export function TimeSeriesChart({ data, title, connectNulls = false }: TimeSeriesChartProps) {
   const { chartData, seriesMeta } = useMemo(() => transformData(data), [data])
   const { setRange } = useTimeRange()
 
@@ -119,7 +120,7 @@ export function TimeSeriesChart({ data, title }: TimeSeriesChartProps) {
               stroke={series.color}
               strokeWidth={2}
               dot={true}
-              connectNulls={false}
+              connectNulls={connectNulls}
             />
           ))}
           {refAreaLeft !== null && refAreaRight !== null && (

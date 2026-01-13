@@ -14,11 +14,14 @@ import {
   type Field,
   type Service,
   type QueryBuilderState,
+  type QueryMode,
   type Visualization,
   type VisualizationType,
 } from "@/types"
 import { FiltersSection } from "./filters-section"
 import { AggregationSection } from "./aggregation-section"
+import { MetricsSection } from "./metrics-section"
+import { MetricGroupBySection } from "./metric-group-by-section"
 
 export function QueryBuilder({
   fields,
@@ -39,7 +42,12 @@ export function QueryBuilder({
     setState(initialState)
   }, [initialState])
 
+  const mode = state.mode ?? "events"
   const vizType = state.visualization.type
+
+  const handleModeChange = (newMode: QueryMode) => {
+    setState({ ...state, mode: newMode })
+  }
 
   const handleVizTypeChange = (type: VisualizationType) => {
     let visualization: Visualization
@@ -62,12 +70,10 @@ export function QueryBuilder({
     <div className="space-y-2">
       {/* Top Bar */}
       <div className="flex items-center gap-2">
-        <Tabs value="events">
+        <Tabs value={mode} onValueChange={(v) => handleModeChange(v as QueryMode)}>
           <TabsList>
             <TabsTrigger value="events">Events</TabsTrigger>
-            <TabsTrigger value="metrics" disabled>
-              Metrics
-            </TabsTrigger>
+            <TabsTrigger value="metrics">Metrics</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -87,16 +93,19 @@ export function QueryBuilder({
 
         <div className="flex-1" />
 
-        <Tabs value={vizType} onValueChange={(v) => handleVizTypeChange(v as VisualizationType)}>
-          <TabsList>
-            <TabsTrigger value="table" title="Table">
-              <Table size={14} />
-            </TabsTrigger>
-            <TabsTrigger value="time_series" title="Time series">
-              <LineChart size={14} />
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Visualization toggle - only show for events mode */}
+        {mode === "events" && (
+          <Tabs value={vizType} onValueChange={(v) => handleVizTypeChange(v as VisualizationType)}>
+            <TabsList>
+              <TabsTrigger value="table" title="Table">
+                <Table size={14} />
+              </TabsTrigger>
+              <TabsTrigger value="time_series" title="Time series">
+                <LineChart size={14} />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
 
         <Button size="sm" className="gap-1.5" onClick={handleRun}>
           <Play size={12} />
@@ -104,23 +113,56 @@ export function QueryBuilder({
         </Button>
       </div>
 
-      {/* Filters */}
-      <FiltersSection
-        filters={state.filters}
-        fields={fields}
-        onFiltersChange={(filters) => setState({ ...state, filters })}
-      />
+      {/* Events Mode */}
+      {mode === "events" && (
+        <>
+          {/* Filters */}
+          <FiltersSection
+            filters={state.filters}
+            fields={fields}
+            onFiltersChange={(filters) => setState({ ...state, filters })}
+          />
 
-      {/* Aggregation */}
-      <AggregationSection
-        aggregations={state.aggregations}
-        groupBy={state.groupBy}
-        fields={fields}
-        onAggregationsChange={(aggregations) =>
-          setState({ ...state, aggregations })
-        }
-        onGroupByChange={(groupBy) => setState({ ...state, groupBy })}
-      />
+          {/* Aggregation */}
+          <AggregationSection
+            aggregations={state.aggregations}
+            groupBy={state.groupBy}
+            fields={fields}
+            onAggregationsChange={(aggregations) =>
+              setState({ ...state, aggregations })
+            }
+            onGroupByChange={(groupBy) => setState({ ...state, groupBy })}
+          />
+        </>
+      )}
+
+      {/* Metrics Mode */}
+      {mode === "metrics" && (
+        <>
+          {/* Metrics */}
+          <MetricsSection
+            metrics={state.metrics ?? []}
+            onMetricsChange={(metrics) => setState({ ...state, metrics })}
+          />
+
+          {/* Filters (global, apply to all metrics) */}
+          <FiltersSection
+            filters={state.filters}
+            fields={fields}
+            onFiltersChange={(filters) => setState({ ...state, filters })}
+          />
+
+          {/* Group By (uses first selected metric's attributes) */}
+          <MetricGroupBySection
+            metrics={state.metrics ?? []}
+            groupBy={state.groupBy}
+            onChange={(groupBy) => setState({ ...state, groupBy })}
+          />
+
+          {/* TODO: Formula section for metric arithmetic (deferred) */}
+          {/* e.g., A / B * 100 */}
+        </>
+      )}
     </div>
   )
 }

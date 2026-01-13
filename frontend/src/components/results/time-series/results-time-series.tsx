@@ -5,7 +5,13 @@ import { TimeSeriesChart } from "./time-series-chart"
 import { TimeSeriesSettings } from "./time-series-settings"
 import { groupByMetric } from "./utils"
 
-export function ResultsTimeSeries({ data }: { data: QueryResponse }) {
+export function ResultsTimeSeries({
+  data,
+  connectNulls = false,
+}: {
+  data: QueryResponse
+  connectNulls?: boolean
+}) {
   const result = data.data as TimeSeriesQueryResult
   const [overlay, setOverlay] = useState(false)
 
@@ -24,11 +30,11 @@ export function ResultsTimeSeries({ data }: { data: QueryResponse }) {
       </div>
 
       {overlay ? (
-        <TimeSeriesChart data={result} />
+        <TimeSeriesChart data={result} connectNulls={connectNulls} />
       ) : (
         <div className="flex flex-col gap-4">
           {metricGroups.map(([name, subset]) => (
-            <TimeSeriesChart key={name} data={subset} title={name} />
+            <TimeSeriesChart key={name} data={subset} title={name} connectNulls={connectNulls} />
           ))}
         </div>
       )}

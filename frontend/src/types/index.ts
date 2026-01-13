@@ -116,17 +116,74 @@ export interface EventsQuery {
 }
 
 // ============================================================================
+// Metric Types
+// ============================================================================
+// Maps to backend: store/metrics/metadata.clj and query_schema.clj
+
+export type MetricType = "gauge" | "sum" | "histogram"
+
+// Metric summary from GET /api/metrics (lightweight list)
+export interface MetricSummary {
+  name: string
+  metric_type: MetricType
+  unit: string | null
+}
+
+// Full metric detail from GET /api/metrics/:name
+export interface MetricDetail extends MetricSummary {
+  description: string | null
+  temporality: "delta" | "cumulative" | null
+  attributes: string[]
+  hist_boundaries: number[] | null
+}
+
+// Metric aggregation functions (different from event aggregations)
+// Valid aggregations per metric type (from query-validation.clj):
+//   gauge: sum, avg, min, max, last
+//   sum (counter): sum, rate
+//   histogram: count, sum, avg, min, max
+export type MetricAggregation = "sum" | "avg" | "min" | "max" | "last" | "rate" | "count"
+
+// Single metric definition in query builder
+export interface MetricDefinition {
+  id: string // "A", "B", "C"... (single uppercase letter)
+  name: string // metric name
+  agg: MetricAggregation
+  // TODO: filter?: FilterExpr  // per-metric filter (deferred)
+}
+
+// ============================================================================
+// Metrics Query Types
+// ============================================================================
+// Maps to backend schema: metrics/query_schema.clj#metrics-query
+// This is the payload sent to POST /api/query/metrics
+
+export interface MetricsQuery {
+  time_range: TimeRange
+  bucket_ms?: number
+  filter?: FilterExpr
+  group_by?: string[]
+  metrics: MetricDefinition[]
+}
+
+// ============================================================================
 // Query Builder State
 // ============================================================================
 // UI-only state for the query builder component.
-// Converted to EventsQuery before sending to backend.
+// Supports both events and metrics modes.
 // Persisted to URL via msgpack encoding (see lib/url-codec.ts).
 
+export type QueryMode = "events" | "metrics"
+
 export interface QueryBuilderState {
+  mode: QueryMode
+  // Events mode fields
   filters: SimpleFilter[]
   aggregations: Aggregation[]
   groupBy: string[]
   visualization: Visualization
+  // Metrics mode fields
+  metrics: MetricDefinition[]
 }
 
 // ============================================================================
