@@ -134,6 +134,7 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "cpu.utilization"
+                          :name "avg(cpu.utilization)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 20.0}]}]}
                data))))))
@@ -176,10 +177,12 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "memory.usage.grouped"
+                          :name "sum(memory.usage.grouped)"
                           :labels {:service "grouped-service-1"}
                           :data [{:timestamp bucket-ms :value 100.0}]}
                          {:id "A"
                           :metric "memory.usage.grouped"
+                          :name "sum(memory.usage.grouped)"
                           :labels {:service "grouped-service-2"}
                           :data [{:timestamp bucket-ms :value 200.0}]}]}
                (update data :series
@@ -220,6 +223,7 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "disk.usage"
+                          :name "avg(disk.usage)"
                           :labels {}
                           :data [{:timestamp bucket-1-ms :value 55.0}
                                  {:timestamp bucket-2-ms :value 90.0}]}]}
@@ -261,6 +265,7 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "http.requests.count"
+                          :name "rate(http.requests.count)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 10.0}]}]}
                data))))))
@@ -296,6 +301,7 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "http.errors.count"
+                          :name "sum(http.errors.count)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 18.0}]}]}
                data))))))
@@ -341,6 +347,7 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "error.rate.filter"
+                          :name "avg(error.rate.filter)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 5.0}]}]}
                data))))))
@@ -387,6 +394,7 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "http.responses.permetric"
+                          :name "sum(http.responses.permetric)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 50.0}]}]}
                data))))))
@@ -434,10 +442,12 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "http.server.errors"
+                          :name "sum(http.server.errors)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 50.0}]}
                          {:id "B"
                           :metric "http.server.requests"
+                          :name "sum(http.server.requests)"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 1000.0}]}]}
                (update data :series (fn [s] (vec (sort-by :id s))))))))))
@@ -497,18 +507,22 @@
                 :end_ms end-ms
                 :series [{:id "A"
                           :metric "requests.complex"
+                          :name "sum(requests.complex)"
                           :labels {:service "complex-api"}
                           :data [{:timestamp bucket-ms :value 100.0}]}
                          {:id "A"
                           :metric "requests.complex"
+                          :name "sum(requests.complex)"
                           :labels {:service "complex-web"}
                           :data [{:timestamp bucket-ms :value 200.0}]}
                          {:id "B"
                           :metric "latency.complex"
+                          :name "avg(latency.complex)"
                           :labels {:service "complex-api"}
                           :data [{:timestamp bucket-ms :value 50.0}]}
                          {:id "B"
                           :metric "latency.complex"
+                          :name "avg(latency.complex)"
                           :labels {:service "complex-web"}
                           :data [{:timestamp bucket-ms :value 30.0}]}]}
                (update data :series

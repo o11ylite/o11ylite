@@ -109,24 +109,32 @@
       (update base-query :where conj (query-util/build-filter-clause merged-filter))
       base-query)))
 
+(defn- -format-series-name
+  "Format series name as agg(metric), e.g., avg(cpu.utilization).
+   Matches the events query format for UI consistency."
+  [agg metric-name]
+  (str agg "(" metric-name ")"))
+
 (defn- -rows->series
   "Transform query result rows into series format for a single metric.
    Creates one series per unique label combination.
    
    Rows have numbered aliases (g0, g1, ...) that need to be mapped back
    to the original field names for the labels map."
-  [rows metric-id metric-name group-by-fields]
+  [rows metric-id metric-name metric-agg group-by-fields]
   (let [;; Build mapping from numbered alias to original field name
         alias-keys (map #(keyword (str "g" %)) (range (count group-by-fields)))
         field-keys (map keyword group-by-fields)
         alias->field (zipmap alias-keys field-keys)
         ;; Group rows by their label values (using alias keys)
-        grouped (group-by #(select-keys % alias-keys) rows)]
+        grouped (group-by #(select-keys % alias-keys) rows)
+        series-name (-format-series-name metric-agg metric-name)]
     (for [[alias-labels rows-for-series] grouped]
       (let [;; Convert alias-keyed labels to field-keyed labels
             labels (into {} (map (fn [[alias val]] [(alias->field alias) val]) alias-labels))]
         {:id metric-id
          :metric metric-name
+         :name series-name
          :labels labels
          :data (vec (for [row rows-for-series]
                       {:timestamp (:bucket row)
@@ -142,13 +150,13 @@
   "Execute query for a single metric and return series.
    Returns empty series if referenced columns don't exist (graceful degradation)."
   [duckdb query metric bucket-ms]
-  (let [{:keys [id name]} metric
+  (let [{:keys [id name agg]} metric
         hsql-query (-build-metric-query query metric bucket-ms)
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         group-by-fields (or (:group_by query) [])]
     (try
       (let [rows (jdbc/execute! duckdb (into [sql-str] params))]
-        (-rows->series rows id name group-by-fields))
+        (-rows->series rows id name agg group-by-fields))
       (catch java.sql.SQLException e
         (if (-column-not-found? e)
           ;; Return empty series for non-existent columns
@@ -173,6 +181,7 @@
              :end_ms N
              :series [{:id \"A\"
                        :metric \"cpu.utilization\"
+                       :name \"avg(cpu.utilization)\"
                        :labels {:attr.host.name \"server-1\"}
                        :data [{:timestamp N :value N} ...]}
                       ...]}

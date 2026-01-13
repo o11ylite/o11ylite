@@ -149,8 +149,11 @@ export interface TimeSeriesDataPoint {
 // A single series with labels, name, and data points
 export interface TimeSeriesSeries {
   labels: Record<string, string>
-  name: string // Aggregation alias (e.g., "count(*)", "avg(span.duration_ms)")
+  name: string // Display name: aggregation alias for events (e.g., "count(*)"), or agg(metric) for metrics (e.g., "avg(cpu.utilization)")
   data: TimeSeriesDataPoint[]
+  // Metrics-specific fields (only present in metrics query results)
+  id?: string // Metric query ID (e.g., "A", "B") - for formula references
+  metric?: string // Metric name (e.g., "cpu.utilization")
 }
 
 export interface TimeSeriesQueryResult {
