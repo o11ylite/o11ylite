@@ -17,10 +17,21 @@ interface TimeSeriesChartProps {
   data: TimeSeriesQueryResult
   title?: string
   connectNulls?: boolean
+  // Use shorter legend labels (omit metric name) when charts are split by metric
+  shortLegendLabels?: boolean
 }
 
-export function TimeSeriesChart({ data, title, connectNulls = false }: TimeSeriesChartProps) {
-  const { chartData, seriesMeta } = useMemo(() => transformData(data), [data])
+export function TimeSeriesChart({
+  data,
+  title,
+  connectNulls = false,
+  shortLegendLabels = false,
+}: TimeSeriesChartProps) {
+  const { chartData, seriesMeta } = useMemo(
+    () => transformData(data, { shortLegendLabels }),
+    [data, shortLegendLabels]
+  )
+  const showLegend = seriesMeta.length > 1
   const { setRange } = useTimeRange()
 
   // Drag selection state
@@ -111,7 +122,7 @@ export function TimeSeriesChart({ data, title, connectNulls = false }: TimeSerie
               />
             }
           />
-          <ChartLegend content={<ChartLegendContent />} />
+          {showLegend && <ChartLegend content={<ChartLegendContent />} />}
           {seriesMeta.map((series) => (
             <Line
               key={series.key}

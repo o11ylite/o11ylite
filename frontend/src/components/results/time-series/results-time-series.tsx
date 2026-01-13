@@ -34,7 +34,13 @@ export function ResultsTimeSeries({
       ) : (
         <div className="flex flex-col gap-4">
           {metricGroups.map(([name, subset]) => (
-            <TimeSeriesChart key={name} data={subset} title={name} connectNulls={connectNulls} />
+            <TimeSeriesChart
+              key={name}
+              data={subset}
+              title={name}
+              connectNulls={connectNulls}
+              shortLegendLabels
+            />
           ))}
         </div>
       )}
