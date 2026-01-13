@@ -187,6 +187,9 @@
       :service service-name
       :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
                      observed-time)
+      ;; Histograms set value to 0 (ignored, required for NOT NULL constraint
+      ;; when batched with gauge/sum metrics that have :value in their fields)
+      :value 0.0
       ;; Histogram-specific fields
       :hist.counts (vec (.getBucketCountsList dp))
       :hist.count (.getCount dp)
