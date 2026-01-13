@@ -527,3 +527,183 @@
                           :data [{:timestamp bucket-ms :value 30.0}]}]}
                (update data :series
                        (fn [s] (vec (sort-by (juxt :id #(get-in % [:labels :service])) s))))))))))
+
+;; ---------------------------------------------------------
+;; Histogram Metrics
+
+(deftest metrics-query-histogram-aggregations-test
+  (let [bucket-time (-> (t/instant) (t/truncate :minutes))
+        bucket-ms (.toEpochMilli bucket-time)
+        time-ns (instant->time-ns bucket-time)
+        end-ms (+ bucket-ms 60000)
+        ;; Helper to query with a specific aggregation
+        query-agg (fn [agg]
+                    (h/post-json "/api/query/metrics"
+                                 {:time_range {:start bucket-ms :end end-ms}
+                                  :bucket_ms 60000
+                                  :metrics [{:id "A"
+                                             :name "http.request.duration"
+                                             :agg agg}]}))]
+
+    ;; Single data ingestion with all histogram fields populated
+    ;; count=100, sum=15.5, min=0.001, max=1.5
+    (h/export-metrics!
+     {:service-name "histogram-agg-service"
+      :meter-name "test-meter"
+      :metrics [(h/build-histogram-metric
+                 {:name "http.request.duration"
+                  :description "HTTP request duration"
+                  :unit "s"
+                  :temporality :delta
+                  :boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0]
+                  :data-points [{:bucket-counts [10 20 30 25 10 3 1 0 1]
+                                 :count 100
+                                 :sum 15.5
+                                 :min 0.001
+                                 :max 1.5
+                                 :time-ns time-ns}]})]})
+
+    (testing "count aggregation returns hist.count"
+      (let [data (get-in (query-agg "count") [:body :data])]
+        (is (= 100 (get-in data [:series 0 :data 0 :value])))))
+
+    (testing "sum aggregation returns hist.sum"
+      (let [data (get-in (query-agg "sum") [:body :data])]
+        (is (= 15.5 (get-in data [:series 0 :data 0 :value])))))
+
+    (testing "avg aggregation returns hist.sum / hist.count"
+      (let [data (get-in (query-agg "avg") [:body :data])]
+        ;; avg = 15.5 / 100 = 0.155
+        (is (= 0.155 (get-in data [:series 0 :data 0 :value])))))
+
+    (testing "min aggregation returns hist.min"
+      (let [data (get-in (query-agg "min") [:body :data])]
+        (is (= 0.001 (get-in data [:series 0 :data 0 :value])))))
+
+    (testing "max aggregation returns hist.max"
+      (let [data (get-in (query-agg "max") [:body :data])]
+        (is (= 1.5 (get-in data [:series 0 :data 0 :value])))))))
+
+(deftest metrics-query-histogram-with-group-by-test
+  (testing "Query histogram metric with group_by aggregates per service"
+    (let [bucket-time (-> (t/instant) (t/truncate :minutes))
+          bucket-ms (.toEpochMilli bucket-time)
+          time-ns (instant->time-ns bucket-time)
+          end-ms (+ bucket-ms 60000)]
+
+      ;; Need separate exports for different services (service is a resource attribute)
+      (h/export-metrics!
+       {:service-name "histogram-grouped-api"
+        :meter-name "test-meter"
+        :metrics [(h/build-histogram-metric
+                   {:name "db.query.duration.grouped"
+                    :unit "s"
+                    :temporality :delta
+                    :boundaries [0.001 0.01 0.1]
+                    :data-points [{:bucket-counts [100 200 50 25]
+                                   :count 375
+                                   :sum 18.5
+                                   :time-ns time-ns}]})]})
+      (h/export-metrics!
+       {:service-name "histogram-grouped-web"
+        :meter-name "test-meter"
+        :metrics [(h/build-histogram-metric
+                   {:name "db.query.duration.grouped"
+                    :unit "s"
+                    :temporality :delta
+                    :boundaries [0.001 0.01 0.1]
+                    :data-points [{:bucket-counts [50 100 25 10]
+                                   :count 185
+                                   :sum 9.2
+                                   :time-ns time-ns}]})]})
+
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-ms :end end-ms}
+                                   :bucket_ms 60000
+                                   :metrics [{:id "A"
+                                              :name "db.query.duration.grouped"
+                                              :agg "count"}]
+                                   :group_by ["service"]})
+            data (get-in response [:body :data])]
+        (is (= 200 (h/status response)))
+        (is (= {:bucket_ms 60000
+                :start_ms bucket-ms
+                :end_ms end-ms
+                :series [{:id "A"
+                          :metric "db.query.duration.grouped"
+                          :name "count(db.query.duration.grouped)"
+                          :labels {:service "histogram-grouped-api"}
+                          :data [{:timestamp bucket-ms :value 375}]}
+                         {:id "A"
+                          :metric "db.query.duration.grouped"
+                          :name "count(db.query.duration.grouped)"
+                          :labels {:service "histogram-grouped-web"}
+                          :data [{:timestamp bucket-ms :value 185}]}]}
+               (update data :series
+                       (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
+
+(deftest metrics-query-mixed-histogram-gauge-test
+  (testing "Query mixing histogram and gauge metrics in one request"
+    (let [bucket-time (-> (t/instant) (t/truncate :minutes))
+          bucket-ms (.toEpochMilli bucket-time)
+          time-ns (instant->time-ns bucket-time)
+          end-ms (+ bucket-ms 60000)]
+
+      ;; Single export with both histogram and gauge metrics
+      (h/export-metrics!
+       {:service-name "mixed-metrics-service"
+        :meter-name "test-meter"
+        :metrics [(h/build-histogram-metric
+                   {:name "request.latency.mixed"
+                    :unit "s"
+                    :temporality :delta
+                    :boundaries [0.01 0.1 1.0]
+                    :data-points [{:bucket-counts [100 200 50 25]
+                                   :count 375
+                                   :sum 45.5
+                                   :time-ns time-ns}]})
+                  (h/build-gauge-metric
+                   {:name "active.connections.mixed"
+                    :unit "1"
+                    :data-points [{:value 42.0 :time-ns time-ns}]})]})
+
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-ms :end end-ms}
+                                   :bucket_ms 60000
+                                   :metrics [{:id "A"
+                                              :name "request.latency.mixed"
+                                              :agg "avg"}
+                                             {:id "B"
+                                              :name "active.connections.mixed"
+                                              :agg "avg"}]})
+            data (get-in response [:body :data])
+            ;; Histogram avg = 45.5 / 375 ≈ 0.1213
+            latency-value (get-in (first (filter #(= "A" (:id %)) (:series data))) [:data 0 :value])
+            connections-value (get-in (first (filter #(= "B" (:id %)) (:series data))) [:data 0 :value])]
+        (is (= 200 (h/status response)))
+        (is (= 2 (count (:series data))))
+        ;; Histogram avg should be ~0.1213
+        (is (> latency-value 0.121))
+        (is (< latency-value 0.122))
+        ;; Gauge avg should be 42.0
+        (is (= 42.0 connections-value))))))
+
+(deftest metrics-query-histogram-invalid-aggregation-test
+  (testing "Query histogram with invalid aggregation returns 400"
+    ;; Setup: create a histogram metric metadata (no data needed for validation)
+    (metadata/upsert-metrics! (sqlite)
+                              {"http.duration.invalid"
+                               {:metric_type :histogram
+                                :unit "s"
+                                :attributes #{}}})
+
+    ;; rate is not valid for histogram metrics
+    (let [response (h/post-json "/api/query/metrics"
+                                {:time_range {:start 1702000000000
+                                              :end 1702003600000}
+                                 :metrics [{:id "A"
+                                            :name "http.duration.invalid"
+                                            :agg "rate"}]})]
+      (is (= 400 (h/status response)))
+      (is (re-find #"not valid for histogram" (get-in response [:body :error]))))))
+
