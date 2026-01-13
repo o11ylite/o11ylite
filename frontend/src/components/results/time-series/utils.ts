@@ -1,7 +1,7 @@
 import type { TimeSeriesQueryResult } from "@/types"
 
 // Chart color palette - cycles through these for multiple series
-export const CHART_COLORS = [
+const CHART_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
@@ -16,11 +16,19 @@ export function seriesKey(labels: Record<string, string>, name: string): string 
   return `${labelPart}::${name}`
 }
 
-// Builds a human-readable label for a series
+// Builds a human-readable label for a series (full version with metric name)
 export function seriesLabel(labels: Record<string, string>, name: string): string {
   const labelValues = Object.values(labels)
   if (labelValues.length === 0) return name
   return `${labelValues.join(", ")} (${name})`
+}
+
+// Builds a shorter label for legends when charts are already split by metric
+// Only shows the group-by label values since metric name is in the chart title
+export function seriesLegendLabel(labels: Record<string, string>, name: string): string {
+  const labelValues = Object.values(labels)
+  if (labelValues.length === 0) return name
+  return labelValues.join(", ")
 }
 
 // Series metadata for chart rendering
@@ -33,11 +41,18 @@ export interface SeriesMeta {
 // Transforms backend series data into Recharts-compatible format
 // Each data point becomes a row with timestamp and values for each series
 // Missing data points are set to null so charts can show gaps
-export function transformData(result: TimeSeriesQueryResult): {
+//
+// Options:
+// - shortLegendLabels: use shorter labels (omit metric name) for when charts are split by metric
+export function transformData(
+  result: TimeSeriesQueryResult,
+  options: { shortLegendLabels?: boolean } = {}
+): {
   chartData: Record<string, number | null>[]
   seriesMeta: SeriesMeta[]
 } {
   const { series, start_ms, end_ms, bucket_ms } = result
+  const { shortLegendLabels = false } = options
 
   // Generate all bucket timestamps from start to end
   const timestamps: number[] = []
@@ -46,9 +61,10 @@ export function transformData(result: TimeSeriesQueryResult): {
   }
 
   // Build series metadata
+  const labelFn = shortLegendLabels ? seriesLegendLabel : seriesLabel
   const seriesMeta = series.map((s, idx) => ({
     key: seriesKey(s.labels, s.name),
-    label: seriesLabel(s.labels, s.name),
+    label: labelFn(s.labels, s.name),
     color: CHART_COLORS[idx % CHART_COLORS.length],
   }))
 
