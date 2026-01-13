@@ -16,48 +16,20 @@
 ;; ---------------------------------------------------------
 ;; Tests
 
-(deftest metric-export-single-gauge-test
-  (testing "MetricsService/Export accepts a single gauge metric"
-    (let [service-name "metric-single-test-service"
-          response (h/export-metrics!
-                    {:service-name service-name
-                     :meter-name "test-meter"
-                     :metrics [(h/build-gauge-metric
-                                {:name "cpu.utilization"
-                                 :description "CPU utilization percentage"
-                                 :unit "%"
-                                 :data-points [{:value 42.5}]})]})]
-      (is (some? response))
-      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints))))))
-
-(deftest metric-export-multiple-metrics-test
-  (testing "MetricsService/Export accepts multiple metrics"
-    (let [service-name "metric-multi-test-service"
-          response (h/export-metrics!
-                    {:service-name service-name
-                     :meter-name "test-meter"
-                     :metrics [(h/build-gauge-metric
-                                {:name "memory.used"
-                                 :unit "bytes"
-                                 :data-points [{:value 1024000}]})
-                               (h/build-gauge-metric
-                                {:name "disk.free"
-                                 :unit "bytes"
-                                 :data-points [{:value 50000000}]})]})]
-      (is (some? response))
-      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints))))))
-
-(deftest metric-export-without-service-test
+(deftest metric-export-without-service-drops-silently-test
   (testing "MetricsService/Export silently drops metrics without service.name"
-    (let [response (h/export-metrics!
-                    {:meter-name "test-meter"
-                     :metrics [(h/build-gauge-metric
-                                {:name "orphan.metric"
-                                 :data-points [{:value 100}]})]})]
-      ;; Metrics without service.name are filtered at parse time
-      ;; No rejection count since nothing was attempted to ingest
-      (is (some? response))
-      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints))))))
+    (let [metric-name "orphan.metric.no.service"
+          _response (h/export-metrics!
+                     {:meter-name "test-meter"
+                      :metrics [(h/build-gauge-metric
+                                 {:name metric-name
+                                  :data-points [{:value 100}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT * FROM o11ylite.metrics WHERE name = ?"
+                               metric-name])]
+      ;; Metrics without service.name are filtered at parse time - nothing persisted
+      (is (= 0 (count rows)) "Metrics without service.name should not be persisted"))))
 
 (deftest metric-ingestion-persists-to-duckdb-test
   (testing "Metrics are persisted to DuckDB after flush"
@@ -510,6 +482,49 @@
         ;; Reset detection should use current values as delta
         (is (= 28 (:hist.count row)) "Reset should use current count (28) as delta")
         (is (= 25.0 (:hist.sum row)) "Reset should use current sum (25.0) as delta")))))
+
+;; ---------------------------------------------------------
+;; Mixed Metric Type Tests
+
+(deftest mixed-gauge-and-histogram-in-same-batch-test
+  (testing "Gauge and histogram metrics can be ingested in the same batch"
+    (let [service-name "mixed-batch-test-service"
+          gauge-name "system.cpu.usage.mixed"
+          histogram-name "http.request.duration.mixed"
+          boundaries [0.005 0.01 0.025 0.05 0.1]
+          response (h/export-metrics!
+                    {:service-name service-name
+                     :meter-name "test-meter"
+                     :metrics [(h/build-gauge-metric
+                                {:name gauge-name
+                                 :description "CPU usage"
+                                 :unit "%"
+                                 :data-points [{:value 75.5}]})
+                               (h/build-histogram-metric
+                                {:name histogram-name
+                                 :description "Request duration"
+                                 :unit "s"
+                                 :temporality :delta
+                                 :boundaries boundaries
+                                 :data-points [{:bucket-counts [10 20 30 25 15 5]
+                                                :count 105
+                                                :sum 12.5}]})]})
+          duckdb (:db/duckdb h/*system*)
+          gauge-rows (jdbc/execute! duckdb
+                                    ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
+                                     gauge-name])
+          histogram-rows (jdbc/execute! duckdb
+                                        ["SELECT name, \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
+                                         histogram-name])]
+      (is (some? response))
+      (is (= 0 (-> response .getPartialSuccess .getRejectedDataPoints)))
+      ;; Gauge metric should be persisted
+      (is (= 1 (count gauge-rows)))
+      (is (= 75.5 (:value (first gauge-rows))))
+      ;; Histogram metric should be persisted
+      (is (= 1 (count histogram-rows)))
+      (is (= 105 (:hist.count (first histogram-rows))))
+      (is (= 12.5 (:hist.sum (first histogram-rows)))))))
 
 ;; ---------------------------------------------------------
 ;; Immutable Field Validation Tests
