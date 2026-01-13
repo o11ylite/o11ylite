@@ -15,6 +15,7 @@
    [o11ylite.util.response :as response]
    [o11ylite.inertia.middleware :as inertia]
    [o11ylite.api.health :as api.health]
+   [o11ylite.api.metrics :as api.metrics]
    [o11ylite.api.query :as api.query]
    [o11ylite.otel-http :as otel-http]
    [o11ylite.routes.home :as home]
@@ -69,6 +70,7 @@
   [{:keys [duckdb sqlite]}]
   ["/api" {:middleware [wrap-api-defaults]}
    (api.health/routes {})
+   (api.metrics/routes {:sqlite sqlite})
    (api.query/routes {:duckdb duckdb :sqlite sqlite})])
 
 (defn otlp-routes
