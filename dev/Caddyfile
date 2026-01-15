@@ -6,6 +6,13 @@
 		reverse_proxy 127.0.0.1:{$VITE_PORT:5173}
 	}
 
+	# gRPC OTLP services - proxy to grpc-java server
+	# Matches paths like /opentelemetry.proto.collector.trace.v1.TraceService/Export
+	@grpc path /opentelemetry.proto.collector.*
+	handle @grpc {
+		reverse_proxy h2c://127.0.0.1:{$OTEL_GRPC_PORT:4317}
+	}
+
 	handle {
 		reverse_proxy 127.0.0.1:{$PORT:3000}
 	}

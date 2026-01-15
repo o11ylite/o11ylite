@@ -9,8 +9,15 @@ __root="$(cd "$(dirname "${__dir}")" && pwd)"
 
 export OVERMIND_NO_PORT=1
 
-# Configure OpenTelemetry agent to send to local gRPC endpoint
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:${OTEL_GRPC_PORT:-4317}"
+# Configure OpenTelemetry agent to send to unified Caddy endpoint (gRPC via h2c)
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://${O11YLITE_DEV_HOSTNAME:-o11ylite.localhost}:${DEV_HTTPS_PORT:-443}"
+
+# Trust Caddy's local CA for TLS (macOS and Linux paths)
+if [[ -f "$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt" ]]; then
+  export OTEL_EXPORTER_OTLP_CERTIFICATE="$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt"
+elif [[ -f "$HOME/.local/share/caddy/pki/authorities/local/root.crt" ]]; then
+  export OTEL_EXPORTER_OTLP_CERTIFICATE="$HOME/.local/share/caddy/pki/authorities/local/root.crt"
+fi
 
 # Default to repl mode, use server mode if any argument is passed
 if [[ $# -gt 0 ]]; then
