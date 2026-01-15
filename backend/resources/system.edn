@@ -41,10 +41,15 @@
   :flush-interval-ms #long #or [#env METRIC_FLUSH_INTERVAL_MS 1000]
   :_storage #ig/ref :storage/init}
 
- :ingest/inlined-data-flusher
+ :scheduler/registry
  {:duckdb #ig/ref :db/duckdb
-  ;; Flush interval in milliseconds (default: 15 minutes)
-  :flush-interval-ms #long #or [#env INLINED_DATA_FLUSH_INTERVAL_MS 900000]
+  ;; Job interval overrides (optional, defaults defined in code)
+  :inlined-data-flush-interval-ms #long #or [#env INLINED_DATA_FLUSH_INTERVAL_MS 900000]
+  :_storage #ig/ref :storage/init}
+
+ :scheduler/executor
+ {:sqlite #ig/ref :db/sqlite
+  :registry #ig/ref :scheduler/registry
   :_storage #ig/ref :storage/init}
 
  :server/web

@@ -37,14 +37,8 @@
     (.mkdirs dir)
     (.getAbsolutePath dir)))
 
-(defn test-config
-  "Build test configuration with test-specific overrides.
-   
-   Note: :ingest/inlined-data-flusher is excluded by default due to a known
-   DuckLake concurrency bug where flush_inlined_data + INSERT can cause
-   data duplication. See: https://github.com/duckdb/ducklake/issues/650
-   
-   Tests that specifically need the flusher should use with-partial-system."
+(defn- base-test-config
+  "Build base test configuration with test-specific overrides."
   []
   (let [temp-path (create-temp-data-path)]
     (-> (system/read-config :dev)
@@ -58,9 +52,22 @@
         (assoc-in [:ingest/metric-batcher :flush-interval-ms] 100)
         ;; Fast service discovery for tests (100ms)
         (assoc-in [:discovery/services :scan-interval-ms] 100)
-        ;; Exclude inlined-data-flusher from default test system
-        ;; (causes data duplication when running concurrently with inserts)
-        (dissoc :ingest/inlined-data-flusher))))
+        ;; Fast scheduler for tests (100ms tick, 100ms job interval)
+        (assoc-in [:scheduler/registry :inlined-data-flush-interval-ms] 100)
+        (assoc-in [:scheduler/executor :tick-interval-ms] 100))))
+
+(defn test-config
+  "Build test configuration for full system tests.
+   
+   Note: scheduler is excluded by default due to a known DuckLake
+   concurrency bug where flush_inlined_data + INSERT can cause data
+   duplication. See: https://github.com/duckdb/ducklake/issues/650
+   
+   Tests that specifically need the scheduler should use with-partial-system."
+  []
+  (-> (base-test-config)
+      (dissoc :scheduler/registry)
+      (dissoc :scheduler/executor)))
 
 (defn start-system!
   "Start the full system with test configuration."
@@ -69,12 +76,14 @@
 
 (defn start-partial-system!
   "Start only specified components (and their dependencies).
+   Uses base-test-config (with scheduler) so partial system tests can
+   request any component.
    
    Example:
      (start-partial-system! [:discovery/services])
      ;; Starts :discovery/services, :db/sqlite, :db/duckdb, :storage/init"
   [keys]
-  (ig/init (test-config) keys))
+  (ig/init (base-test-config) keys))
 
 (defn stop-system!
   "Stop the test system."
