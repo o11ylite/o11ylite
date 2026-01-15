@@ -14,16 +14,23 @@ const CHART_COLORS = [
   "var(--chart-10)",
 ]
 
+// Normalizes label entries, replacing null/undefined values with "(nil)"
+function normalizeLabels(labels: Record<string, string>): [string, string][] {
+  return Object.entries(labels)
+    .map(([k, v]) => [k, v ?? "(nil)"] as [string, string])
+    .sort(([a], [b]) => a.localeCompare(b))
+}
+
 // Builds a unique key for a series from its labels and name
 export function seriesKey(labels: Record<string, string>, name: string): string {
-  const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b))
+  const entries = normalizeLabels(labels)
   const labelPart = entries.length === 0 ? "all" : entries.map(([k, v]) => `${k}:${v}`).join(",")
   return `${labelPart}::${name}`
 }
 
 // Builds a human-readable label for a series (full version with metric name)
 export function seriesLabel(labels: Record<string, string>, name: string): string {
-  const labelValues = Object.values(labels)
+  const labelValues = normalizeLabels(labels).map(([, v]) => v)
   if (labelValues.length === 0) return name
   return `${labelValues.join(", ")} (${name})`
 }
@@ -31,7 +38,7 @@ export function seriesLabel(labels: Record<string, string>, name: string): strin
 // Builds a shorter label for legends when charts are already split by metric
 // Only shows the group-by label values since metric name is in the chart title
 export function seriesLegendLabel(labels: Record<string, string>, name: string): string {
-  const labelValues = Object.values(labels)
+  const labelValues = normalizeLabels(labels).map(([, v]) => v)
   if (labelValues.length === 0) return name
   return labelValues.join(", ")
 }
