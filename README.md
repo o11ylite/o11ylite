@@ -12,7 +12,7 @@ The analytics engine is powered by DuckDB and SQLite.
 
 A Clojure service, the core of O11yLite.
 
-* Handles telemetry ingestion via OTLP/gRPC
+* Handles telemetry ingestion via OTLP/gRPC and OTLP/HTTP
 * Operates SQLite and DuckDB with automatic schema evolution
 * Functions as Inertia.js backend, serving HTML with embedded page data
 * Integrant component system for lifecycle management
@@ -73,7 +73,9 @@ backend/
 │   │   ├── duckdb_pool.clj       # DuckDB connection pool
 │   │   └── sqlite_pool.clj       # SQLite connection pool
 │   ├── api/                 # JSON API endpoints
-│   │   └── health.clj       #   Health check endpoints
+│   │   ├── health.clj       #   Health check endpoints
+│   │   ├── metrics.clj      #   Metrics metadata API
+│   │   └── query.clj        #   Telemetry query API
 │   ├── routes/              # Inertia page routes
 │   │   ├── home.clj         #   Home (redirects to /explore)
 │   │   ├── explore.clj      #   Explore page
@@ -86,7 +88,9 @@ backend/
 │   ├── otel_grpc/           # OTLP protocol handling
 │   │   ├── proto.clj        #   Protobuf utilities
 │   │   ├── trace.clj        #   Trace signal processing
-│   │   └── log.clj          #   Log signal processing
+│   │   ├── log.clj          #   Log signal processing
+│   │   ├── metric.clj       #   Metric signal processing
+│   │   └── metric_proto.clj #   Metric protobuf helpers
 │   ├── inertia/             # Inertia.js adapter
 │   └── util/
 │       ├── response.clj     #   Response helpers
