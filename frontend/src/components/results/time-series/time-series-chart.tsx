@@ -130,7 +130,7 @@ export function TimeSeriesChart({
               type="monotone"
               stroke={series.color}
               strokeWidth={2}
-              dot={true}
+              dot={{ fill: series.color, strokeWidth: 0, r: 2 }}
               connectNulls={connectNulls}
             />
           ))}
