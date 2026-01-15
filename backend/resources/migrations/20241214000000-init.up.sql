@@ -30,4 +30,17 @@ CREATE TABLE IF NOT EXISTS metrics_metadata (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
+--;;
+-- Scheduled jobs for periodic background tasks
+-- Jobs are defined in code and upserted on startup
+CREATE TABLE IF NOT EXISTS scheduled_jobs (
+  job_name TEXT PRIMARY KEY,
+  interval_ms INTEGER NOT NULL,        -- milliseconds between runs
+  last_run_at INTEGER,                 -- epoch ms, when job last completed (NULL = never)
+  last_success_at INTEGER,             -- epoch ms, when job last succeeded (NULL = never)
+  last_error TEXT,                     -- error message from last failure (NULL = no error)
+  enabled INTEGER DEFAULT 1,           -- 0 = disabled, 1 = enabled
+  created_at INTEGER NOT NULL,         -- epoch ms
+  updated_at INTEGER NOT NULL          -- epoch ms
+);
 
