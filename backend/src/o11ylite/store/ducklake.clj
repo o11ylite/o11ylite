@@ -28,21 +28,32 @@
     (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"]))
   (mulog/log ::flush-inlined-data-completed))
 
+(defn merge-adjacent-files!
+  "Merge small Parquet files into larger ones for better query performance.
+
+   Each insert to DuckLake writes data to a new Parquet file. This function
+   compacts adjacent small files into larger ones without expiring snapshots,
+   preserving time travel and data change feed functionality.
+
+   See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
+  [duckdb-ds]
+  (mulog/log ::merge-adjacent-files-starting)
+  (jdbc/with-transaction [tx duckdb-ds]
+    (jdbc/execute! tx ["CALL ducklake_merge_adjacent_files('o11ylite')"]))
+  (mulog/log ::merge-adjacent-files-completed))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
-
-  (require '[integrant.core :as ig])
-
-  ;; Start DuckDB pool
-  (def ds
-    (ig/init-key :db/duckdb {:data-path "./.tmp"}))
+  ;; Requires dev system running via (user/go)
+  (require '[integrant.repl.state :refer [system]])
+  (def duckdb (:db/duckdb system))
 
   ;; Flush inlined data to Parquet files
-  (flush-inlined-data! ds)
+  (flush-inlined-data! duckdb)
 
-  ;; Cleanup
-  (ig/halt-key! :db/duckdb ds)
+  ;; Merge adjacent files (compaction)
+  (merge-adjacent-files! duckdb)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
