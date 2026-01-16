@@ -45,6 +45,8 @@
  {:duckdb #ig/ref :db/duckdb
   ;; Job interval overrides (optional, defaults defined in code)
   :inlined-data-flush-interval-ms #long #or [#env INLINED_DATA_FLUSH_INTERVAL_MS 900000]
+  ;; Parquet compaction interval (default: 1 hour)
+  :parquet-compaction-interval-ms #long #or [#env PARQUET_COMPACTION_INTERVAL_MS 3600000]
   :_storage #ig/ref :storage/init}
 
  :scheduler/executor
