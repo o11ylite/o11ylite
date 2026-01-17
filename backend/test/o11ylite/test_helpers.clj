@@ -119,6 +119,22 @@
           (stop-system! sys))))))
 
 ;; ---------------------------------------------------------
+;; Component Groups
+;; Centralized lists for use in with-partial-system fixtures.
+
+(def event-ingest-components
+  "Components required for event ingestion."
+  [:cache/event-metadata :ingest/event-batcher])
+
+(def metric-ingest-components
+  "Components required for metric ingestion."
+  [:ingest/metric-batcher :norm/metric-temporality])
+
+(def ingest-components
+  "All components required for event and metric ingestion."
+  (into event-ingest-components metric-ingest-components))
+
+;; ---------------------------------------------------------
 ;; JSON Utilities
 
 (defn ->json
@@ -167,7 +183,16 @@
 (def make-random-event event-ingest/make-random-event)
 (def make-random-events event-ingest/make-random-events)
 (def ingest-events! event-ingest/ingest-events!)
-(def ingest-sample-events! event-ingest/ingest-sample-events!)
+
+(defn ingest-sample-events!
+  "Ingest n random events using components from *system*."
+  ([n] (ingest-sample-events! n {}))
+  ([n overrides]
+   (event-ingest/ingest-sample-events!
+     (:cache/event-metadata *system*)
+     (:ingest/event-batcher *system*)
+     n
+     overrides)))
 
 ;; ---------------------------------------------------------
 ;; Re-exports: Metric ingest helpers
@@ -176,4 +201,14 @@
 (def make-random-metric-data-points metric-ingest/make-random-metric-data-points)
 (def make-metrics-metadata metric-ingest/make-metrics-metadata)
 (def ingest-metrics! metric-ingest/ingest-metrics!)
-(def ingest-sample-metrics! metric-ingest/ingest-sample-metrics!)
+
+(defn ingest-sample-metrics!
+  "Ingest n random metrics using components from *system*."
+  ([n] (ingest-sample-metrics! n {}))
+  ([n overrides]
+   (metric-ingest/ingest-sample-metrics!
+     (:ingest/metric-batcher *system*)
+     (:db/sqlite *system*)
+     (:norm/metric-temporality *system*)
+     n
+     overrides)))

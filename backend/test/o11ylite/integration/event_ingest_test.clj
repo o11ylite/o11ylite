@@ -97,7 +97,7 @@
 (deftest ingest-sample-events-helper-test
   (testing "ingest-sample-events! generates and persists random events"
     (let [n 5
-          events (h/ingest-sample-events! (event-metadata) (event-batcher) n)
+          events (h/ingest-sample-events! n)
           rows (query-events)]
       (is (= n (count events)) "Should return the generated events")
       (is (= n (count rows)) "Should persist all events")
