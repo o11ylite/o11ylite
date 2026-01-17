@@ -11,16 +11,24 @@
    [clojure.test :refer [deftest is testing use-fixtures]]
    [o11ylite.components.scheduler :as scheduler]
    [o11ylite.store.ducklake :as ducklake]
-   [o11ylite.test-helpers :as h]))
+   [o11ylite.test-helpers :as h :refer [ingest-sample-events! ingest-sample-metrics!]]))
 
-;; Start scheduler for these tests
-(use-fixtures :each (h/with-partial-system [:scheduler/executor]))
+;; Start scheduler and ingest components for these tests
+(use-fixtures :each (h/with-partial-system [:scheduler/executor
+                                            :cache/event-metadata
+                                            :ingest/event-batcher
+                                            :ingest/metric-batcher
+                                            :norm/metric-temporality]))
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
 (defn- sqlite [] (:db/sqlite h/*system*))
 (defn- duckdb [] (:db/duckdb h/*system*))
+(defn- event-metadata [] (:cache/event-metadata h/*system*))
+(defn- event-batcher [] (:ingest/event-batcher h/*system*))
+(defn- metric-batcher [] (:ingest/metric-batcher h/*system*))
+(defn- metric-normalizer [] (:norm/metric-temporality h/*system*))
 
 (defn- get-maintenance-job-status []
   (->> (scheduler/get-job-status (sqlite))
@@ -51,7 +59,9 @@
 
 (deftest manual-delete-old-data-test
   (testing "Manual data retention via ducklake/delete-old-data! works"
-    ;; Should not error (even with no old data to delete)
+    ;; Insert data so DELETE actually evaluates the WHERE clause type casts
+    (ingest-sample-events! (event-metadata) (event-batcher) 1)
+    (ingest-sample-metrics! (metric-batcher) (sqlite) (metric-normalizer) 1)
     (is (nil? (ducklake/delete-old-data! (duckdb) 30)))))
 
 (deftest manual-checkpoint-test

@@ -12,6 +12,7 @@
    [o11ylite.system :as system]
    [o11ylite.test-helpers.event-ingest :as event-ingest]
    [o11ylite.test-helpers.http :as http]
+   [o11ylite.test-helpers.metric-ingest :as metric-ingest]
    [o11ylite.test-helpers.otlp :as otlp])
   (:import
    [java.io File]))
@@ -167,3 +168,12 @@
 (def make-random-events event-ingest/make-random-events)
 (def ingest-events! event-ingest/ingest-events!)
 (def ingest-sample-events! event-ingest/ingest-sample-events!)
+
+;; ---------------------------------------------------------
+;; Re-exports: Metric ingest helpers
+
+(def make-random-metric-data-point metric-ingest/make-random-metric-data-point)
+(def make-random-metric-data-points metric-ingest/make-random-metric-data-points)
+(def make-metrics-metadata metric-ingest/make-metrics-metadata)
+(def ingest-metrics! metric-ingest/ingest-metrics!)
+(def ingest-sample-metrics! metric-ingest/ingest-sample-metrics!)

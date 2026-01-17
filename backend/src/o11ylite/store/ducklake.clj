@@ -48,7 +48,8 @@
   (mulog/log ::delete-old-data-starting :retention-days retention-days)
   (jdbc/with-transaction [tx duckdb-ds]
     ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
-    (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP_NS" retention-days)])
+    ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type
+    (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::TIMESTAMP_NS" retention-days)])
     (jdbc/execute! tx [(format "DELETE FROM o11ylite.metrics WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP" retention-days)]))
   (mulog/log ::delete-old-data-completed))
 
