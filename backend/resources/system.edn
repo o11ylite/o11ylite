@@ -43,12 +43,10 @@
 
  :scheduler/registry
  {:duckdb #ig/ref :db/duckdb
-  ;; Job interval overrides (optional, defaults defined in code)
-  :inlined-data-flush-interval-ms #long #or [#env INLINED_DATA_FLUSH_INTERVAL_MS 900000]
-  ;; Parquet compaction interval (default: 1 hour)
-  :parquet-compaction-interval-ms #long #or [#env PARQUET_COMPACTION_INTERVAL_MS 3600000]
-  ;; Daily maintenance interval (default: 24 hours)
-  :daily-maintenance-interval-ms #long #or [#env DAILY_MAINTENANCE_INTERVAL_MS 86400000]
+  ;; Job intervals in minutes (converted to ms internally)
+  :inlined-data-flush-interval-minutes #long #or [#env INLINED_DATA_FLUSH_INTERVAL_MINUTES 15]
+  :parquet-compaction-interval-minutes #long #or [#env PARQUET_COMPACTION_INTERVAL_MINUTES 60]
+  :daily-maintenance-interval-minutes #long #or [#env DAILY_MAINTENANCE_INTERVAL_MINUTES 1440]
   ;; Data retention in days (default: 30 days)
   :data-retention-days #long #or [#env DATA_RETENTION_DAYS 30]
   :_storage #ig/ref :storage/init}

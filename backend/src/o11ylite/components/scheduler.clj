@@ -119,27 +119,31 @@
 ;;
 ;; Provides job definitions with their handlers.
 ;; Handlers are closures that capture their dependencies.
-;; Intervals are configured via system.edn (with env var overrides).
+;; Intervals are configured in minutes via system.edn (converted to ms here).
+
+(def ^:private minutes->ms
+  "Convert minutes to milliseconds."
+  (partial * 60000))
 
 (defmethod ig/init-key :scheduler/registry
   [_ {:keys [duckdb
-             inlined-data-flush-interval-ms
-             parquet-compaction-interval-ms
-             daily-maintenance-interval-ms
+             inlined-data-flush-interval-minutes
+             parquet-compaction-interval-minutes
+             daily-maintenance-interval-minutes
              data-retention-days]}]
   (mulog/log ::registry-initializing)
   {:inlined-data-flush
-   {:interval-ms inlined-data-flush-interval-ms
+   {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
     :description "Flush DuckLake inlined data to Parquet"
     :handler (fn [] (ducklake/flush-inlined-data! duckdb))}
 
    :parquet-compaction
-   {:interval-ms parquet-compaction-interval-ms
+   {:interval-ms (minutes->ms parquet-compaction-interval-minutes)
     :description "Merge small Parquet files for better query performance"
     :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
 
    :daily-maintenance
-   {:interval-ms daily-maintenance-interval-ms
+   {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
     :description "Daily data retention and DuckLake maintenance"
     :handler (fn []
                (ducklake/delete-old-data! duckdb data-retention-days)
