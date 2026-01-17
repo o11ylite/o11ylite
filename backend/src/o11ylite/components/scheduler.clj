@@ -122,7 +122,11 @@
 ;; Intervals are configured via system.edn (with env var overrides).
 
 (defmethod ig/init-key :scheduler/registry
-  [_ {:keys [duckdb inlined-data-flush-interval-ms parquet-compaction-interval-ms]}]
+  [_ {:keys [duckdb
+             inlined-data-flush-interval-ms
+             parquet-compaction-interval-ms
+             daily-maintenance-interval-ms
+             data-retention-days]}]
   (mulog/log ::registry-initializing)
   {:inlined-data-flush
    {:interval-ms inlined-data-flush-interval-ms
@@ -132,7 +136,14 @@
    :parquet-compaction
    {:interval-ms parquet-compaction-interval-ms
     :description "Merge small Parquet files for better query performance"
-    :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}})
+    :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
+
+   :daily-maintenance
+   {:interval-ms daily-maintenance-interval-ms
+    :description "Daily data retention and DuckLake maintenance"
+    :handler (fn []
+               (ducklake/delete-old-data! duckdb data-retention-days)
+               (ducklake/run-checkpoint! duckdb))}})
 
 ;; ---------------------------------------------------------
 ;; Scheduler Component
