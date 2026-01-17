@@ -14,21 +14,14 @@
    [o11ylite.test-helpers :as h :refer [ingest-sample-events! ingest-sample-metrics!]]))
 
 ;; Start scheduler and ingest components for these tests
-(use-fixtures :each (h/with-partial-system [:scheduler/executor
-                                            :cache/event-metadata
-                                            :ingest/event-batcher
-                                            :ingest/metric-batcher
-                                            :norm/metric-temporality]))
+(use-fixtures :each (h/with-partial-system
+                      (into [:scheduler/executor] h/ingest-components)))
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
 (defn- sqlite [] (:db/sqlite h/*system*))
 (defn- duckdb [] (:db/duckdb h/*system*))
-(defn- event-metadata [] (:cache/event-metadata h/*system*))
-(defn- event-batcher [] (:ingest/event-batcher h/*system*))
-(defn- metric-batcher [] (:ingest/metric-batcher h/*system*))
-(defn- metric-normalizer [] (:norm/metric-temporality h/*system*))
 
 (defn- get-maintenance-job-status []
   (->> (scheduler/get-job-status (sqlite))
@@ -60,8 +53,8 @@
 (deftest manual-delete-old-data-test
   (testing "Manual data retention via ducklake/delete-old-data! works"
     ;; Insert data so DELETE actually evaluates the WHERE clause type casts
-    (ingest-sample-events! (event-metadata) (event-batcher) 1)
-    (ingest-sample-metrics! (metric-batcher) (sqlite) (metric-normalizer) 1)
+    (ingest-sample-events! 1)
+    (ingest-sample-metrics! 1)
     (is (nil? (ducklake/delete-old-data! (duckdb) 30)))))
 
 (deftest manual-checkpoint-test
