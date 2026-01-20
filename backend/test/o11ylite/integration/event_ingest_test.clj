@@ -32,6 +32,7 @@
   [overrides]
   (merge {:service "test-service"
           :timestamp (Instant/parse "2024-01-15T10:30:00Z")
+          :error false
           :meta.signal_type :span
           :meta.observed_time (Instant/parse "2024-01-15T10:30:01Z")}
          overrides))
@@ -45,6 +46,7 @@
                   (make-event {:name "span-2" :trace_id "def456"})]
           fields {:service {:type :string}
                   :timestamp {:type :instant}
+                  :error {:type :boolean}
                   :meta.signal_type {:type :string}
                   :meta.observed_time {:type :instant}
                   :name {:type :string}
@@ -65,6 +67,7 @@
                                custom-field "dynamic-value"})]
           fields {:service {:type :string}
                   :timestamp {:type :instant}
+                  :error {:type :boolean}
                   :meta.signal_type {:type :string}
                   :meta.observed_time {:type :instant}
                   :name {:type :string}
