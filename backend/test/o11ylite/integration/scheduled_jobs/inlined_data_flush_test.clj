@@ -31,18 +31,22 @@
 (defn- duckdb [] (:db/duckdb h/*system*))
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
 
+(def ^:private test-id-counter (atom 0))
+
 (defn- ingest-small-batch!
   "Ingest a small batch of events directly (will be inlined due to DATA_INLINING_ROW_LIMIT)."
   [service-name n]
   (let [now (Instant/now)
         events (for [i (range n)]
-                 {:service service-name
+                 {:id (swap! test-id-counter inc)
+                  :service service-name
                   :timestamp now
                   :error false
                   :meta.signal_type :span
                   :meta.observed_time now
                   :name (str "test-span-" i)})
-        fields {:service {:type :string}
+        fields {:id {:type :integer}
+                :service {:type :string}
                 :timestamp {:type :instant}
                 :error {:type :boolean}
                 :meta.signal_type {:type :string}

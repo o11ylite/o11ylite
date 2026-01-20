@@ -117,21 +117,22 @@
 
    Called by gRPC/HTTP handlers to submit events. Cleanses events (skipping
    fields with type conflicts or exceeding field limit), enriches with derived
-   fields, extracts fields with inferred types, then submits events + fields
-   to batcher. Blocks until the batch is flushed to storage.
+   fields (including Snowflake ID), extracts fields with inferred types, then
+   submits events + fields to batcher. Blocks until the batch is flushed to storage.
 
    Arguments:
      event-metadata  - The event metadata cache component (for cleansing)
      event-batcher   - The event batcher component
+     id-generator    - The ID generator component (for Snowflake IDs)
      events          - Collection of event maps to ingest
 
    Returns:
      {:success true/false
       :rejected-count N       ;; always 0 (we skip fields, not reject events)
       :error-message \"...\" or nil}"
-  [event-metadata event-batcher events]
+  [event-metadata event-batcher id-generator events]
   (let [{:keys [events skipped-field-count]} (cleanse/cleanse-events event-metadata events)
-        events (enrich/enrich-events events)
+        events (enrich/enrich-events id-generator events)
         fields (-extract-fields events)
         success (batcher/->batcher! event-batcher {:events events
                                                    :fields fields})]

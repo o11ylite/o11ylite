@@ -4,6 +4,9 @@
  :db/sqlite
  {:data-path #or [#env DATA_PATH "./.tmp"]}
 
+ :id/generator
+ {:node-id #long #or [#env O11YLITE_NODE_ID 0]}
+
  :storage/init
  {:sqlite #ig/ref :db/sqlite
   :duckdb #ig/ref :db/duckdb}
@@ -65,6 +68,7 @@
  {:port #long #or [#env OTEL_GRPC_PORT 4317]
   :event-metadata #ig/ref :cache/event-metadata
   :event-batcher #ig/ref :ingest/event-batcher
+  :id-generator #ig/ref :id/generator
   :metric-batcher #ig/ref :ingest/metric-batcher
   :metric-normalizer #ig/ref :ingest/metric-normalizer
   :sqlite #ig/ref :db/sqlite}
@@ -92,6 +96,7 @@
   :sqlite #ig/ref :db/sqlite
   :event-metadata #ig/ref :cache/event-metadata
   :event-batcher #ig/ref :ingest/event-batcher
+  :id-generator #ig/ref :id/generator
   :metric-batcher #ig/ref :ingest/metric-batcher
   :metric-normalizer #ig/ref :ingest/metric-normalizer
   ;; _storage ensures storage/init runs first so DuckDB tables exist

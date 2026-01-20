@@ -228,3 +228,37 @@
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :filter {:field ".dotfirst" :op "=" :value "x"}
                    :visualization {:type "table"}}))))
+
+;; ---------------------------------------------------------
+;; Cursor Validation
+
+(deftest cursor-validation-test
+  (testing "cursor is valid for table queries without aggregations"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+                 :visualization {:type "table"}})))
+
+  (testing "cursor is invalid with time_series visualization"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:field "*" :function "count"}]
+                   :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+                   :visualization {:type "time_series"}})))
+
+  (testing "cursor is invalid with table + aggregations"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:field "*" :function "count"}]
+                   :group_by ["service"]
+                   :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+                   :visualization {:type "table"}})))
+
+  (testing "cursor is invalid with heatmap visualization"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :group_by ["duration_ms"]
+                   :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+                   :visualization {:type "heatmap"}})))
+
+  (testing "cursor is invalid with trace visualization"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :filter {:field "trace_id" :op "=" :value "abc123"}
+                   :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+                   :visualization {:type "trace"}}))))

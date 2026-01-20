@@ -24,18 +24,22 @@
 
 (def ^:private base-fields
   "Fields for the minimal valid event structure."
-  {:service {:type :string}
+  {:id {:type :integer}
+   :service {:type :string}
    :timestamp {:type :instant}
    :error {:type :boolean}
    :meta.signal_type {:type :string}
    :meta.observed_time {:type :instant}
    :name {:type :string}})
 
+(def ^:private test-id-counter (atom 0))
+
 (defn- make-event
   "Create a minimal valid event with required fields."
   ([] (make-event {}))
   ([overrides]
-   (merge {:service "test-service"
+   (merge {:id (swap! test-id-counter inc)
+           :service "test-service"
            :timestamp (Instant/now)
            :error false
            :meta.signal_type :span

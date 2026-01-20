@@ -13,6 +13,7 @@
   (:require
    [honey.sql :as sql]
    [next.jdbc :as jdbc]
+   [o11ylite.store.events.query-cursor :as query-cursor]
    [o11ylite.store.events.query-schema :as query-schema]
    [o11ylite.store.query-util :as query-util]))
 
@@ -104,28 +105,55 @@
   [hsql-query {:keys [limit aggregations]}]
   (let [limit (or limit default-limit)
         ;; If aggregating, don't add default order
-        ;; Otherwise order by timestamp desc
+        ;; Otherwise order by timestamp desc, id desc for stable pagination
         has-aggregations? (seq aggregations)]
     (cond-> hsql-query
-      (not has-aggregations?) (assoc :order-by [[:timestamp :desc]])
+      (not has-aggregations?) (assoc :order-by [[:timestamp :desc] [:id :desc]])
       true (assoc :limit limit))))
+
+(defn- -add-cursor-filter
+  "Add cursor-based pagination filter to query.
+   Uses keyset pagination: WHERE (timestamp, id) < (cursor_ts, cursor_id)"
+  [hsql-query cursor-str]
+  (if-let [{:keys [ts id]} (when cursor-str (query-cursor/decode cursor-str))]
+    (update hsql-query :where conj
+            [:or
+             [:< :timestamp (-epoch-ms->timestamp ts)]
+             [:and
+              [:= :timestamp (-epoch-ms->timestamp ts)]
+              [:< :id id]]])
+    hsql-query))
 
 ;; ---------------------------------------------------------
 ;; Query Execution
 
 (defn- -execute-table
-  "Execute a table visualization query."
-  [duckdb query]
-  (let [hsql-query (-> (-build-base-query query)
+  "Execute a table visualization query.
+   Supports cursor-based pagination for non-aggregated queries."
+  [duckdb {:keys [cursor limit] :as query}]
+  (let [limit (or limit default-limit)
+        ;; Fetch one extra row to detect if there are more results
+        fetch-limit (inc limit)
+        hsql-query (-> (-build-base-query query)
                        (-add-filter (:filter query))
+                       (-add-cursor-filter cursor)
                        (-add-aggregations query)
-                       (-add-order-and-limit query))
+                       (-add-order-and-limit (assoc query :limit fetch-limit)))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
-        rows (jdbc/execute! duckdb (into [sql-str] params))
-        limit (or (:limit query) default-limit)]
-    {:rows rows
+        all-rows (jdbc/execute! duckdb (into [sql-str] params))
+        has-more? (> (count all-rows) limit)
+        rows (if has-more? (take limit all-rows) all-rows)
+        ;; Build next cursor from last row if there are more results
+        next-cursor (when (and has-more? (seq rows))
+                      (let [last-row (last rows)
+                            ts (:timestamp last-row)
+                            id (:id last-row)]
+                        (when (and ts id)
+                          (query-cursor/encode {:ts ts :id id}))))]
+    {:rows (vec rows)
      :total_count (count rows)
-     :truncated (>= (count rows) limit)}))
+     :has_more has-more?
+     :next_cursor next-cursor}))
 
 
 
@@ -267,7 +295,7 @@
         query-time-ms (- (System/currentTimeMillis) start-time)]
     {:data result
      :metadata {:query_time_ms query-time-ms
-                :truncated (get result :truncated false)}}))
+                :has_more (get result :has_more false)}}))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -304,8 +332,18 @@
            {:time_range {:start 1702000000000 :end 1702003600000}
             :limit 100
             :visualization {:type "table"}})
-  ;; => {:data {:rows [] :total_count 0 :truncated false}
-  ;;     :metadata {:query_time_ms N :truncated false}}
+  ;; => {:data {:rows [...] :total_count 100 :has_more true
+  ;;            :next_cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="}
+  ;;     :metadata {:query_time_ms N :has_more true}}
+
+  ;; Paginated query using cursor
+  (execute ds
+           {:time_range {:start 1702000000000 :end 1702003600000}
+            :limit 100
+            :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+            :visualization {:type "table"}})
+  ;; => {:data {:rows [...] :total_count 100 :has_more false :next_cursor nil}
+  ;;     :metadata {:query_time_ms N :has_more false}}
 
   ;; Time series query - count events per minute
   (execute ds
@@ -315,7 +353,7 @@
   ;; => {:data {:bucket_ms 60000
   ;;            :series [{:labels {} :name "count(*)"
   ;;                      :data [{:timestamp N :value N} ...]}]}
-  ;;     :metadata {:query_time_ms N :truncated false}}
+  ;;     :metadata {:query_time_ms N :has_more false}}
 
   ;; Time series with group_by - count per service per minute
   (execute ds
@@ -326,7 +364,7 @@
   ;; => {:data {:bucket_ms 60000
   ;;            :series [{:labels {:service "api"} :name "count(*)" :data [...]}
   ;;                     {:labels {:service "web"} :name "count(*)" :data [...]}]}
-  ;;     :metadata {:query_time_ms N :truncated false}}
+  ;;     :metadata {:query_time_ms N :has_more false}}
 
   ;; Trace query - fetch spans for a specific trace
   ;; Timestamp conversion handled by jdbc-types/as-unqualified-maps
@@ -343,7 +381,7 @@
   ;;                     :timestamp 1702000000123.456}
   ;;                    ...]
   ;;            :total_count 5}
-  ;;     :metadata {:query_time_ms N :truncated false}}
+  ;;     :metadata {:query_time_ms N :has_more false}}
 
   (ig/halt-key! :db/duckdb ds)
 

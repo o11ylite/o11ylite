@@ -120,6 +120,15 @@
    trace-visualization])
 
 ;; ---------------------------------------------------------
+;; Cursor Schema
+
+(def cursor
+  "Pagination cursor for table queries.
+   Base64-encoded JSON containing timestamp and id for keyset pagination.
+   Format: base64({\"ts\": <epoch_ms>, \"id\": <snowflake_id>})"
+  [:string {:min 1}])
+
+;; ---------------------------------------------------------
 ;; Events Query Schema
 
 (def ^:private base-query
@@ -131,6 +140,7 @@
    [:group_by {:optional true} [:vector field-name]]
    [:having {:optional true} filter-expr]
    [:limit {:optional true} [:int {:min 1 :max 10000}]]
+   [:cursor {:optional true} cursor]
    [:visualization visualization]])
 
 (defn- -valid-heatmap-group-by?
@@ -157,6 +167,14 @@
          (some? (:value filter)))
     true))
 
+(defn- -valid-cursor-usage?
+  "Cursor pagination is only valid for table queries without aggregations."
+  [{:keys [visualization cursor aggregations]}]
+  (if cursor
+    (and (= "table" (:type visualization))
+         (empty? aggregations))
+    true))
+
 (def events-query
   "Schema for events query requests."
   [:and
@@ -166,7 +184,9 @@
    [:fn {:error/message "time_series requires at least one aggregation"}
     -valid-time-series-aggregation?]
    [:fn {:error/message "trace requires a trace_id = <value> filter"}
-    -valid-trace-filter?]])
+    -valid-trace-filter?]
+   [:fn {:error/message "cursor is only valid for table queries without aggregations"}
+    -valid-cursor-usage?]])
 
 ;; ---------------------------------------------------------
 ;; Validation

@@ -46,7 +46,9 @@
           (is (= "log" (:meta.signal_type row)))
           (is (= "Test log message" (:log.body row)))
           (is (= "info" (:log.severity row)))
-          (is (= "12345" (:attr.user.id row))))))))
+          (is (= "12345" (:attr.user.id row)))
+          ;; Verify Snowflake ID is present and positive
+          (is (pos-int? (:id row)) "Event should have a positive Snowflake ID"))))))
 
 (deftest log-export-multiple-logs-test
   (testing "LogsService/Export accepts multiple log records and persists to DuckDB"
@@ -62,8 +64,13 @@
                              :severity :error}]})]
       (is (some? response))
       (is (= 0 (-> response .getPartialSuccess .getRejectedLogRecords)))
-      (let [rows (query-events-by-service service-name)]
-        (is (= 3 (count rows)))))))
+      (let [rows (query-events-by-service service-name)
+            ids (map :id rows)]
+        (is (= 3 (count rows)))
+        ;; Verify all IDs are positive integers
+        (is (every? pos-int? ids) "All events should have positive Snowflake IDs")
+        ;; Verify IDs are unique
+        (is (= 3 (count (set ids))) "All IDs should be unique")))))
 
 (deftest log-export-skips-without-service-test
   (testing "LogsService/Export skips logs without service.name (not persisted)"

@@ -21,16 +21,20 @@
 (defn- duckdb [] (:db/duckdb h/*system*))
 (defn- event-metadata [] (:cache/event-metadata h/*system*))
 (defn- event-batcher [] (:ingest/event-batcher h/*system*))
+(defn- id-generator [] (:id/generator h/*system*))
 
 (defn- query-events
   "Query all events from DuckLake, ordered by name."
   []
   (jdbc/execute! (duckdb) ["SELECT * FROM o11ylite.events ORDER BY name"]))
 
+(def ^:private test-id-counter (atom 0))
+
 (defn- make-event
   "Create a valid event with required fields."
   [overrides]
-  (merge {:service "test-service"
+  (merge {:id (swap! test-id-counter inc)
+          :service "test-service"
           :timestamp (Instant/parse "2024-01-15T10:30:00Z")
           :error false
           :meta.signal_type :span
@@ -44,7 +48,8 @@
   (testing "Events are inserted with correct field values"
     (let [events [(make-event {:name "span-1" :trace_id "abc123"})
                   (make-event {:name "span-2" :trace_id "def456"})]
-          fields {:service {:type :string}
+          fields {:id {:type :integer}
+                  :service {:type :string}
                   :timestamp {:type :instant}
                   :error {:type :boolean}
                   :meta.signal_type {:type :string}
@@ -65,7 +70,8 @@
           custom-field (keyword (str "attr.custom.field_" random-suffix))
           events [(make-event {:name "dynamic-span"
                                custom-field "dynamic-value"})]
-          fields {:service {:type :string}
+          fields {:id {:type :integer}
+                  :service {:type :string}
                   :timestamp {:type :instant}
                   :error {:type :boolean}
                   :meta.signal_type {:type :string}
@@ -86,7 +92,7 @@
                   (make-event {:name "ingested-span-2"
                                :trace_id "trace-002"
                                :attr.http.status_code 200})]
-          {:keys [success rejected-count]} (events.ingest/ingest-events! (event-metadata) (event-batcher) events)]
+          {:keys [success rejected-count]} (events.ingest/ingest-events! (event-metadata) (event-batcher) (id-generator) events)]
       (is (true? success) "ingest-events! should return success true")
       (is (= 0 rejected-count) "No events should be rejected")
       (let [rows (query-events)]

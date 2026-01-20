@@ -76,9 +76,10 @@
 (defn otlp-routes
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
    These routes handle their own protobuf/JSON parsing."
-  [{:keys [event-metadata event-batcher metric-batcher metric-normalizer sqlite]}]
+  [{:keys [event-metadata event-batcher id-generator metric-batcher metric-normalizer sqlite]}]
   (otel-http/routes {:event-metadata event-metadata
                      :event-batcher event-batcher
+                     :id-generator id-generator
                      :metric-batcher metric-batcher
                      :metric-normalizer metric-normalizer
                      :sqlite sqlite}))
