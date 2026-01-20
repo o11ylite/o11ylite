@@ -28,6 +28,9 @@
      -- Event identity
      name VARCHAR,
 
+     -- Derived fields
+     error BOOLEAN NOT NULL,
+
      -- Signal type: 'span', 'span_event', 'log'
      \"meta.signal_type\" VARCHAR NOT NULL,
 

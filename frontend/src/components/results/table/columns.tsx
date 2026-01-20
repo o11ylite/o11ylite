@@ -19,13 +19,7 @@ export function formatCellValue(value: unknown): string {
 }
 
 export function isErrorRow(row: RowData): boolean {
-  const spanStatus = row["span.status_code"]
-  const logSeverity = row["log.severity"]
-
-  return (
-    (typeof spanStatus === "string" && spanStatus.toLowerCase() === "error") ||
-    (typeof logSeverity === "string" && logSeverity.toLowerCase() === "error")
-  )
+  return row.error === true
 }
 
 // Default column widths by field type

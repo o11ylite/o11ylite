@@ -38,11 +38,13 @@
         events (for [i (range n)]
                  {:service service-name
                   :timestamp now
+                  :error false
                   :meta.signal_type :span
                   :meta.observed_time now
                   :name (str "test-span-" i)})
         fields {:service {:type :string}
                 :timestamp {:type :instant}
+                :error {:type :boolean}
                 :meta.signal_type {:type :string}
                 :meta.observed_time {:type :instant}
                 :name {:type :string}}]

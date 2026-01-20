@@ -26,6 +26,7 @@
   "Fields for the minimal valid event structure."
   {:service {:type :string}
    :timestamp {:type :instant}
+   :error {:type :boolean}
    :meta.signal_type {:type :string}
    :meta.observed_time {:type :instant}
    :name {:type :string}})
@@ -36,6 +37,7 @@
   ([overrides]
    (merge {:service "test-service"
            :timestamp (Instant/now)
+           :error false
            :meta.signal_type :span
            :meta.observed_time (Instant/now)}
           overrides)))

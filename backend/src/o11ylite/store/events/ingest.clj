@@ -12,8 +12,10 @@
 ;;       1. Cleanse events (via cleanse.clj):
 ;;          - Skip fields with type conflicts (vs cached metadata)
 ;;          - Skip new fields if event exceeds 200 field limit
-;;       2. Extract fields with inferred types
-;;       3. Submit to batcher
+;;       2. Enrich events (via enrich.clj):
+;;          - Compute derived fields (e.g., error boolean)
+;;       3. Extract fields with inferred types
+;;       4. Submit to batcher
 ;;       │
 ;;       v
 ;;   batcher accumulates {:events [...] :fields {name {:type t} ...}}
@@ -34,6 +36,7 @@
    [o11ylite.components.event-metadata :as event-metadata]
    [o11ylite.store.batcher :as batcher]
    [o11ylite.store.events.cleanse :as cleanse]
+   [o11ylite.store.events.enrich :as enrich]
    [o11ylite.store.schema :as schema])
   (:import
    [java.time Instant LocalDateTime ZoneOffset]))
@@ -113,9 +116,9 @@
   "Ingest events into the observability store.
 
    Called by gRPC/HTTP handlers to submit events. Cleanses events (skipping
-   fields with type conflicts or exceeding field limit), extracts fields with
-   inferred types, then submits events + fields to batcher. Blocks until the
-   batch is flushed to storage.
+   fields with type conflicts or exceeding field limit), enriches with derived
+   fields, extracts fields with inferred types, then submits events + fields
+   to batcher. Blocks until the batch is flushed to storage.
 
    Arguments:
      event-metadata  - The event metadata cache component (for cleansing)
@@ -128,6 +131,7 @@
       :error-message \"...\" or nil}"
   [event-metadata event-batcher events]
   (let [{:keys [events skipped-field-count]} (cleanse/cleanse-events event-metadata events)
+        events (enrich/enrich-events events)
         fields (-extract-fields events)
         success (batcher/->batcher! event-batcher {:events events
                                                    :fields fields})]
@@ -182,13 +186,14 @@
 ;; Rich Comment
 (comment
 
-  ;; Example event structure (from gRPC handler)
+  ;; Example event structure (after enrichment)
   ;; All keys are keywords (core fields and attributes)
   {:service "my-service"
    :timestamp #inst "2024-01-01T00:00:00Z"
    :trace_id "abc123"
    :span_id "def456"
    :name "HTTP GET /api/users"
+   :error false  ; derived: true when span.status_code=:error, log.severity in #{:error :fatal}, etc.
    :meta.signal_type :span
    :span.kind :server
    :span.status_code :ok
