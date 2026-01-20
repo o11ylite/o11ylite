@@ -13,6 +13,7 @@
    ;; Load component namespaces for ig/init-key methods
    [o11ylite.components.duckdb-pool]
    [o11ylite.components.sqlite-pool]
+   [o11ylite.components.id-gen]
    [o11ylite.components.storage-init]
    [o11ylite.components.event-metadata]
    [o11ylite.components.service-discovery]

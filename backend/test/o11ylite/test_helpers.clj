@@ -124,7 +124,7 @@
 
 (def event-ingest-components
   "Components required for event ingestion."
-  [:cache/event-metadata :ingest/event-batcher])
+  [:cache/event-metadata :ingest/event-batcher :id/generator])
 
 (def metric-ingest-components
   "Components required for metric ingestion."
@@ -189,10 +189,11 @@
   ([n] (ingest-sample-events! n {}))
   ([n overrides]
    (event-ingest/ingest-sample-events!
-     (:cache/event-metadata *system*)
-     (:ingest/event-batcher *system*)
-     n
-     overrides)))
+    (:cache/event-metadata *system*)
+    (:ingest/event-batcher *system*)
+    (:id/generator *system*)
+    n
+    overrides)))
 
 ;; ---------------------------------------------------------
 ;; Re-exports: Metric ingest helpers

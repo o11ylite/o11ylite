@@ -56,7 +56,9 @@
         (is (= "GET" (:attr.http.method row)))
         (is (= 200 (:attr.http.status_code row)))
         (is (= true (:attr.http.enabled row)))
-        (is (= 3.14 (:attr.http.latency row)))))))
+        (is (= 3.14 (:attr.http.latency row)))
+        ;; Verify Snowflake ID is present and positive
+        (is (pos-int? (:id row)) "Event should have a positive Snowflake ID")))))
 
 (deftest trace-export-multiple-spans-test
   (testing "TraceService/Export accepts multiple spans with parent-child relationship"

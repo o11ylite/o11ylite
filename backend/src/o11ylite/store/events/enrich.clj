@@ -2,10 +2,14 @@
 ;; o11ylite.store.events.enrich
 ;;
 ;; Computes derived fields for events during ingestion.
-;; Currently handles the `error` boolean field.
+;; Handles:
+;;   - `error` boolean field (based on signal type and status)
+;;   - `id` Snowflake-style ID (for pagination)
 ;; ---------------------------------------------------------
 
-(ns o11ylite.store.events.enrich)
+(ns o11ylite.store.events.enrich
+  (:require
+   [o11ylite.components.id-gen :as id-gen]))
 
 ;; ---------------------------------------------------------
 ;; Error Detection
@@ -53,18 +57,30 @@
 
 (defn enrich-event
   "Enrich a single event with derived fields.
-   Currently adds :error boolean field."
+   Adds :error boolean field. Does NOT add :id (use enrich-events for that)."
   [event]
   (assoc event :error (-compute-error event)))
 
 (defn enrich-events
-  "Enrich a collection of events with derived fields."
-  [events]
-  (map enrich-event events))
+  "Enrich a collection of events with derived fields.
+   Adds :error boolean and :id (Snowflake-style) to each event."
+  [id-generator events]
+  (let [ids (id-gen/next-ids! id-generator (count events))]
+    (map (fn [event id]
+           (-> event
+               (assoc :error (-compute-error event))
+               (assoc :id id)))
+         events
+         ids)))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
+
+  (require '[integrant.core :as ig])
+
+  ;; Create ID generator for testing
+  (def gen (ig/init-key :id/generator {:node-id 0}))
 
   ;; Span with error status
   (enrich-event {:meta.signal_type :span
@@ -77,6 +93,13 @@
                  :span.status_code :ok
                  :name "GET /api"})
   ;; => {:meta.signal_type :span, :span.status_code :ok, :name "GET /api", :error false}
+
+  ;; Enrich multiple events with IDs
+  (enrich-events gen
+                 [{:meta.signal_type :span :span.status_code :ok :name "span-1"}
+                  {:meta.signal_type :span :span.status_code :error :name "span-2"}])
+  ;; => ({:meta.signal_type :span, :span.status_code :ok, :name "span-1", :error false, :id 12345...}
+  ;;     {:meta.signal_type :span, :span.status_code :error, :name "span-2", :error true, :id 12346...})
 
   ;; Log with error severity
   (enrich-event {:meta.signal_type :log

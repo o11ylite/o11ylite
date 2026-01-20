@@ -16,6 +16,9 @@
 
 (def ^:private create-events-table-sql
   "CREATE TABLE IF NOT EXISTS o11ylite.events (
+     -- Snowflake-style ID for pagination (generated at ingest time)
+     id BIGINT NOT NULL,
+
      -- Core identity
      service VARCHAR NOT NULL,
      timestamp TIMESTAMP_NS NOT NULL,

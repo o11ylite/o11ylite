@@ -87,42 +87,44 @@
 (defn ingest-events!
   "Ingest events directly via the batcher, bypassing gRPC.
    Blocks until events are persisted to storage.
-   
+
    Arguments:
      event-metadata - The event metadata cache component
      batcher        - The ingest batcher component
+     id-generator   - The ID generator component
      events         - Collection of event maps to ingest
-   
+
    Returns:
      true if all events were persisted successfully
-   
+
    Example:
-     (ingest-events! (event-metadata) (batcher) (make-random-events 10))"
-  [event-metadata batcher events]
-  (events.ingest/ingest-events! event-metadata batcher events))
+     (ingest-events! (event-metadata) (batcher) (id-generator) (make-random-events 10))"
+  [event-metadata batcher id-generator events]
+  (events.ingest/ingest-events! event-metadata batcher id-generator events))
 
 (defn ingest-sample-events!
   "Generate and ingest n random events. Returns the ingested events.
-   
+
    Arguments:
-     event-metadata - The event metadata cache component  
+     event-metadata - The event metadata cache component
      batcher        - The ingest batcher component
+     id-generator   - The ID generator component
      n              - Number of events to generate and ingest
-   
+
    Optional:
      overrides      - Map of field overrides for all events
-   
+
    Returns:
      Vector of the ingested event maps (for verification)
-   
+
    Example:
-     (ingest-sample-events! (event-metadata) (batcher) 10)
-     (ingest-sample-events! (event-metadata) (batcher) 5 {:service \"test-svc\"})"
-  ([event-metadata batcher n]
-   (ingest-sample-events! event-metadata batcher n {}))
-  ([event-metadata batcher n overrides]
+     (ingest-sample-events! (event-metadata) (batcher) (id-gen) 10)
+     (ingest-sample-events! (event-metadata) (batcher) (id-gen) 5 {:service \"test-svc\"})"
+  ([event-metadata batcher id-generator n]
+   (ingest-sample-events! event-metadata batcher id-generator n {}))
+  ([event-metadata batcher id-generator n overrides]
    (let [events (vec (make-random-events n overrides))]
-     (ingest-events! event-metadata batcher events)
+     (ingest-events! event-metadata batcher id-generator events)
      events)))
 
 ;; ---------------------------------------------------------

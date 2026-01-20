@@ -133,6 +133,54 @@
             (is (= 1 (get service-b-row (keyword "count(*)"))))))))))
 
 ;; ---------------------------------------------------------
+;; Cursor-based Pagination
+
+(defn- query-events
+  "Helper to query events with optional cursor."
+  [now-ms service-name cursor]
+  (let [response (h/post-json "/api/query/events"
+                              (cond-> {:time_range {:start (- now-ms 3600000)
+                                                    :end (+ now-ms 60000)}
+                                       :filter {:field "service" :op "=" :value service-name}
+                                       :limit 2
+                                       :visualization {:type "table"}}
+                                cursor (assoc :cursor cursor)))]
+    {:status (h/status response)
+     :data (get-in response [:body :data])}))
+
+(deftest events-query-pagination-test
+  (testing "POST /api/query/events supports cursor-based pagination"
+    (let [now-ms (current-epoch-ms)
+          service-name "pagination-test-service"
+          _ (h/ingest-sample-events! 5 {:service service-name})
+
+          ;; First page
+          page1 (query-events now-ms service-name nil)
+          _ (is (= 200 (:status page1)))
+          _ (is (= 2 (get-in page1 [:data :total_count])))
+          _ (is (true? (get-in page1 [:data :has_more])) "Page 1 should have more")
+          _ (is (some? (get-in page1 [:data :next_cursor])) "Page 1 should have cursor")
+
+          ;; Second page
+          page2 (query-events now-ms service-name (get-in page1 [:data :next_cursor]))
+          _ (is (= 200 (:status page2)))
+          _ (is (= 2 (get-in page2 [:data :total_count])))
+          _ (is (true? (get-in page2 [:data :has_more])) "Page 2 should have more")
+          _ (is (some? (get-in page2 [:data :next_cursor])) "Page 2 should have cursor")
+
+          ;; No overlap
+          ids1 (set (map :id (get-in page1 [:data :rows])))
+          ids2 (set (map :id (get-in page2 [:data :rows])))
+          _ (is (empty? (clojure.set/intersection ids1 ids2)) "No overlapping IDs")
+
+          ;; Third page (final)
+          page3 (query-events now-ms service-name (get-in page2 [:data :next_cursor]))]
+      (is (= 200 (:status page3)))
+      (is (= 1 (get-in page3 [:data :total_count])) "Page 3 should have 1 event")
+      (is (false? (get-in page3 [:data :has_more])) "Page 3 should not have more")
+      (is (nil? (get-in page3 [:data :next_cursor])) "Page 3 should not have cursor"))))
+
+;; ---------------------------------------------------------
 ;; Field Names with Dots
 
 (deftest events-query-filter-by-field-with-dots-test
