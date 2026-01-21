@@ -16,7 +16,8 @@ const DEFAULT_STATE: QueryBuilderState = {
   filters: [],
   aggregations: [],
   groupBy: [],
-  visualization: { type: "table", limit: 100 },
+  limit: 100,
+  visualization: { type: "table" },
   metrics: [],
 }
 
