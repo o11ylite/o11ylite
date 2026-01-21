@@ -23,11 +23,17 @@ const NEW_ROW_HIGHLIGHT = "rgba(74, 222, 128, 0.2)"
 export function ResultsTable({
   data,
   live = false,
+  canGoPrev = false,
+  onPrevPage,
+  onNextPage,
 }: {
   data: QueryResponse
   live?: boolean
+  canGoPrev?: boolean
+  onPrevPage?: () => void
+  onNextPage?: (cursor: string) => void
 }) {
-  const { rows, total_count, truncated } = data.data as TableQueryResult
+  const { rows, total_count, has_more, next_cursor } = data.data as TableQueryResult
 
   const [detailRow, setDetailRow] = useState<RowData | null>(null)
 
@@ -169,9 +175,28 @@ export function ResultsTable({
           </tbody>
         </table>
       </div>
-      <div className="px-3 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
-        {total_count} rows{truncated && " (truncated)"} &middot;{" "}
-        {data.metadata.query_time_ms}ms
+      <div className="px-3 py-2 border-t bg-muted/30 text-xs text-muted-foreground flex items-center justify-between">
+        <span>
+          {total_count} rows{has_more && "+"} &middot; {data.metadata.query_time_ms}ms
+        </span>
+        {onNextPage && (canGoPrev || has_more) && (
+          <div className="flex gap-2">
+            <button
+              onClick={onPrevPage}
+              disabled={!canGoPrev}
+              className="px-2 py-1 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => next_cursor && onNextPage(next_cursor)}
+              disabled={!has_more}
+              className="px-2 py-1 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </div>
+        )}
       </div>
       <RowDetailDrawer row={detailRow} onClose={() => setDetailRow(null)} />
     </div>

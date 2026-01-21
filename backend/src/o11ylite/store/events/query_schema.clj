@@ -125,8 +125,9 @@
 (def cursor
   "Pagination cursor for table queries.
    Base64-encoded JSON containing timestamp and id for keyset pagination.
-   Format: base64({\"ts\": <epoch_ms>, \"id\": <snowflake_id>})"
-  [:string {:min 1}])
+   Format: base64({\"ts\": <epoch_ms>, \"id\": <snowflake_id>})
+   Accepts nil (or null in JSON) for first page."
+  [:maybe [:string {:min 1}]])
 
 ;; ---------------------------------------------------------
 ;; Events Query Schema
