@@ -68,8 +68,8 @@ export default function ApplicationLayout({
             {rightPanelTrigger}
           </div>
         </header>
-        <div className="flex flex-1 overflow-hidden">
-          <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto p-4">
+        <div className="flex flex-1 items-start overflow-auto">
+          <main className="flex min-h-[600px] min-w-0 flex-1 flex-col gap-4 p-4 [&>*]:flex-1">
             {children}
           </main>
           {rightPanel && (
