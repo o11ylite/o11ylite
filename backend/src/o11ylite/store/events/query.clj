@@ -98,7 +98,7 @@
 
 (def ^:private default-limit
   "Default limit for query results when not specified."
-  200)
+  100)
 
 (defn- -add-order-and-limit
   "Add ORDER BY and LIMIT to query."
@@ -155,8 +155,6 @@
      :has_more has-more?
      :next_cursor next-cursor}))
 
-
-
 (def ^:private -bucket-ms->interval query-util/bucket-ms->interval)
 
 (defn- -build-time-series-query
@@ -201,8 +199,6 @@
                     ;; bucket is already epoch_ms (number) from the SQL query
                     {:timestamp (:bucket row)
                      :value (get row agg-alias)}))})))
-
-
 
 (defn- -execute-time-series
   "Execute a time series visualization query."

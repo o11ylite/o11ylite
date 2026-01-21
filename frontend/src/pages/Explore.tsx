@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { usePage } from "@inertiajs/react"
 
@@ -87,7 +88,9 @@ export default function Explore() {
   const isMetricsMode = mode === "metrics"
 
   // Build the events query payload (without time_range for stable key in live mode)
-  const eventsPayload = isEventsMode && hasQuery
+  const isTableWithoutAggregations =
+    state.visualization.type === "table" && state.aggregations.length === 0
+  const eventsQueryBase = isEventsMode && hasQuery
     ? {
         filter: buildFilterExpr(state.filters),
         aggregations:
@@ -95,6 +98,31 @@ export default function Explore() {
         group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
         visualization: state.visualization,
       }
+    : null
+
+  // Pagination state (in-memory only, resets on query change or refresh)
+  // Page index is derived from stack length: [null] = page 0, [null, c1] = page 1
+  // queryKey is stored to detect when query changes and reset pagination
+  const queryResetKey = JSON.stringify({ eventsQueryBase, from, to })
+  const [pagination, setPagination] = useState({
+    queryKey: queryResetKey,
+    cursorStack: [null] as (string | null)[],
+  })
+
+  // Reset pagination when query changes (derived state during render)
+  if (pagination.queryKey !== queryResetKey) {
+    setPagination({ queryKey: queryResetKey, cursorStack: [null] })
+  }
+
+  // Use fresh stack if key matches, otherwise use reset value
+  const cursorStack = pagination.queryKey === queryResetKey
+    ? pagination.cursorStack
+    : [null]
+  const currentCursor = cursorStack[cursorStack.length - 1]
+  // Pagination disabled in live mode (data constantly refreshing, cursors would be stale)
+  const paginationEnabled = isTableWithoutAggregations && !live
+  const eventsPayload = eventsQueryBase
+    ? { ...eventsQueryBase, cursor: paginationEnabled ? currentCursor : undefined }
     : null
 
   // Build the metrics query payload
@@ -130,7 +158,7 @@ export default function Explore() {
     isLoading: eventsLoading,
     error: eventsError,
   } = useQuery({
-    queryKey: ["events-query", queryKeyTimeRange, eventsPayload],
+    queryKey: ["events-query", queryKeyTimeRange, eventsQueryBase, currentCursor],
     queryFn: () => {
       // Resolve time range fresh on each fetch
       const freshResolved = resolveTimeRange({ from, to })
@@ -172,6 +200,17 @@ export default function Explore() {
   const isLoading = isEventsMode ? eventsLoading : metricsLoading
   const error = isEventsMode ? eventsError : metricsError
 
+  // Pagination handlers
+  const handlePrevPage = () => {
+    if (cursorStack.length > 1) {
+      setPagination(p => ({ ...p, cursorStack: p.cursorStack.slice(0, -1) }))
+    }
+  }
+
+  const handleNextPage = (nextCursor: string) => {
+    setPagination(p => ({ ...p, cursorStack: [...p.cursorStack, nextCursor] }))
+  }
+
   // Called when user clicks "Run" - updates URL which triggers refetch
   const handleSubmit = (newState: typeof state) => {
     setState(newState)
@@ -203,7 +242,15 @@ export default function Explore() {
         return <ResultsTimeSeries data={queryResult} />
       case "table":
       default:
-        return <ResultsTable data={queryResult} live={live} />
+        return (
+          <ResultsTable
+            data={queryResult}
+            live={live}
+            canGoPrev={paginationEnabled && cursorStack.length > 1}
+            onPrevPage={paginationEnabled ? handlePrevPage : undefined}
+            onNextPage={paginationEnabled ? handleNextPage : undefined}
+          />
+        )
     }
   }
 

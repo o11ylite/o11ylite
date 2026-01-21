@@ -16,11 +16,12 @@ const mockQueryResponse: QueryResponse = {
   data: {
     rows: [{ service: "api-gateway", count: 42 }],
     total_count: 1,
-    truncated: false,
+    has_more: false,
+    next_cursor: null,
   },
   metadata: {
     query_time_ms: 15,
-    truncated: false,
+    has_more: false,
   },
 }
 
@@ -42,7 +43,7 @@ const mockMetricsQueryResponse: QueryResponse = {
   },
   metadata: {
     query_time_ms: 10,
-    truncated: false,
+    has_more: false,
   },
 }
 

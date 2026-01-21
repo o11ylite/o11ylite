@@ -194,7 +194,8 @@ export interface QueryBuilderState {
 export interface TableQueryResult {
   rows: Record<string, unknown>[]
   total_count: number
-  truncated: boolean
+  has_more: boolean
+  next_cursor: string | null
 }
 
 // Time series data point with timestamp and value
@@ -242,6 +243,6 @@ export interface QueryResponse {
   data: QueryResult
   metadata: {
     query_time_ms: number
-    truncated: boolean
+    has_more: boolean
   }
 }
