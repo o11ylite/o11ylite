@@ -22,6 +22,7 @@ import { FiltersSection } from "./filters-section"
 import { AggregationSection } from "./aggregation-section"
 import { MetricsSection } from "./metrics-section"
 import { MetricGroupBySection } from "./metric-group-by-section"
+import { LimitSelector } from "./limit-selector"
 
 export function QueryBuilder({
   fields,
@@ -53,7 +54,7 @@ export function QueryBuilder({
     let visualization: Visualization
     switch (type) {
       case "table":
-        visualization = { type: "table", limit: 100 }
+        visualization = { type: "table" }
         break
       case "time_series":
         visualization = { type: "time_series" }
@@ -105,6 +106,14 @@ export function QueryBuilder({
               </TabsTrigger>
             </TabsList>
           </Tabs>
+        )}
+
+        {/* Limit selector - for events mode */}
+        {mode === "events" && (
+          <LimitSelector
+            value={state.limit ?? 100}
+            onChange={(limit) => setState({ ...state, limit })}
+          />
         )}
 
         <Button size="sm" className="gap-1.5" onClick={handleRun}>

@@ -76,7 +76,6 @@ export type VisualizationType = "table" | "time_series"
 
 export interface TableVisualization {
   type: "table"
-  limit?: number
   sort?: {
     field: string
     order: "asc" | "desc"
@@ -86,7 +85,6 @@ export interface TableVisualization {
 export interface TimeSeriesVisualization {
   type: "time_series"
   bucket_ms?: number
-  limit_series?: number
 }
 
 export interface TraceVisualization {
@@ -112,6 +110,7 @@ export interface EventsQuery {
   aggregations?: Aggregation[]
   group_by?: string[]
   having?: FilterExpr
+  limit?: number
   visualization: Visualization
 }
 
@@ -181,6 +180,7 @@ export interface QueryBuilderState {
   filters: SimpleFilter[]
   aggregations: Aggregation[]
   groupBy: string[]
+  limit?: number
   visualization: Visualization
   // Metrics mode fields
   metrics: MetricDefinition[]

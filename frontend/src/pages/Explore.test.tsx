@@ -241,7 +241,8 @@ describe("Explore", () => {
       expect(requestBody).not.toBeNull()
       expect(requestBody!.time_range.start).toBeTypeOf("number")
       expect(requestBody!.time_range.end).toBeTypeOf("number")
-      expect(requestBody!.visualization).toEqual({ type: "table", limit: 100 })
+      expect(requestBody!.limit).toBe(100)
+      expect(requestBody!.visualization).toEqual({ type: "table" })
     })
   })
 

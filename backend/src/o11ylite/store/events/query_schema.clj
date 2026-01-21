@@ -89,8 +89,7 @@
 (def time-series-visualization
   [:map
    [:type [:= "time_series"]]
-   [:bucket_ms {:optional true} [:int {:min 1}]]
-   [:limit_series {:optional true} [:int {:min 1}]]])
+   [:bucket_ms {:optional true} [:int {:min 1}]]])
 
 ;; DEFERRED: Heatmap visualization is deferred to post-v1.
 ;; Decision: Heatmap should be a "smart visualization" - when user selects heatmap,

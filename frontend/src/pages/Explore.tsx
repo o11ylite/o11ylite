@@ -96,6 +96,7 @@ export default function Explore() {
         aggregations:
           state.aggregations.length > 0 ? state.aggregations : undefined,
         group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
+        limit: state.limit,
         visualization: state.visualization,
       }
     : null
