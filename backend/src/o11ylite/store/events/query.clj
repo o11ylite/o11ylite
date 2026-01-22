@@ -100,28 +100,57 @@
   "Default limit for query results when not specified."
   100)
 
+(defn- -sort-field->col
+  "Convert sort field to column reference.
+   Handles both regular fields and aggregation aliases like count(*), avg(duration_ms)."
+  [field]
+  (if (re-matches #"^(count|sum|avg|min|max|p50|p90|p99)\(.+\)$" field)
+    ;; Aggregation alias - use as keyword directly (matches select alias)
+    (keyword field)
+    ;; Regular field
+    (-field->col field)))
+
 (defn- -add-order-and-limit
-  "Add ORDER BY and LIMIT to query."
-  [hsql-query {:keys [limit aggregations]}]
+  "Add ORDER BY and LIMIT to query.
+   Uses explicit sort if provided, otherwise defaults based on query type."
+  [hsql-query {:keys [limit aggregations visualization]}]
   (let [limit (or limit default-limit)
-        ;; If aggregating, don't add default order
-        ;; Otherwise order by timestamp desc, id desc for stable pagination
-        has-aggregations? (seq aggregations)]
+        sort-config (:sort visualization)
+        has-aggregations? (seq aggregations)
+        order-by (cond
+                   ;; Explicit sort provided
+                   sort-config
+                   [[(-sort-field->col (:field sort-config))
+                     (keyword (:order sort-config))]]
+                   ;; No aggregations: stable pagination order
+                   (not has-aggregations?)
+                   [[:timestamp :desc] [:id :desc]]
+                   ;; Aggregations without sort: no default order
+                   :else nil)]
     (cond-> hsql-query
-      (not has-aggregations?) (assoc :order-by [[:timestamp :desc] [:id :desc]])
+      order-by (assoc :order-by order-by)
       true (assoc :limit limit))))
 
 (defn- -add-cursor-filter
   "Add cursor-based pagination filter to query.
-   Uses keyset pagination: WHERE (timestamp, id) < (cursor_ts, cursor_id)"
-  [hsql-query cursor-str]
-  (if-let [{:keys [ts id]} (when cursor-str (query-cursor/decode cursor-str))]
-    (update hsql-query :where conj
-            [:or
-             [:< :timestamp (-epoch-ms->timestamp ts)]
-             [:and
-              [:= :timestamp (-epoch-ms->timestamp ts)]
-              [:< :id id]]])
+   Cursor format: {f: field, v: value, id: snowflake_id}
+   Sort order (from query) determines comparison direction:
+   - desc: get rows with smaller values
+   - asc: get rows with larger values"
+  [hsql-query cursor-str sort-order]
+  (if-let [{:keys [f v id]} (when cursor-str (query-cursor/decode cursor-str))]
+    (let [col (-field->col f)
+          ;; For timestamp field, convert epoch-ms to timestamp
+          ;; Coerce to long since EPOCH_MS expects integer and timestamps are stored as doubles
+          v (if (= "timestamp" f) (-epoch-ms->timestamp (long v)) v)
+          ;; desc = get smaller values, asc = get larger values
+          op (if (= "asc" sort-order) :> :<)]
+      (update hsql-query :where conj
+              [:or
+               [op col v]
+               [:and
+                [:= col v]
+                [op :id id]]]))
     hsql-query))
 
 ;; ---------------------------------------------------------
@@ -130,13 +159,16 @@
 (defn- -execute-table
   "Execute a table visualization query.
    Supports cursor-based pagination for non-aggregated queries."
-  [duckdb {:keys [cursor limit] :as query}]
+  [duckdb {:keys [cursor limit visualization] :as query}]
   (let [limit (or limit default-limit)
+        sort-config (:sort visualization)
+        sort-field (or (:field sort-config) "timestamp")
+        sort-order (or (:order sort-config) "desc")
         ;; Fetch one extra row to detect if there are more results
         fetch-limit (inc limit)
         hsql-query (-> (-build-base-query query)
                        (-add-filter (:filter query))
-                       (-add-cursor-filter cursor)
+                       (-add-cursor-filter cursor sort-order)
                        (-add-aggregations query)
                        (-add-order-and-limit (assoc query :limit fetch-limit)))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
@@ -146,10 +178,15 @@
         ;; Build next cursor from last row if there are more results
         next-cursor (when (and has-more? (seq rows))
                       (let [last-row (last rows)
-                            ts (:timestamp last-row)
-                            id (:id last-row)]
-                        (when (and ts id)
-                          (query-cursor/encode {:ts ts :id id}))))]
+                            id (:id last-row)
+                            sort-col (keyword sort-field)
+                            sort-value (get last-row sort-col)
+                            ;; Coerce timestamp to long (stored as double with sub-ms precision)
+                            sort-value (if (= "timestamp" sort-field)
+                                         (long sort-value)
+                                         sort-value)]
+                        (when (and sort-value id)
+                          (query-cursor/encode {:f sort-field :v sort-value :id id}))))]
     {:rows (vec rows)
      :total_count (count rows)
      :has_more has-more?
@@ -337,13 +374,36 @@
   ;;            :next_cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="}
   ;;     :metadata {:query_time_ms N :has_more true}}
 
-  ;; Paginated query using cursor
+  ;; Paginated query using cursor (default timestamp desc sort)
+  ;; Cursor format: {f: "timestamp", v: 1702000000000, id: 12345}
   (execute ds
            {:time_range {:start 1702000000000 :end 1702003600000}
             :limit 100
-            :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
+            :cursor "eyJmIjoidGltZXN0YW1wIiwidiI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
             :visualization {:type "table"}})
   ;; => {:data {:rows [...] :total_count 100 :has_more false :next_cursor nil}
+  ;;     :metadata {:query_time_ms N :has_more false}}
+
+  ;; Paginated query with custom sort
+  ;; Cursor format: {f: "service", v: "api-gateway", id: 12345}
+  (execute ds
+           {:time_range {:start 1702000000000 :end 1702003600000}
+            :limit 100
+            :cursor "eyJmIjoic2VydmljZSIsInYiOiJhcGktZ2F0ZXdheSIsImlkIjoxMjM0NX0="
+            :visualization {:type "table" :sort {:field "service" :order "asc"}}})
+  ;; => {:data {:rows [...] :total_count 100 :has_more true
+  ;;            :next_cursor "eyJmIjoic2VydmljZSIsInYiOiJ3ZWIiLCJpZCI6Njc4OTB9"}
+  ;;     :metadata {:query_time_ms N :has_more true}}
+
+  ;; Table query with aggregation sorted by count
+  (execute ds
+           {:time_range {:start 1702000000000 :end 1702003600000}
+            :aggregations [{:field "*" :function "count"}]
+            :group_by ["service"]
+            :visualization {:type "table" :sort {:field "count(*)" :order "desc"}}})
+  ;; => {:data {:rows [{:service "api" :count(*) 500}
+  ;;                   {:service "web" :count(*) 300} ...]
+  ;;            :total_count N :has_more false :next_cursor nil}
   ;;     :metadata {:query_time_ms N :has_more false}}
 
   ;; Time series query - count events per minute

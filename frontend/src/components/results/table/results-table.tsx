@@ -10,7 +10,10 @@ import { useDisplayedFields } from "@/hooks/use-displayed-fields"
 
 import { buildColumns, isErrorRow, type RowData } from "./columns"
 import { DisplayedFieldsSelector } from "./displayed-fields-selector"
+import { HeaderCell } from "./header-cell"
 import { RowDetailDrawer } from "./row-detail-drawer"
+
+export type SortConfig = { field: string; order: "asc" | "desc" }
 
 function getRowKey(row: RowData): string {
   const ts = row.timestamp
@@ -26,12 +29,18 @@ export function ResultsTable({
   canGoPrev = false,
   onPrevPage,
   onNextPage,
+  sortable = false,
+  sort,
+  onSortChange,
 }: {
   data: QueryResponse
   live?: boolean
   canGoPrev?: boolean
   onPrevPage?: () => void
   onNextPage?: (cursor: string) => void
+  sortable?: boolean
+  sort?: SortConfig
+  onSortChange?: (sort: SortConfig) => void
 }) {
   const { rows, total_count, has_more, next_cursor } = data.data as TableQueryResult
 
@@ -115,27 +124,27 @@ export function ResultsTable({
           <thead className="bg-muted/50 sticky top-0">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b">
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="text-foreground px-2 py-2 text-left align-middle font-medium break-words relative group"
-                    style={{ width: header.getSize() }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                    {header.column.getCanResize() && (
-                      <div
-                        onMouseDown={header.getResizeHandler()}
-                        onTouchStart={header.getResizeHandler()}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none bg-transparent group-hover:bg-border hover:bg-primary"
-                      />
-                    )}
-                  </th>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  const fieldName = header.column.id
+                  const isSortable = sortable && fieldName !== "_actions"
+                  const currentOrder = sort?.field === fieldName ? sort.order : null
+
+                  const handleSort = () => {
+                    if (!onSortChange) return
+                    const nextOrder = currentOrder === "desc" ? "asc" : "desc"
+                    onSortChange({ field: fieldName, order: nextOrder })
+                  }
+
+                  return (
+                    <HeaderCell
+                      key={header.id}
+                      header={header}
+                      sortable={isSortable}
+                      currentOrder={currentOrder}
+                      onSort={handleSort}
+                    />
+                  )
+                })}
               </tr>
             ))}
           </thead>

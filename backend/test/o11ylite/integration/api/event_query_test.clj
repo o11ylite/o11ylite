@@ -191,6 +191,44 @@
       (is (false? (get-in page3 [:data :has_more])) "Page 3 should not have more")
       (is (nil? (get-in page3 [:data :next_cursor])) "Page 3 should not have cursor"))))
 
+(deftest events-query-pagination-with-custom-sort-test
+  (testing "POST /api/query/events supports cursor pagination with custom sort"
+    (let [now-ms (current-epoch-ms)
+          ;; Ingest events with distinct service names for predictable sort order
+          _ (h/ingest-sample-events! 1 {:service "sort-test-aaa"})
+          _ (h/ingest-sample-events! 1 {:service "sort-test-bbb"})
+          _ (h/ingest-sample-events! 1 {:service "sort-test-ccc"})
+
+          query-with-sort (fn [cursor]
+                            (let [response (h/post-json "/api/query/events"
+                                                        (cond-> {:time_range {:start (- now-ms 3600000)
+                                                                              :end (+ now-ms 60000)}
+                                                                 :filter {:field "service" :op "contains" :value "sort-test-"}
+                                                                 :limit 1
+                                                                 :visualization {:type "table"
+                                                                                 :sort {:field "service" :order "asc"}}}
+                                                          cursor (assoc :cursor cursor)))]
+                              {:status (h/status response)
+                               :data (get-in response [:body :data])}))
+
+          ;; First page - should get "aaa" (alphabetically first)
+          page1 (query-with-sort nil)
+          _ (is (= 200 (:status page1)))
+          _ (is (= "sort-test-aaa" (get-in page1 [:data :rows 0 :service])))
+          _ (is (true? (get-in page1 [:data :has_more])))
+
+          ;; Second page - should get "bbb"
+          page2 (query-with-sort (get-in page1 [:data :next_cursor]))
+          _ (is (= 200 (:status page2)))
+          _ (is (= "sort-test-bbb" (get-in page2 [:data :rows 0 :service])))
+          _ (is (true? (get-in page2 [:data :has_more])))
+
+          ;; Third page - should get "ccc"
+          page3 (query-with-sort (get-in page2 [:data :next_cursor]))]
+      (is (= 200 (:status page3)))
+      (is (= "sort-test-ccc" (get-in page3 [:data :rows 0 :service])))
+      (is (false? (get-in page3 [:data :has_more]))))))
+
 ;; ---------------------------------------------------------
 ;; Field Names with Dots
 
