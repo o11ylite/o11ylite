@@ -10,6 +10,7 @@ import {
   ResultsPlaceholder,
   ResultsLoading,
   ResultsError,
+  type SortConfig,
 } from "@/components/results"
 import { FieldsPanel } from "@/components/fields-panel"
 import { useQueryState } from "@/hooks/use-query-state"
@@ -27,6 +28,7 @@ import type {
   QueryResponse,
   SimpleFilter,
   FilterExpr,
+  TableVisualization,
 } from "@/types"
 
 // ============================================================================
@@ -92,25 +94,31 @@ export default function Explore() {
     state.visualization.type === "table" && state.aggregations.length === 0
   const eventsQueryBase = isEventsMode && hasQuery
     ? {
-        filter: buildFilterExpr(state.filters),
-        aggregations:
-          state.aggregations.length > 0 ? state.aggregations : undefined,
-        group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
-        limit: state.limit,
-        visualization: state.visualization,
-      }
+      filter: buildFilterExpr(state.filters),
+      aggregations:
+        state.aggregations.length > 0 ? state.aggregations : undefined,
+      group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
+      limit: state.limit,
+      visualization: state.visualization,
+    }
     : null
 
-  // Pagination state (in-memory only, resets on query change or refresh)
+  // Sorting is enabled for all table queries (including aggregated)
+  const sortingEnabled = state.visualization.type === "table"
+  const currentSort = sortingEnabled
+    ? (state.visualization as TableVisualization).sort
+    : undefined
+
+  // Pagination state (in-memory only, resets on query change, sort change, or refresh)
   // Page index is derived from stack length: [null] = page 0, [null, c1] = page 1
-  // queryKey is stored to detect when query changes and reset pagination
-  const queryResetKey = JSON.stringify({ eventsQueryBase, from, to })
+  // queryKey is stored to detect when query or sort changes and reset pagination
+  const queryResetKey = JSON.stringify({ eventsQueryBase, from, to, sort: currentSort })
   const [pagination, setPagination] = useState({
     queryKey: queryResetKey,
     cursorStack: [null] as (string | null)[],
   })
 
-  // Reset pagination when query changes (derived state during render)
+  // Reset pagination when query or sort changes (derived state during render)
   if (pagination.queryKey !== queryResetKey) {
     setPagination({ queryKey: queryResetKey, cursorStack: [null] })
   }
@@ -133,10 +141,10 @@ export default function Explore() {
   )
   const metricsPayload = isMetricsMode && validMetrics.length > 0
     ? {
-        filter: buildFilterExpr(state.filters),
-        group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
-        metrics: validMetrics,
-      }
+      filter: buildFilterExpr(state.filters),
+      group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
+      metrics: validMetrics,
+    }
     : null
 
   // For query key: in live mode, use stable relative strings (from, to)
@@ -148,9 +156,9 @@ export default function Explore() {
   const queryKeyTimeRange = live
     ? { from, to }
     : {
-        start: Math.floor(resolved.from.getTime() / 1000) * 1000,
-        end: Math.floor(resolved.to.getTime() / 1000) * 1000,
-      }
+      start: Math.floor(resolved.from.getTime() / 1000) * 1000,
+      end: Math.floor(resolved.to.getTime() / 1000) * 1000,
+    }
 
   // TanStack Query for events
   // In live mode, refetchInterval triggers periodic re-fetches with fresh timestamps
@@ -212,9 +220,27 @@ export default function Explore() {
     setPagination(p => ({ ...p, cursorStack: [...p.cursorStack, nextCursor] }))
   }
 
+  // Sort handler - updates visualization config which resets pagination via queryResetKey
+  const handleSortChange = (newSort: SortConfig) => {
+    setState({
+      ...state,
+      visualization: { ...state.visualization, sort: newSort } as TableVisualization,
+    })
+  }
+
   // Called when user clicks "Run" - updates URL which triggers refetch
+  // Clear sort when aggregations change (fields change between raw and aggregated)
   const handleSubmit = (newState: typeof state) => {
-    setState(newState)
+    const aggregationsChanged =
+      JSON.stringify(state.aggregations) !== JSON.stringify(newState.aggregations)
+
+    if (aggregationsChanged && newState.visualization.type === "table") {
+      const { sort, ...vizWithoutSort } = newState.visualization
+      void sort // Explicitly discard
+      setState({ ...newState, visualization: vizWithoutSort })
+    } else {
+      setState(newState)
+    }
   }
 
   const handleFieldClick = () => {
@@ -250,6 +276,9 @@ export default function Explore() {
             canGoPrev={paginationEnabled && cursorStack.length > 1}
             onPrevPage={paginationEnabled ? handlePrevPage : undefined}
             onNextPage={paginationEnabled ? handleNextPage : undefined}
+            sortable={sortingEnabled}
+            sort={currentSort}
+            onSortChange={sortingEnabled ? handleSortChange : undefined}
           />
         )
     }
