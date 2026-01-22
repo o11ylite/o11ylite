@@ -7,7 +7,8 @@
 
 (ns o11ylite.store.batcher
   (:require
-   [clojure.core.async :as a]))
+   [clojure.core.async :as a]
+   [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -27,6 +28,7 @@
    (e.g., events.ingest/ingest-events!, metrics.ingest/ingest-metrics!)
    after they've done validation and field extraction."
   [batcher payload]
+  (span/add-event! ::->bacher)
   (let [done (promise)]
     (a/>!! (:ingest-ch batcher) (assoc payload :done done))
     @done))
