@@ -37,7 +37,8 @@
    [o11ylite.store.batcher :as batcher]
    [o11ylite.store.events.cleanse :as cleanse]
    [o11ylite.store.events.enrich :as enrich]
-   [o11ylite.store.schema :as schema])
+   [o11ylite.store.schema :as schema]
+   [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
    [java.time Instant LocalDateTime ZoneOffset]))
 
@@ -50,7 +51,7 @@
 
    When the same field appears with different types across events,
    the last occurrence wins (merge behavior).
-   
+
    Note: Keys are normalized to keywords to prevent duplicate column errors
    (e.g., both :timestamp and \"timestamp\" would map to the same SQL column)."
   [events]
@@ -83,7 +84,7 @@
    - Keywords are converted to strings
    - Instants are converted to LocalDateTime at UTC (see note below)
    - Other values pass through unchanged
-   
+
    Note on Instant conversion: Works around a timezone bug in DuckDB JDBC.
    See: https://github.com/duckdb/duckdb-java/issues/508"
   [v]
@@ -102,7 +103,7 @@
 (defn- -events->rows
   "Convert events to row vectors for insert-multi!.
    Returns a vector of value vectors ordered by columns.
-   
+
    Performance: `(into [] (map ...))` with transducer is efficient.
    If profiling shows this as a bottleneck, consider loop-recur with transient.
    However, DuckDB INSERT is likely the real bottleneck, not this transformation."
@@ -164,24 +165,23 @@
      Exception on failure (batcher will catch and notify callers).
      OTLP clients are expected to retry on transient failures."
   [duckdb event-metadata events fields]
-  (let [new-fields (-compute-schema-diff event-metadata fields)]
-    ;; Step 1: Schema evolution (if needed)
-    (when new-fields
-      ;; Log field names only (not the nested {:type ...} maps) to avoid
-      ;; recursive schema evolution when dogfooding mulog -> otel -> o11ylite
-      (mulog/log ::schema-evolution :new-field-names (vec (keys new-fields)))
-      (schema/add-event-fields! duckdb new-fields)
-      (event-metadata/refresh! event-metadata))
+  (span/with-span! [::persist-batch {:event-count (count events)}]
+    (let [new-fields (-compute-schema-diff event-metadata fields)]
+      (span/add-span-data! {:attributes {:new-field-count (count new-fields)}})
 
-    ;; Step 2: Bulk INSERT using [columns rows] form for efficiency
-    ;; (avoids next.jdbc decomposing hash maps)
-    (let [columns (vec (keys fields))
-          rows (-events->rows events columns)]
-      (sql/insert-multi! duckdb :o11ylite.events columns rows
-                         {:column-fn next.jdbc.quoted/ansi})
-      (mulog/log ::persist-batch :event-count (count events)))
+      ;; Step 1: Schema evolution (if needed)
+      (when new-fields
+        (schema/add-event-fields! duckdb new-fields)
+        (event-metadata/refresh! event-metadata))
 
-    true))
+      ;; Step 2: Bulk INSERT using [columns rows] form for efficiency
+      ;; (avoids next.jdbc decomposing hash maps)
+      (let [columns (vec (keys fields))
+            rows (-events->rows events columns)]
+        (sql/insert-multi! duckdb :o11ylite.events columns rows
+                           {:column-fn next.jdbc.quoted/ansi}))
+
+      true)))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

@@ -43,7 +43,8 @@
    [o11ylite.store.metrics.dedupe :as dedupe]
    [o11ylite.store.metrics.metadata :as metadata]
    [o11ylite.store.metrics.temporality :as temporality]
-   [o11ylite.store.schema :as schema])
+   [o11ylite.store.schema :as schema]
+   [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
    [java.time Instant LocalDateTime ZoneOffset]))
 
@@ -234,36 +235,33 @@
    Throws:
      Exception on failure (batcher will catch and notify callers)."
   [duckdb sqlite norm data-points fields metrics-metadata cumulative-to-commit]
-  ;; Step 1: Schema evolution - add new attr.* columns if needed
-  (let [existing-columns (schema/fetch-metrics-field-names duckdb)
-        batch-attr-fields (-attr-fields fields)
-        new-attr-fields (set/difference batch-attr-fields existing-columns)]
-    (when (seq new-attr-fields)
-      (mulog/log ::schema-evolution :new-fields (vec new-attr-fields))
-      (schema/add-metrics-fields! duckdb new-attr-fields)))
+  (span/with-span! [::persist-batch {:data-point-count (count data-points)
+                                     :field-count (count fields)
+                                     :metadata-count (count metrics-metadata)}]
+    ;; Step 1: Schema evolution - add new attr.* columns if needed
+    (let [existing-columns (schema/fetch-metrics-field-names duckdb)
+          batch-attr-fields (-attr-fields fields)
+          new-attr-fields (set/difference batch-attr-fields existing-columns)]
+      (when (seq new-attr-fields)
+        (schema/add-metrics-fields! duckdb new-attr-fields)))
 
-  ;; Step 2: UPSERT metadata to SQLite
-  (when (seq metrics-metadata)
-    (metadata/upsert-metrics! sqlite metrics-metadata))
+    ;; Step 2: UPSERT metadata to SQLite
+    (when (seq metrics-metadata)
+      (metadata/upsert-metrics! sqlite metrics-metadata))
 
-  ;; Step 3: Bulk INSERT data points
-  (when (seq data-points)
-    (let [columns (vec fields)
-          rows (-data-points->rows data-points columns)]
-      (sql/insert-multi! duckdb :o11ylite.metrics columns rows
-                         {:column-fn next.jdbc.quoted/ansi})))
+    ;; Step 3: Bulk INSERT data points
+    (when (seq data-points)
+      (let [columns (vec fields)
+            rows (-data-points->rows data-points columns)]
+        (sql/insert-multi! duckdb :o11ylite.metrics columns rows
+                           {:column-fn next.jdbc.quoted/ansi})))
 
-  ;; Step 4: Update normalizer state AFTER successful persistence
-  ;; Commit all cumulative data points (original values) for next delta calculation
-  (when (seq cumulative-to-commit)
-    (normalizer/commit-batch! norm cumulative-to-commit))
+    ;; Step 4: Update normalizer state AFTER successful persistence
+    ;; Commit all cumulative data points (original values) for next delta calculation
+    (when (seq cumulative-to-commit)
+      (normalizer/commit-batch! norm cumulative-to-commit))
 
-  (mulog/log ::persist-batch
-             :data-point-count (count data-points)
-             :field-count (count fields)
-             :metadata-count (count metrics-metadata)
-             :cumulative-committed-count (count cumulative-to-commit))
-  true)
+    true))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
