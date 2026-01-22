@@ -68,7 +68,7 @@ export default function ApplicationLayout({
             {rightPanelTrigger}
           </div>
         </header>
-        <div className="flex flex-1 items-start overflow-auto">
+        <div className="flex flex-1 items-start">
           <main className="flex min-h-[600px] min-w-0 flex-1 flex-col gap-4 p-4 [&>*]:flex-1">
             {children}
           </main>
@@ -76,7 +76,7 @@ export default function ApplicationLayout({
             <CollapsiblePanel
               open={rightPanelOpen}
               width="20rem"
-              className="border-l bg-background"
+              className="sticky top-0 max-h-[calc(100vh)] overflow-y-auto border-l bg-background"
             >
               {rightPanel}
             </CollapsiblePanel>
