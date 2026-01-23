@@ -10,6 +10,7 @@ import type { TraceSpan } from "@/types"
 interface SpanNode extends TraceSpan {
   depth: number
   children: SpanNode[]
+  spanEvents: TraceSpan[] // Span events belonging to this span (rendered as markers)
 }
 
 // ============================================================================
@@ -17,13 +18,30 @@ interface SpanNode extends TraceSpan {
 // ============================================================================
 
 function buildSpanTree(spans: TraceSpan[]): SpanNode[] {
-  // Create a map of span_id to SpanNode
+  // Separate spans from span_events
+  const actualSpans = spans.filter((s) => s["meta.signal_type"] === "span")
+  const spanEvents = spans.filter((s) => s["meta.signal_type"] === "span_event")
+
+  // Create a map of span_id to SpanNode (for actual spans only)
   const nodeMap = new Map<string, SpanNode>()
-  for (const span of spans) {
-    nodeMap.set(span.span_id, { ...span, depth: 0, children: [] })
+  for (const span of actualSpans) {
+    nodeMap.set(span.span_id, { ...span, depth: 0, children: [], spanEvents: [] })
   }
 
-  // Build tree structure
+  // Attach span_events to their parent span (for rendering as markers on the same row)
+  for (const event of spanEvents) {
+    const parentSpan = nodeMap.get(event.span_id)
+    if (parentSpan) {
+      parentSpan.spanEvents.push(event)
+    }
+  }
+
+  // Sort span events by timestamp within each span
+  for (const node of nodeMap.values()) {
+    node.spanEvents.sort((a, b) => a.timestamp - b.timestamp)
+  }
+
+  // Build tree structure for spans
   const roots: SpanNode[] = []
   for (const node of nodeMap.values()) {
     if (node.parent_span_id && nodeMap.has(node.parent_span_id)) {
@@ -37,7 +55,6 @@ function buildSpanTree(spans: TraceSpan[]): SpanNode[] {
   // Calculate depths via DFS
   function setDepths(node: SpanNode, depth: number) {
     node.depth = depth
-    // Sort children by timestamp
     node.children.sort((a, b) => a.timestamp - b.timestamp)
     for (const child of node.children) {
       setDepths(child, depth + 1)
@@ -107,6 +124,28 @@ function getServiceColor(service: string, serviceMap: Map<string, number>): stri
 // Components
 // ============================================================================
 
+function SpanEventMarker({
+  event,
+  traceStart,
+  traceDuration,
+}: {
+  event: TraceSpan
+  traceStart: number
+  traceDuration: number
+}) {
+  const leftPercent = ((event.timestamp - traceStart) / traceDuration) * 100
+
+  return (
+    <div
+      className="group/marker absolute flex h-3 w-3 -translate-x-1/2 cursor-default items-center justify-center"
+      style={{ left: `${leftPercent}%` }}
+      title={event.name}
+    >
+      <div className="h-2 w-2 rotate-45 bg-amber-500 transition-transform group-hover/marker:scale-125" />
+    </div>
+  )
+}
+
 function SpanRow({
   span,
   traceStart,
@@ -122,9 +161,8 @@ function SpanRow({
   isSelected: boolean
   onClick: () => void
 }) {
-  // Calculate bar position and width as percentages
-  const durationMs = span["span.duration_ms"]
   const leftPercent = ((span.timestamp - traceStart) / traceDuration) * 100
+  const durationMs = span["span.duration_ms"] ?? 0
   const widthPercent = (durationMs / traceDuration) * 100
   // Ensure minimum width for visibility
   const displayWidth = Math.max(widthPercent, 0.5)
@@ -138,6 +176,8 @@ function SpanRow({
   const barEndPercent = leftPercent + displayWidth
   const labelInside = barEndPercent > 85
 
+  const hasEvents = span.spanEvents.length > 0
+
   return (
     <div
       className={cn(
@@ -149,10 +189,15 @@ function SpanRow({
       {/* Left column: span info */}
       <div className="flex w-[300px] shrink-0 flex-col justify-center border-r border-border px-2 py-1">
         <div
-          className="truncate text-sm font-medium"
+          className="flex items-center gap-1.5 truncate text-sm font-medium"
           style={{ paddingLeft: `${span.depth * 16}px` }}
         >
-          {span.name}
+          <span className="truncate">{span.name}</span>
+          {hasEvents && (
+            <span className="shrink-0 text-xs text-amber-500" title={`${span.spanEvents.length} event(s)`}>
+              ({span.spanEvents.length})
+            </span>
+          )}
         </div>
         <div
           className="truncate text-xs text-muted-foreground"
@@ -162,7 +207,7 @@ function SpanRow({
         </div>
       </div>
 
-      {/* Right column: timeline bar */}
+      {/* Right column: timeline bar + event markers */}
       <div className="relative flex flex-1 items-center overflow-hidden px-2">
         <div
           className={cn("absolute h-6 rounded-sm", barColor)}
@@ -186,6 +231,15 @@ function SpanRow({
         >
           {formatDuration(durationMs)}
         </span>
+        {/* Span event markers */}
+        {span.spanEvents.map((event, i) => (
+          <SpanEventMarker
+            key={`${event.timestamp}-${i}`}
+            event={event}
+            traceStart={traceStart}
+            traceDuration={traceDuration}
+          />
+        ))}
       </div>
     </div>
   )
@@ -233,23 +287,24 @@ function TimelineHeader({ traceDuration }: { traceDuration: number }) {
 
 export function TraceWaterfall({
   spans,
-  selectedId,
-  onSelect,
+  selectedSpanId,
+  onSpanSelect,
 }: {
   spans: TraceSpan[]
-  selectedId?: string | null
-  onSelect?: (id: string | null) => void
+  selectedSpanId?: string | null
+  onSpanSelect?: (spanId: string | null) => void
 }) {
   const { flatSpans, traceStart, traceDuration } = useMemo(() => {
     const tree = buildSpanTree(spans)
     const flat = flattenTree(tree)
 
-    // Calculate trace timeline bounds
+    // Calculate trace timeline bounds (only from actual spans, not span_events)
     let minTimestamp = Infinity
     let maxEnd = -Infinity
     for (const span of spans) {
       minTimestamp = Math.min(minTimestamp, span.timestamp)
-      maxEnd = Math.max(maxEnd, span.timestamp + span["span.duration_ms"])
+      const duration = span["span.duration_ms"] ?? 0
+      maxEnd = Math.max(maxEnd, span.timestamp + duration)
     }
 
     return {
@@ -276,16 +331,16 @@ export function TraceWaterfall({
       <div className="flex-1">
         {flatSpans.map((span) => (
           <SpanRow
-            key={span.id}
+            key={span.span_id}
             span={span}
             traceStart={traceStart}
             traceDuration={traceDuration}
             serviceColorMap={serviceColorMap}
-            isSelected={selectedId === span.id}
+            isSelected={selectedSpanId === span.span_id}
             onClick={() => {
               // Toggle selection: click again to deselect
-              const newSelection = selectedId === span.id ? null : span.id
-              onSelect?.(newSelection)
+              const newSelection = selectedSpanId === span.span_id ? null : span.span_id
+              onSpanSelect?.(newSelection)
             }}
           />
         ))}
