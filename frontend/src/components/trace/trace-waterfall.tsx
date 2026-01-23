@@ -233,12 +233,12 @@ function TimelineHeader({ traceDuration }: { traceDuration: number }) {
 
 export function TraceWaterfall({
   spans,
-  selectedSpanId,
-  onSpanSelect,
+  selectedId,
+  onSelect,
 }: {
   spans: TraceSpan[]
-  selectedSpanId?: string | null
-  onSpanSelect?: (spanId: string | null) => void
+  selectedId?: string | null
+  onSelect?: (id: string | null) => void
 }) {
   const { flatSpans, traceStart, traceDuration } = useMemo(() => {
     const tree = buildSpanTree(spans)
@@ -276,16 +276,16 @@ export function TraceWaterfall({
       <div className="flex-1">
         {flatSpans.map((span) => (
           <SpanRow
-            key={span.span_id}
+            key={span.id}
             span={span}
             traceStart={traceStart}
             traceDuration={traceDuration}
             serviceColorMap={serviceColorMap}
-            isSelected={selectedSpanId === span.span_id}
+            isSelected={selectedId === span.id}
             onClick={() => {
               // Toggle selection: click again to deselect
-              const newSelection = selectedSpanId === span.span_id ? null : span.span_id
-              onSpanSelect?.(newSelection)
+              const newSelection = selectedId === span.id ? null : span.id
+              onSelect?.(newSelection)
             }}
           />
         ))}
