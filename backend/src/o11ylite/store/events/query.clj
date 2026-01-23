@@ -248,7 +248,7 @@
    Timestamp conversion to epoch-ms is handled by jdbc-types/as-unqualified-maps."
   [{:keys [time_range filter]}]
   (let [trace-id (:value filter)]
-    {:select [[[:raw "CAST(id AS VARCHAR)"] :id]
+    {:select [:id
               :span_id
               :parent_span_id
               :name

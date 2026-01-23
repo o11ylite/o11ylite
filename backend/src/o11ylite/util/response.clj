@@ -6,18 +6,20 @@
 
 (ns o11ylite.util.response
   (:require
-   [jsonista.core :as j]
+   [o11ylite.util.json :as json]
    [ring.util.response :as rr]))
 
 ;; ---------------------------------------------------------
 ;; JSON Responses
 
 (defn json
-  "Create a JSON response with the given status and body."
+  "Create a JSON response with the given status and body.
+   Large integers (like Snowflake IDs) are automatically serialized as strings
+   to preserve precision in JavaScript."
   [status body]
   {:status status
    :headers {"Content-Type" "application/json"}
-   :body (j/write-value-as-string body)})
+   :body (json/write-str body)})
 
 (defn not-found
   "Create a 404 not found response."
