@@ -364,6 +364,20 @@
                                 :timestamp (t/>> base-time (t/of-millis 10))
                                 :meta.signal_type :span})
 
+      ;; Ingest a span_event (SHOULD be returned in trace query)
+      ;; Span events don't have parent_span_id, span.status_code, or span.duration_ms
+      (h/ingest-sample-events! 1
+                               {:trace_id trace-id
+                                :span_id child-span-id
+                                :parent_span_id nil
+                                :name "db.query"
+                                :service "user-service"
+                                :timestamp (t/>> base-time (t/of-millis 12))
+                                :meta.signal_type :span_event
+                                :span.status_code nil
+                                :span.duration_ms nil
+                                :span.kind nil})
+
       ;; Ingest a log event (should NOT be returned in trace query)
       (h/ingest-sample-events! 1
                                {:trace_id trace-id
@@ -382,31 +396,42 @@
                                             :value trace-id}
                                    :visualization {:type "trace"}})
             data (get-in response [:body :data])
-            spans (:spans data)]
+            spans (:spans data)
+            actual-spans (filter #(= "span" (:meta.signal_type %)) spans)
+            span-events (filter #(= "span_event" (:meta.signal_type %)) spans)]
         (is (= 200 (h/status response)))
-        (is (= 2 (:total_count data)) "Should return 2 spans, not the log")
-        (is (= 2 (count spans)))
+        (is (= 3 (:total_count data)) "Should return 2 spans + 1 span_event, not the log")
+        (is (= 3 (count spans)))
+        (is (= 2 (count actual-spans)))
+        (is (= 1 (count span-events)))
 
-        ;; Verify response shape and ordering
+        ;; Verify response shape and ordering for spans
         (is (= {:span_id root-span-id
                 :parent_span_id nil
                 :name "HTTP GET /api/users"
                 :service "api-gateway"
+                :meta.signal_type "span"
                 :span.status_code "OK"
                 :span.duration_ms 100.5}
-               (dissoc (first spans) :id :timestamp)))
+               (dissoc (first actual-spans) :timestamp)))
         (is (= {:span_id child-span-id
                 :parent_span_id root-span-id
                 :name "DB query"
                 :service "user-service"
+                :meta.signal_type "span"
                 :span.status_code "OK"
                 :span.duration_ms 45.2}
-               (dissoc (second spans) :id :timestamp)))
+               (dissoc (second actual-spans) :timestamp)))
 
-        ;; Verify id field is present and serialized as string (Snowflake IDs exceed JS safe integer)
-        (is (string? (:id (first spans))) "id should be serialized as string")
-        (is (string? (:id (second spans))) "id should be serialized as string")
-        (is (not= (:id (first spans)) (:id (second spans))) "each span should have unique id")
+        ;; Verify span_event shape (span_events don't have parent_span_id)
+        (is (= {:span_id child-span-id
+                :parent_span_id nil
+                :name "db.query"
+                :service "user-service"
+                :meta.signal_type "span_event"
+                :span.status_code nil
+                :span.duration_ms nil}
+               (dissoc (first span-events) :timestamp)))
 
-        (is (number? (:timestamp (first spans))))
-        (is (< (:timestamp (first spans)) (:timestamp (second spans))))))))
+        (is (number? (:timestamp (first actual-spans))))
+        (is (< (:timestamp (first actual-spans)) (:timestamp (second actual-spans))))))))

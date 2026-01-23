@@ -1,6 +1,13 @@
+import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 
 import { ResultsLoading, ResultsError } from "@/components/results"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import type { TraceSpan } from "@/types"
 
 // ============================================================================
 // Types
@@ -21,18 +28,18 @@ const COLLAPSE_THRESHOLD = 80
 // API
 // ============================================================================
 
-async function fetchSpanDetails(
-  id: string,
+async function fetchSpanWithEvents(
+  spanId: string,
   timeRange: { start: number; end: number }
-): Promise<Record<string, unknown> | null> {
+): Promise<{ span: Record<string, unknown> | null; events: Record<string, unknown>[] }> {
   const response = await fetch("/api/query/events", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       time_range: timeRange,
-      filter: { field: "id", op: "=", value: id },
+      filter: { field: "span_id", op: "=", value: spanId },
       visualization: { type: "table" },
-      limit: 1,
+      limit: 100,
     }),
   })
 
@@ -42,7 +49,13 @@ async function fetchSpanDetails(
   }
 
   const result = (await response.json()) as { data: SpanDetailsResult }
-  return result.data.rows[0] ?? null
+  const rows = result.data.rows
+
+  // Separate span from span_events
+  const span = rows.find((r) => r["meta.signal_type"] === "span") ?? null
+  const events = rows.filter((r) => r["meta.signal_type"] === "span_event")
+
+  return { span, events }
 }
 
 // ============================================================================
@@ -63,6 +76,13 @@ function sortFields(fields: string[]): string[] {
     if (aIsAttr !== bIsAttr) return aIsAttr ? 1 : -1
     return a.localeCompare(b)
   })
+}
+
+function formatRelativeTime(eventTimestamp: number, spanStart: number): string {
+  const delta = eventTimestamp - spanStart
+  if (delta < 1) return `+${(delta * 1000).toFixed(0)}μs`
+  if (delta < 1000) return `+${delta.toFixed(1)}ms`
+  return `+${(delta / 1000).toFixed(2)}s`
 }
 
 // ============================================================================
@@ -97,25 +117,75 @@ function FieldEntry({ field, value }: { field: string; value: unknown }) {
   )
 }
 
+function SpanEventItem({
+  event,
+  spanStart,
+}: {
+  event: Record<string, unknown>
+  spanStart: number
+}) {
+  const name = event.name as string
+  const timestamp = event.timestamp as number
+
+  // Get all fields except common ones for the expanded view
+  const excludeFields = new Set(["name", "timestamp", "meta.signal_type", "span_id", "trace_id", "service"])
+  const fields = sortFields(
+    Object.keys(event).filter((key) => event[key] != null && !excludeFields.has(key))
+  )
+
+  return (
+    <Collapsible>
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/50">
+        <span className="text-amber-500">*</span>
+        <span className="flex-1 truncate text-sm" title={name}>{name}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {formatRelativeTime(timestamp, spanStart)}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="ml-4 space-y-1.5 border-l border-border py-2 pl-3">
+          {fields.map((field) => (
+            <FieldEntry key={field} field={field} value={event[field]} />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 // ============================================================================
 // Component
 // ============================================================================
 
 export function SpanDetailsPanel({
-  id,
-  timestamp,
+  spanId,
+  spans,
 }: {
-  id: string
-  timestamp: number
+  spanId: string
+  spans: TraceSpan[]
 }) {
-  // Use a tight time range around the span's timestamp
-  const timeRange = {
-    start: Math.floor(timestamp),
-    end: Math.floor(timestamp) + 10,
-  }
+  // Find the span in our existing data to get its timestamp for the query
+  const spanInfo = useMemo(
+    () => spans.find((s) => s.span_id === spanId && s["meta.signal_type"] === "span"),
+    [spans, spanId]
+  )
+
+  // Use a wide time range based on the span's timestamp
+  const timeRange = useMemo(() => {
+    // Default to a very wide range that will be filtered on the backend
+    if (!spanInfo) return { start: 0, end: Number.MAX_SAFE_INTEGER }
+    const ts = spanInfo.timestamp
+    // Use a window around the span timestamp
+    return {
+      start: Math.floor(ts) - 1000,
+      end: Math.floor(ts + (spanInfo["span.duration_ms"] ?? 0) + 1000),
+    }
+  }, [spanInfo])
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["span-details", id],
-    queryFn: () => fetchSpanDetails(id, timeRange),
+    queryKey: ["span-details", spanId],
+    queryFn: () => fetchSpanWithEvents(spanId, timeRange),
+    enabled: !!spanInfo,
   })
 
   if (isLoading) {
@@ -134,25 +204,49 @@ export function SpanDetailsPanel({
     )
   }
 
-  if (!data) {
+  if (!data?.span) {
     return (
       <div className="p-4 text-sm text-muted-foreground">Span not found</div>
     )
   }
 
+  const { span, events } = data
+
   // Filter out null/undefined values and sort fields
   const fields = sortFields(
-    Object.keys(data).filter((key) => data[key] != null)
+    Object.keys(span).filter((key) => span[key] != null)
   )
 
   return (
-    <div className="flex flex-col gap-2 p-4">
-      <h3 className="text-sm font-medium">Span Details</h3>
-      <div className="space-y-2">
-        {fields.map((field) => (
-          <FieldEntry key={field} field={field} value={data[field]} />
-        ))}
+    <div className="flex flex-col gap-4 p-4">
+      {/* Span Details Section */}
+      <div>
+        <h3 className="mb-2 text-sm font-medium">Span Details</h3>
+        <div className="space-y-2">
+          {fields.map((field) => (
+            <FieldEntry key={field} field={field} value={span[field]} />
+          ))}
+        </div>
       </div>
+
+      {/* Span Events Section */}
+      {events.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium">
+            Span Events ({events.length})
+          </h3>
+          <div className="rounded border border-border">
+            {events.map((event, idx) => (
+              <div
+                key={`${String(event.name)}-${String(event.timestamp)}-${idx}`}
+                className={idx > 0 ? "border-t border-border" : ""}
+              >
+                <SpanEventItem event={event} spanStart={span.timestamp as number} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

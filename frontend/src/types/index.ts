@@ -221,15 +221,15 @@ export interface TimeSeriesQueryResult {
   series: TimeSeriesSeries[]
 }
 
-// Trace data - a single span in a trace waterfall
+// Trace data - a single span or span_event in a trace waterfall
 export interface TraceSpan {
-  id: string // unique event id
   span_id: string
   parent_span_id: string | null
   name: string
   service: string
-  "span.status_code": string
-  "span.duration_ms": number
+  "meta.signal_type": "span" | "span_event"
+  "span.status_code": string | null  // null for span_events
+  "span.duration_ms": number | null  // null for span_events
   timestamp: number // epoch ms float
 }
 

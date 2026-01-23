@@ -247,19 +247,23 @@
    Fetches spans for a single trace, optimized for waterfall rendering.
    Timestamp conversion to epoch-ms is handled by jdbc-types/as-unqualified-maps."
   [{:keys [time_range filter]}]
-  (let [trace-id (:value filter)]
-    {:select [:id
-              :span_id
+  (let [trace-id (:value filter)
+        signal-type-col (-field->col "meta.signal_type")]
+    {:select [:span_id
               :parent_span_id
               :name
               :service
+              [signal-type-col :meta.signal_type]
               [(-field->col "span.status_code") :span.status_code]
               [(-field->col "span.duration_ms") :span.duration_ms]
               :timestamp]
      :from [:events]
      :where [:and
+             ; DuckLake has some weird bug, if I reorder these few lines it crashes or spitting out wrong result!
+             [:or
+              [:= signal-type-col "span"]
+              [:= signal-type-col "span_event"]]
              [:= :trace_id trace-id]
-             [:= (-field->col "meta.signal_type") "span"]
              [:>= :timestamp (-epoch-ms->timestamp (:start time_range))]
              [:< :timestamp (-epoch-ms->timestamp (:end time_range))]]
      :order-by [[:timestamp :asc]]

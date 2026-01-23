@@ -42,7 +42,7 @@ async function fetchTrace(
 export default function Trace() {
   const { traceId } = usePage<{ traceId: string }>().props
   const { from, to } = useTimeRange()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
 
   // Use stable strings for query key to prevent infinite refetch loops.
   // Relative time strings like "now-1h" stay stable; timestamps are resolved fresh in queryFn.
@@ -58,12 +58,12 @@ export default function Trace() {
   })
 
   // Find the selected span to get its timestamp
-  const selectedSpan = selectedId
-    ? data?.spans.find((s) => s.id === selectedId)
+  const selectedSpan = selectedSpanId
+    ? data?.spans.find((s) => s.span_id === selectedSpanId && s["meta.signal_type"] === "span")
     : null
 
   const rightPanel = selectedSpan ? (
-    <SpanDetailsPanel id={selectedSpan.id} timestamp={selectedSpan.timestamp} />
+    <SpanDetailsPanel spanId={selectedSpan.span_id} spans={data?.spans ?? []} />
   ) : undefined
 
   const renderContent = () => {
@@ -79,8 +79,8 @@ export default function Trace() {
     return (
       <TraceWaterfall
         spans={data.spans}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
+        selectedSpanId={selectedSpanId}
+        onSpanSelect={setSelectedSpanId}
       />
     )
   }
