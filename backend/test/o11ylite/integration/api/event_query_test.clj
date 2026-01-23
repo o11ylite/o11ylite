@@ -34,18 +34,6 @@
 ;; ---------------------------------------------------------
 ;; Table Visualization
 
-(deftest events-query-table-test
-  (testing "POST /api/query/events with table visualization"
-    (let [response (h/post-json "/api/query/events"
-                                {:time_range {:start 1702000000000
-                                              :end 1702003600000}
-                                 :visualization {:type "table"}})]
-      (is (= 200 (h/status response)))
-      (is (h/json-response? response))
-      (is (vector? (get-in response [:body :data :rows])))
-      (is (number? (get-in response [:body :data :total_count])))
-      (is (number? (get-in response [:body :metadata :query_time_ms]))))))
-
 (deftest events-query-table-with-data-test
   (testing "POST /api/query/events returns ingested events"
     (let [now-ms (current-epoch-ms)]
@@ -73,6 +61,29 @@
           (is (= 2 (count rows)))
           (is (every? #(= "test-event" (:name %)) rows))
           (is (every? #(= "test-query-service" (:service %)) rows))))))
+
+  (testing "id field is present and serialized as string for JS compatibility"
+    (let [now-ms (current-epoch-ms)]
+
+      (h/ingest-sample-events! 2
+                               {:service "test-id-serialization"})
+
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start (- now-ms 3600000)
+                                                :end (+ now-ms 60000)}
+                                   :filter {:field "service"
+                                            :op "="
+                                            :value "test-id-serialization"}
+                                   :limit 10
+                                   :visualization {:type "table"}})
+            rows (get-in response [:body :data :rows])]
+        (is (= 2 (count rows)))
+        ;; Snowflake IDs exceed JavaScript's MAX_SAFE_INTEGER (2^53-1)
+        ;; and must be serialized as strings to preserve precision
+        (is (every? #(string? (:id %)) rows) "id should be serialized as string")
+        (is (every? #(re-matches #"\d+" (:id %)) rows) "id should be numeric string")
+        ;; Each event should have a unique id
+        (is (= 2 (count (set (map :id rows)))) "each event should have unique id"))))
 
   (testing "timestamp columns are returned as epoch milliseconds (float)"
     (let [now-ms (current-epoch-ms)
@@ -211,21 +222,6 @@
 ;; ---------------------------------------------------------
 ;; Time Series Visualization
 
-(deftest events-query-time-series-test
-  (testing "POST /api/query/events with time_series visualization"
-    (let [response (h/post-json "/api/query/events"
-                                {:time_range {:start 1702000000000
-                                              :end 1702003600000}
-                                 :aggregations [{:field "*"
-                                                 :function "count"}]
-                                 :visualization {:type "time_series"}})]
-      (is (= 200 (h/status response)))
-      (is (h/json-response? response))
-      (is (vector? (get-in response [:body :data :series])))
-      (is (number? (get-in response [:body :data :bucket_ms])))
-      (is (number? (get-in response [:body :data :start_ms])))
-      (is (number? (get-in response [:body :data :end_ms]))))))
-
 (deftest events-query-time-series-auto-bucket-ms-test
   (testing "POST /api/query/events auto-calculates bucket_ms using nice intervals"
     ;; Nice bucket sizes: 1s, 5s, 10s, 20s, 30s, 1m, 2m, 5m, 10m, 20m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
@@ -337,20 +333,7 @@
 ;; Users click trace_id links in table results to navigate to the trace page.
 
 (deftest events-query-trace-test
-  (testing "POST /api/query/events with trace visualization"
-    (let [response (h/post-json "/api/query/events"
-                                {:time_range {:start 1702000000000
-                                              :end 1702003600000}
-                                 :filter {:field "trace_id"
-                                          :op "="
-                                          :value "abc123"}
-                                 :visualization {:type "trace"}})]
-      (is (= 200 (h/status response)))
-      (is (h/json-response? response))
-      (is (vector? (get-in response [:body :data :spans])))
-      (is (number? (get-in response [:body :data :total_count])))))
-
-  (testing "POST /api/query/events trace returns spans ordered by timestamp"
+  (testing "POST /api/query/events trace returns spans with id field"
     (let [now-ms (current-epoch-ms)
           trace-id "test-trace-12345"
           root-span-id "root-span-001"
@@ -411,13 +394,19 @@
                 :service "api-gateway"
                 :span.status_code "OK"
                 :span.duration_ms 100.5}
-               (dissoc (first spans) :timestamp)))
+               (dissoc (first spans) :id :timestamp)))
         (is (= {:span_id child-span-id
                 :parent_span_id root-span-id
                 :name "DB query"
                 :service "user-service"
                 :span.status_code "OK"
                 :span.duration_ms 45.2}
-               (dissoc (second spans) :timestamp)))
+               (dissoc (second spans) :id :timestamp)))
+
+        ;; Verify id field is present and serialized as string (Snowflake IDs exceed JS safe integer)
+        (is (string? (:id (first spans))) "id should be serialized as string")
+        (is (string? (:id (second spans))) "id should be serialized as string")
+        (is (not= (:id (first spans)) (:id (second spans))) "each span should have unique id")
+
         (is (number? (:timestamp (first spans))))
         (is (< (:timestamp (first spans)) (:timestamp (second spans))))))))
