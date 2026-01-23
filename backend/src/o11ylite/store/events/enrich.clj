@@ -66,12 +66,12 @@
    Adds :error boolean and :id (Snowflake-style) to each event."
   [id-generator events]
   (let [ids (id-gen/next-ids! id-generator (count events))]
-    (map (fn [event id]
-           (-> event
-               (assoc :error (-compute-error event))
-               (assoc :id id)))
-         events
-         ids)))
+    (mapv (fn [event id]
+            (-> event
+                (assoc :error (-compute-error event))
+                (assoc :id id)))
+          events
+          ids)))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

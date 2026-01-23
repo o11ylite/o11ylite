@@ -223,6 +223,7 @@ export interface TimeSeriesQueryResult {
 
 // Trace data - a single span in a trace waterfall
 export interface TraceSpan {
+  id: string // unique event id
   span_id: string
   parent_span_id: string | null
   name: string

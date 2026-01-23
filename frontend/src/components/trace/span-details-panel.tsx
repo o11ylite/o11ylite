@@ -22,7 +22,7 @@ const COLLAPSE_THRESHOLD = 80
 // ============================================================================
 
 async function fetchSpanDetails(
-  spanId: string,
+  id: string,
   timeRange: { start: number; end: number }
 ): Promise<Record<string, unknown> | null> {
   const response = await fetch("/api/query/events", {
@@ -30,7 +30,7 @@ async function fetchSpanDetails(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       time_range: timeRange,
-      filter: { field: "span_id", op: "=", value: spanId },
+      filter: { field: "id", op: "=", value: id },
       visualization: { type: "table" },
       limit: 1,
     }),
@@ -102,20 +102,20 @@ function FieldEntry({ field, value }: { field: string; value: unknown }) {
 // ============================================================================
 
 export function SpanDetailsPanel({
-  spanId,
-  spanTimestamp,
+  id,
+  timestamp,
 }: {
-  spanId: string
-  spanTimestamp: number
+  id: string
+  timestamp: number
 }) {
   // Use a tight time range around the span's timestamp
   const timeRange = {
-    start: Math.floor(spanTimestamp),
-    end: Math.floor(spanTimestamp) + 10,
+    start: Math.floor(timestamp),
+    end: Math.floor(timestamp) + 10,
   }
   const { data, isLoading, error } = useQuery({
-    queryKey: ["span-details", spanId],
-    queryFn: () => fetchSpanDetails(spanId, timeRange),
+    queryKey: ["span-details", id],
+    queryFn: () => fetchSpanDetails(id, timeRange),
   })
 
   if (isLoading) {
