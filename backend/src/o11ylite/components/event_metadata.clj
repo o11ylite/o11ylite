@@ -79,22 +79,9 @@
 (comment
 
   ;; Test event metadata manually
-  (require '[integrant.core :as ig])
+  (require '[integrant.repl.state :refer [system]])
 
-  ;; Start dependencies
-  (def duckdb-ds
-    (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-
-  (def sqlite-ds
-    (ig/init-key :db/sqlite {:data-path "./.tmp"}))
-
-  ;; Initialize storage (creates events table)
-  (def storage
-    (ig/init-key :storage/init {:sqlite sqlite-ds :duckdb duckdb-ds}))
-
-  ;; Start event metadata component
-  (def em
-    (ig/init-key :cache/event-metadata {:duckdb duckdb-ds}))
+  (def em (:cache/event-metadata system))
 
   ;; Get all fields (now with normalized types)
   (get-fields em)
@@ -110,11 +97,6 @@
 
   ;; Async refresh
   @(refresh! em)
-
-  ;; Cleanup
-  (ig/halt-key! :cache/event-metadata em)
-  (ig/halt-key! :storage/init storage)
-  (ig/halt-key! :db/sqlite sqlite-ds)
   (ig/halt-key! :db/duckdb duckdb-ds)
 
   #_()) ; End of rich comment block

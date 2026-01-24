@@ -166,10 +166,9 @@
 ;; Rich Comment
 (comment
 
-  (require '[integrant.core :as ig])
+  (require '[integrant.repl.state :refer [system]])
 
-  ;; Start DuckDB
-  (def ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
+  (def ds (:db/duckdb system))
 
   ;; Fetch fields with normalized types
   (fetch-event-fields ds)
@@ -177,8 +176,6 @@
   ;;     :timestamp {:type :instant}
    ;;     :span.duration_ms {:type :float}
   ;;     ...}
-
-  (ig/halt-key! :db/duckdb ds)
 
   ;; Type inference from Clojure values
   (infer-type "hello")           ;; => :string

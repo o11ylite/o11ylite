@@ -239,12 +239,9 @@
 ;; Rich Comment
 (comment
 
-  (require '[integrant.core :as ig])
-  (require '[o11ylite.store.init :as init])
+  (require '[integrant.repl.state :refer [system]])
 
-  ;; Start DuckDB
-  (def ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-  (init/init-store! ds)
+  (def ds (:db/duckdb system))
 
   ;; Example: Single metric query
   (def sample-query

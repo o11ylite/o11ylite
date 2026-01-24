@@ -62,12 +62,10 @@
 ;; Rich Comment
 (comment
 
-  (require '[integrant.core :as ig])
+  (require '[integrant.repl.state :refer [system]])
 
-  ;; Start databases
-  (def sqlite (ig/init-key :db/sqlite {:data-path "./.tmp"}))
-  (def duckdb (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-  (def storage (ig/init-key :storage/init {:sqlite sqlite :duckdb duckdb}))
+  (def sqlite (:db/sqlite system))
+  (def duckdb (:db/duckdb system))
 
   ;; Scan for services in last 5 minutes
   (def discovered (scan-services duckdb (* 5 60 1000)))
@@ -79,11 +77,6 @@
   ;; Get all known services
   (get-services sqlite)
   ;; => [{:name "api-gateway" :first_seen_at 1702000000000 :updated_at 1702000000000} ...]
-
-  ;; Cleanup
-  (ig/halt-key! :storage/init storage)
-  (ig/halt-key! :db/sqlite sqlite)
-  (ig/halt-key! :db/duckdb duckdb)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

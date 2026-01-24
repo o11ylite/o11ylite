@@ -325,8 +325,8 @@
   ;; => [:and [:= :service "api"] [:> :status 400]]
 
   ;; Full integration test
-  (def ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-  (init/init-store! ds)
+  (require '[integrant.repl.state :refer [system]])
+  (def ds (:db/duckdb system))
 
   ;; Table query (timestamps in Unix epoch milliseconds)
   (execute ds
