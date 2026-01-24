@@ -7,14 +7,25 @@ Read the following file as it's relevant to all workflows: @README.md.
 ## Build/Test Commands
 
 **Backend (Clojure):** Run from `backend/` directory
-- `make test` - Run all tests (fail-fast)
-- `make test-all` - Run all tests (no fail-fast)
-- Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test`
+
+- If you don't have a `clojure-eval` Agent Skill, you can use shell to do these:
+  - `make test` - Run all tests (fail-fast)
+  - Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test`
+- If you have a `clojure-eval` Agent Skill, use REPL-driven development:
+  - Read `backend/dev/user.clj` to understand the dev environment system.
+  - Use REPL to ad-hoc individual component.
+  - Use REPL to run tests.
 
 **Frontend (TypeScript):** Run from `frontend/` directory
 - `npm test` - Run tests powered by msw, React Testing Library.
 - `npm run build` - TypeScript compile + Vite build
 - `npm run lint` - ESLint check
+
+**End-to-end / Browser verification:**
+
+- If you have `playwright` related agent skill available you can:
+  - Find our dev site location by running: `dev/dev-site-url`.
+  - We have `opentelemetry-javaagent` enabled to continuously send data so no need to worry about seeding data.
 
 ## Code Style
 
@@ -41,4 +52,3 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Use Inertia `<Link href="...">` for internal navigation, not `<a href="...">`
 - Avoid unnecessary deep nesting in JSX, I believe the happy path is left-aligned.
 - `components/ui/` is reserved for shadcn components installed via `npx shadcn add`; place custom components in `components/`
-

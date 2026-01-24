@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+hostname="${O11YLITE_DEV_HOSTNAME:-o11ylite.localhost}"
+port="${DEV_HTTPS_PORT:-443}"
+
+if [[ "$port" == "443" ]]; then
+  url="https://${hostname}"
+else
+  url="https://${hostname}:${port}"
+fi
+
+echo "$url"
+
+if curl -sk --connect-timeout 1 "$url" > /dev/null 2>&1; then
+  echo "dev site running? -> true"
+else
+  echo "dev site running? -> false"
+fi

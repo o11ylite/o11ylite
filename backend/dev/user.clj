@@ -16,7 +16,6 @@
   (:require
    ;; REPL Workflow
    [mulog-events]                      ; Event Logging
-   [com.brunobonacci.mulog :as mulog]
    [clojure.tools.namespace.repl :as namespace]
    ;; integrant.repl provides convenient functions to start, stop, and reset
    ;; the system during development. It maintains the system state internally.
@@ -65,25 +64,13 @@
 ;; ---------------------------------------------------------
 
 ;; ---------------------------------------------------------
-;; Mulog event logging
-;; `mulog-events` namespace sets mulog global context for all events
-
-;; Example mulog event message
-(mulog/log ::dev-user-ns
-           :message "Example event from user namespace")
-;; ---------------------------------------------------------
-
-;; ---------------------------------------------------------
 ;; Hotload libraries into running REPL
 ;; `deps-*` LSP snippets to add dependency forms
 (comment
-  ;; Require for Clojure 1.11.x and earlier
-  (require '[clojure.tools.deps.alpha.repl :refer [add-libs]])
-  (add-libs '{domain/library-name {:mvn/version "1.0.0"}})
-
+  (require '[clojure.repl.deps :as deps])
   ;; Clojure 1.12.x only
-  (add-lib 'org.babashka/http-client)
-  (sync-deps :as :test/env)
+  (deps/add-lib 'org.babashka/http-client)
+  (deps/sync-deps :as :test/env)
   #_(add-lib 'library-name)   ; find and add library
   #_(sync-deps)               ; load dependencies in deps.edn (if not yet loaded)
   #_()) ; End of rich comment
