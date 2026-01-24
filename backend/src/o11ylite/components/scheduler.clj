@@ -189,34 +189,16 @@
 ;; Rich Comment
 (comment
 
-  (require '[integrant.core :as ig])
+  (require '[integrant.repl.state :refer [system]])
 
-  ;; Start dependencies
-  (def sqlite (ig/init-key :db/sqlite {:data-path "./.tmp"}))
-  (def duckdb (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-  (def storage (ig/init-key :storage/init {:sqlite sqlite :duckdb duckdb}))
-
-  ;; Start registry
-  (def registry (ig/init-key :scheduler/registry {:duckdb duckdb}))
-
-  ;; Start scheduler with fast intervals for testing
-  (def scheduler
-    (ig/init-key :scheduler/executor
-                 {:sqlite sqlite
-                  :registry registry
-                  :tick-interval-ms 5000}))
+  (def sqlite (:db/sqlite system))
+  (def scheduler (:scheduler/executor system))
 
   ;; Check job status
   (get-job-status sqlite)
 
   ;; Check running jobs
   @(:running-jobs scheduler)
-
-  ;; Cleanup
-  (ig/halt-key! :scheduler/executor scheduler)
-  (ig/halt-key! :storage/init storage)
-  (ig/halt-key! :db/sqlite sqlite)
-  (ig/halt-key! :db/duckdb duckdb)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

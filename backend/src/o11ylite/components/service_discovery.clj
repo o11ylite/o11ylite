@@ -75,29 +75,15 @@
 ;; Rich Comment
 (comment
 
-  (require '[integrant.core :as ig])
   (require '[o11ylite.store.services :as services])
+  (require '[integrant.repl.state :refer [system]])
 
-  ;; Start dependencies
-  (def sqlite (ig/init-key :db/sqlite {:data-path "./.tmp"}))
-  (def duckdb (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-  (def storage (ig/init-key :storage/init {:sqlite sqlite :duckdb duckdb}))
-
-  ;; Start service discovery (with fast scan for testing)
-  (def sd (ig/init-key :discovery/services
-                       {:sqlite sqlite
-                        :duckdb duckdb
-                        :scan-interval-ms 10000}))
+  (def sqlite (:db/sqlite system))
+  (def duckdb (:db/duckdb system))
 
   ;; Get services via store/services
   (services/get-services sqlite)
   ;; => [{:service "api-gateway" :first_seen_at 1702000000000 :updated_at 1702000000000} ...]
-
-  ;; Cleanup
-  (ig/halt-key! :discovery/services sd)
-  (ig/halt-key! :storage/init storage)
-  (ig/halt-key! :db/sqlite sqlite)
-  (ig/halt-key! :db/duckdb duckdb)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

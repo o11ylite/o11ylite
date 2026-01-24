@@ -68,13 +68,12 @@
 (comment
 
   ;; Test storage init manually
-  (require '[integrant.core :as ig]
-           '[next.jdbc :as jdbc]
-           '[migratus.core :as migratus])
+  (require '[next.jdbc :as jdbc]
+           '[migratus.core :as migratus]
+           '[integrant.repl.state :refer [system]])
 
-  ;; Start dependencies first
-  (def sqlite-ds (ig/init-key :db/sqlite {:data-path "./.tmp"}))
-  (def duckdb-ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
+  (def sqlite-ds (:db/sqlite system))
+  (def duckdb-ds (:db/duckdb system))
 
   ;; Test migratus config
   (def config (-migratus-config sqlite-ds))
@@ -85,18 +84,12 @@
   ;; Check pending migrations
   (migratus/pending-list config)
 
-  ;; Start storage init component
-  (def storage (ig/init-key :storage/init {:sqlite sqlite-ds :duckdb duckdb-ds}))
-
   ;; Check SQLite tables
   (jdbc/execute! sqlite-ds ["SELECT name FROM sqlite_master WHERE type='table'"])
 
   ;; Check DuckDB events table
   (jdbc/execute! duckdb-ds ["SHOW TABLES"])
   (jdbc/execute! duckdb-ds ["DESCRIBE o11ylite.events"])
-
-  ;; Cleanup
-  (ig/halt-key! :storage/init storage)
   (ig/halt-key! :db/sqlite sqlite-ds)
   (ig/halt-key! :db/duckdb duckdb-ds)
 

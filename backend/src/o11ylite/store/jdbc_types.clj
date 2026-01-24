@@ -71,17 +71,15 @@
 (comment
 
   (require '[next.jdbc :as jdbc])
-  (require '[integrant.core :as ig])
+  (require '[integrant.repl.state :refer [system]])
 
   ;; Example: wrap a datasource with timestamp conversion
-  (def raw-ds (ig/init-key :db/duckdb {:data-path "./.tmp"}))
+  (def raw-ds (:db/duckdb system))
   (def ds (jdbc/with-options raw-ds {:builder-fn as-unqualified-maps}))
 
   ;; Now all queries automatically convert Timestamps (interpreted as UTC)
   (jdbc/execute! ds ["SELECT TIMESTAMP '2024-01-01 12:00:00.123456' AS ts"])
   ;; => [{:ts 1704110400123.456}]
-
-  (ig/halt-key! :db/duckdb raw-ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

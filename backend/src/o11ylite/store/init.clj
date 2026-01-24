@@ -107,16 +107,11 @@
 (comment
 
   ;; Test DuckLake initialization
-  (require '[integrant.core :as ig]
-           '[next.jdbc :as jdbc]
-           '[next.jdbc.date-time])
+  (require '[next.jdbc :as jdbc]
+           '[next.jdbc.date-time]
+           '[integrant.repl.state :refer [system]])
 
-  ;; Start DuckDB pool
-  (def ds
-    (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-
-  ;; Initialize schema
-  (init-store! ds)
+  (def ds (:db/duckdb system))
 
   ;; Check table exists
   (jdbc/execute! ds ["SHOW TABLES"])
@@ -135,9 +130,6 @@
 
   ;; Query events
   (jdbc/execute! ds ["SELECT * FROM o11ylite.events"])
-
-  ;; Cleanup
-  (ig/halt-key! :db/duckdb ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
