@@ -92,7 +92,7 @@ export default function Explore() {
   // Build the events query payload (without time_range for stable key in live mode)
   const isTableWithoutAggregations =
     state.visualization.type === "table" && state.aggregations.length === 0
-  const eventsQueryBase = isEventsMode && hasQuery
+  const eventsQueryBase = isEventsMode
     ? {
       filter: buildFilterExpr(state.filters),
       aggregations:
@@ -253,7 +253,7 @@ export default function Explore() {
   )
 
   const renderResults = () => {
-    if (!hasQuery) return <ResultsPlaceholder />
+    if (isMetricsMode && !hasQuery) return <ResultsPlaceholder />
     if (isLoading) return <ResultsLoading />
     if (error instanceof Error) return <ResultsError message={error.message} />
     if (!queryResult) return <ResultsPlaceholder />
