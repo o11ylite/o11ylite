@@ -182,7 +182,7 @@
                             sort-col (keyword sort-field)
                             sort-value (get last-row sort-col)
                             ;; Coerce timestamp to long (stored as double with sub-ms precision)
-                            sort-value (if (= "timestamp" sort-field)
+                            sort-value (if (and (= "timestamp" sort-field) sort-value)
                                          (long sort-value)
                                          sort-value)]
                         (when (and sort-value id)
