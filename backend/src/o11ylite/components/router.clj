@@ -11,6 +11,7 @@
    [ring.middleware.defaults :refer [wrap-defaults site-defaults api-defaults]]
    [reitit.ring :as ring]
    [reitit.ring.middleware.exception :as exception]
+   [steffan-westcott.clj-otel.api.trace.span :as span]
    [jsonista.core :as json]
    [o11ylite.util.response :as response]
    [o11ylite.inertia.middleware :as inertia]
@@ -97,6 +98,22 @@
    (monitors/routes {})])
 
 ;; ---------------------------------------------------------
+;; Exception Handling
+
+(defn- -exception-handler
+  "Record exception on current span and return 500 with JSON body."
+  [exception _request]
+  (span/add-exception! exception)
+  (response/json 500 {:error "Internal server error"}))
+
+(def ^:private -exception-middleware
+  "Custom exception middleware that returns JSON responses."
+  (exception/create-exception-middleware
+   (merge
+    exception/default-handlers
+    {::exception/default -exception-handler})))
+
+;; ---------------------------------------------------------
 ;; Router Component
 
 (defn create-router
@@ -107,7 +124,7 @@
     [(api-routes opts)
      (otlp-routes opts)
      (page-routes opts)]
-    {:data {:middleware [exception/exception-middleware]}})
+    {:data {:middleware [-exception-middleware]}})
    (ring/routes
     (ring/create-default-handler
      {:not-found (constantly (response/not-found))}))))
