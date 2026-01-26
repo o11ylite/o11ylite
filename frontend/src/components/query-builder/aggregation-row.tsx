@@ -41,7 +41,7 @@ export function AggregationRow({
       <Select
         value={item.function}
         onValueChange={(fn: AggregationFunction) =>
-          onUpdate({ ...item, function: fn })
+          onUpdate({ ...item, function: fn, field: fn === "count" ? "*" : item.field })
         }
       >
         <SelectTrigger size="sm" className="w-auto min-w-[80px]">
@@ -61,7 +61,7 @@ export function AggregationRow({
           <span className="text-[10px] text-muted-foreground">(</span>
           <FieldPicker
             fields={numericFields}
-            value={item.field}
+            value={item.field === "*" ? "" : item.field}
             onSelect={(field) => onUpdate({ ...item, field })}
             placeholder="field..."
           />
