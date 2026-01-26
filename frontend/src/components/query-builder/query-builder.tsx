@@ -24,6 +24,7 @@ import { FiltersSection } from "./filters-section"
 import { AggregationSection } from "./aggregation-section"
 import { MetricsSection } from "./metrics-section"
 import { MetricGroupBySection } from "./metric-group-by-section"
+import { MetricFiltersSection } from "./metric-filters-section"
 import { LimitSelector } from "./limit-selector"
 
 const isFilterComplete = (f: SimpleFilter) => f.field !== "" && f.value !== ""
@@ -180,11 +181,11 @@ export function QueryBuilder({
             onMetricsChange={(metrics) => updateState({ ...state, metrics })}
           />
 
-          {/* Filters (global, apply to all metrics) */}
-          <FiltersSection
+          {/* Filters - shows hint when no metric selected, then metric attributes */}
+          <MetricFiltersSection
             filters={state.filters}
-            fields={fields}
             onFiltersChange={(filters) => updateState({ ...state, filters })}
+            metrics={state.metrics ?? []}
           />
 
           {/* Group By (uses first selected metric's attributes) */}
