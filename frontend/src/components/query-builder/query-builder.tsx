@@ -46,7 +46,7 @@ export function QueryBuilder({
   services: Service[]
   initialState: QueryBuilderState
   onSubmit: (state: QueryBuilderState) => void,
-  autoSubmit: boolean,
+  autoSubmit?: boolean,
 }) {
   const [state, setState] = useState(initialState)
 
