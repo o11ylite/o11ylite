@@ -13,6 +13,7 @@ import {
   type SortConfig,
 } from "@/components/results"
 import { FieldsPanel } from "@/components/fields-panel"
+import { MetricSidePanel } from "@/components/metric-side-panel"
 import { useQueryState } from "@/hooks/use-query-state"
 import {
   useTimeRange,
@@ -248,8 +249,10 @@ export default function Explore() {
     // For now, just a no-op since QueryBuilder manages its own local state
   }
 
-  const rightPanel = (
+  const rightPanel = isEventsMode ? (
     <FieldsPanel fields={fields} onFieldClick={handleFieldClick} />
+  ) : (
+    <MetricSidePanel onMetricClick={() => {}} />
   )
 
   const renderResults = () => {
