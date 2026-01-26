@@ -17,6 +17,8 @@ import {
   type QueryMode,
   type Visualization,
   type VisualizationType,
+  type SimpleFilter,
+  type Aggregation,
 } from "@/types"
 import { FiltersSection } from "./filters-section"
 import { AggregationSection } from "./aggregation-section"
@@ -24,30 +26,54 @@ import { MetricsSection } from "./metrics-section"
 import { MetricGroupBySection } from "./metric-group-by-section"
 import { LimitSelector } from "./limit-selector"
 
+const isFilterComplete = (f: SimpleFilter) => f.field !== "" && f.value !== ""
+
+const isAggregationComplete = (a: Aggregation) =>
+  a.function === "count" || (a.field !== "" && a.field !== "*")
+
+const isStateComplete = (state: QueryBuilderState) =>
+  state.filters.every(isFilterComplete) &&
+  state.aggregations.every(isAggregationComplete)
+
 export function QueryBuilder({
   fields,
   services,
   initialState,
   onSubmit,
+  autoSubmit = true,
 }: {
   fields: Field[]
   services: Service[]
   initialState: QueryBuilderState
-  onSubmit: (state: QueryBuilderState) => void
+  onSubmit: (state: QueryBuilderState) => void,
+  autoSubmit: boolean,
 }) {
-  // Local state for editing - only synced to URL on submit
   const [state, setState] = useState(initialState)
 
-  // Sync local state when URL state changes (e.g., browser back/forward)
   useEffect(() => {
     setState(initialState)
   }, [initialState])
+
+  // Auto-submit only when state is complete (no incomplete filters/aggregations)
+  const updateState = (newState: QueryBuilderState) => {
+    setState(newState)
+    if (autoSubmit && isStateComplete(newState)) {
+      onSubmit(newState)
+    }
+  }
 
   const mode = state.mode ?? "events"
   const vizType = state.visualization.type
 
   const handleModeChange = (newMode: QueryMode) => {
-    setState({ ...state, mode: newMode })
+    updateState({
+      ...state,
+      mode: newMode,
+      filters: [],
+      aggregations: [],
+      groupBy: [],
+      metrics: [],
+    })
   }
 
   const handleVizTypeChange = (type: VisualizationType) => {
@@ -60,7 +86,7 @@ export function QueryBuilder({
         visualization = { type: "time_series" }
         break
     }
-    setState({ ...state, visualization })
+    updateState({ ...state, visualization })
   }
 
   const handleRun = () => {
@@ -112,7 +138,7 @@ export function QueryBuilder({
         {mode === "events" && (
           <LimitSelector
             value={state.limit ?? 100}
-            onChange={(limit) => setState({ ...state, limit })}
+            onChange={(limit) => updateState({ ...state, limit })}
           />
         )}
 
@@ -129,7 +155,7 @@ export function QueryBuilder({
           <FiltersSection
             filters={state.filters}
             fields={fields}
-            onFiltersChange={(filters) => setState({ ...state, filters })}
+            onFiltersChange={(filters) => updateState({ ...state, filters })}
           />
 
           {/* Aggregation */}
@@ -138,9 +164,9 @@ export function QueryBuilder({
             groupBy={state.groupBy}
             fields={fields}
             onAggregationsChange={(aggregations) =>
-              setState({ ...state, aggregations })
+              updateState({ ...state, aggregations })
             }
-            onGroupByChange={(groupBy) => setState({ ...state, groupBy })}
+            onGroupByChange={(groupBy) => updateState({ ...state, groupBy })}
           />
         </>
       )}
@@ -151,25 +177,22 @@ export function QueryBuilder({
           {/* Metrics */}
           <MetricsSection
             metrics={state.metrics ?? []}
-            onMetricsChange={(metrics) => setState({ ...state, metrics })}
+            onMetricsChange={(metrics) => updateState({ ...state, metrics })}
           />
 
           {/* Filters (global, apply to all metrics) */}
           <FiltersSection
             filters={state.filters}
             fields={fields}
-            onFiltersChange={(filters) => setState({ ...state, filters })}
+            onFiltersChange={(filters) => updateState({ ...state, filters })}
           />
 
           {/* Group By (uses first selected metric's attributes) */}
           <MetricGroupBySection
             metrics={state.metrics ?? []}
             groupBy={state.groupBy}
-            onChange={(groupBy) => setState({ ...state, groupBy })}
+            onChange={(groupBy) => updateState({ ...state, groupBy })}
           />
-
-          {/* TODO: Formula section for metric arithmetic (deferred) */}
-          {/* e.g., A / B * 100 */}
         </>
       )}
     </div>
