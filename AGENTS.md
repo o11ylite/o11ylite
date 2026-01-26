@@ -8,13 +8,14 @@ Read the following file as it's relevant to all workflows: @README.md.
 
 **Backend (Clojure):** Run from `backend/` directory
 
-- If you don't have a `clojure-eval` Agent Skill, you can use shell to do these:
-  - `make test` - Run all tests (fail-fast)
-  - Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test`
 - If you have a `clojure-eval` Agent Skill, use REPL-driven development:
   - Read `backend/dev/user.clj` to understand the dev environment system.
   - Use REPL to ad-hoc individual component.
   - Use REPL to run tests.
+
+- If you don't have a `clojure-eval` Agent Skill, you can use shell to do these:
+  - `make test` - Run all tests (fail-fast)
+  - Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test`
 
 **Frontend (TypeScript):** Run from `frontend/` directory
 - `npm test` - Run tests powered by msw, React Testing Library.
@@ -23,8 +24,8 @@ Read the following file as it's relevant to all workflows: @README.md.
 
 **End-to-end / Browser verification:**
 
-- If you have `playwright` related agent skill available you can:
-  - Find our dev site location by running: `dev/dev-site-url`.
+- If you have vision capability and `playwright` related agent skill available, you can do browser verification:
+  - Find our dev site location by reading the output of this command: `./dev/dev-site-url`.
   - We have `opentelemetry-javaagent` enabled to continuously send data so no need to worry about seeding data.
 
 ## Code Style
