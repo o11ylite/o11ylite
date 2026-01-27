@@ -48,7 +48,7 @@
 ;; Filter Schemas
 
 (def filter-op
-  [:enum "=" "!=" ">" "<" ">=" "<=" "contains" "exists"])
+  [:enum "=" "!=" "contains" "exists" "starts-with"])
 
 (def simple-filter
   [:map
@@ -158,14 +158,14 @@
             {:time_range {:start 1702000000000 :end 1702003600000}
              :bucket_ms 60000
              :filter {:field "attr.env" :op "=" :value "prod"}
-             :metrics [{:id "A"
-                        :name "http.server.errors"
-                        :agg "sum"
-                        :filter {:field "attr.status_code" :op ">=" :value "500"}}
-                       {:id "B"
-                        :name "http.server.requests"
-                        :agg "sum"}]
-             :group_by ["attr.service"]})
+              :metrics [{:id "A"
+                         :name "http.server.errors"
+                         :agg "sum"
+                         :filter {:field "attr.status_code" :op "=" :value "500"}}
+                        {:id "B"
+                         :name "http.server.requests"
+                         :agg "sum"}]
+              :group_by ["attr.service"]})
   ;; => nil
 
   ;; Missing time_range

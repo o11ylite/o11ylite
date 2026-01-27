@@ -13,6 +13,7 @@
   (:require
    [honey.sql :as sql]
    [next.jdbc :as jdbc]
+   [o11ylite.components.event-metadata :as event-metadata]
    [o11ylite.store.events.query-cursor :as query-cursor]
    [o11ylite.store.events.query-schema :as query-schema]
    [o11ylite.store.query-util :as query-util]))
@@ -22,9 +23,14 @@
 
 (defn validate
   "Validate an events query request.
+   Performs schema validation, then type-aware filter validation.
+   event-metadata-component is the :cache/event-metadata integrant component.
    Returns nil if valid, or error map with :error key if invalid."
-  [query]
-  (query-schema/validate query-schema/events-query query))
+  [event-metadata-component query]
+  (or (query-schema/validate query-schema/events-query query)
+      (query-schema/validate-filter-ops-with-metadata
+       (event-metadata/get-fields event-metadata-component)
+       query)))
 
 ;; ---------------------------------------------------------
 ;; Column Name Handling (delegated to query-util)

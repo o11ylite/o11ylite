@@ -18,6 +18,12 @@
 (defn invalid? [data]
   (some? (schema/validate schema/metrics-query data)))
 
+(defn- query-base
+  "Helper for building query base."
+  []
+  {:time_range {:start 1702000000000 :end 1702003600000}
+   :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]})
+
 ;; ---------------------------------------------------------
 ;; Time Range Validation
 
@@ -245,6 +251,13 @@
                             :name "http.server.requests"
                             :agg "sum"}]
                  :group_by ["attr.service"]})))
+
+  (testing "invalid numeric operators (metrics attributes are strings)"
+    (doseq [op [">" "<" ">=" "<="]]
+      (is (invalid? (assoc (query-base) :filter {:field "attr.env" :op op :value "prod"})))))
+
+  (testing "valid starts-with operator"
+    (is (valid? (assoc (query-base) :filter {:field "attr.env" :op "starts-with" :value "prod"}))))
 
   (testing "histogram metric query"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
