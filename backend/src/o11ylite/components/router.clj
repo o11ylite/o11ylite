@@ -68,11 +68,11 @@
 
 (defn api-routes
   "API routes - no CSRF, no sessions."
-  [{:keys [duckdb sqlite]}]
+  [{:keys [duckdb sqlite event-metadata]}]
   ["/api" {:middleware [wrap-api-defaults]}
-   (api.health/routes {})
-   (api.metrics/routes {:sqlite sqlite})
-   (api.query/routes {:duckdb duckdb :sqlite sqlite})])
+    (api.health/routes {})
+    (api.metrics/routes {:sqlite sqlite})
+    (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})])
 
 (defn otlp-routes
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.

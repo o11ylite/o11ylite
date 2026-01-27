@@ -7,6 +7,7 @@
 
 (ns o11ylite.store.events.query-schema
   (:require
+   [clojure.string :as str]
    [malli.core :as m]
    [malli.error :as me]))
 
@@ -37,7 +38,7 @@
 ;; Filter Schemas
 
 (def filter-op
-  [:enum "=" "!=" ">" "<" ">=" "<=" "contains" "exists"])
+  [:enum "=" "!=" ">" "<" ">=" "<=" "contains" "exists" "starts-with"])
 
 (def simple-filter
   [:map
@@ -140,6 +141,60 @@
    For default timestamp sorting, f is \"timestamp\".
    Accepts nil (or null in JSON) for first page."
   [:maybe [:string {:min 1}]])
+
+;; ---------------------------------------------------------
+;; Type-Aware Filter Validation
+
+(def valid-ops-by-type
+  "Valid filter operators for each field type."
+  {:string    #{"=" "!=" "contains" "exists" "starts-with"}
+   :integer   #{"=" "!=" ">" "<" ">=" "<=" "exists"}
+   :float     #{"=" "!=" ">" "<" ">=" "<=" "exists"}
+   :boolean   #{"=" "!=" "exists"}
+   :instant   #{"=" "!=" ">" "<" ">=" "<=" "exists"}})
+
+(defn- -validate-filter-op-for-type
+  "Validate that an operator is valid for the given field type.
+   Returns nil if valid, error map if invalid."
+  [field-op field-type field-name]
+  (let [valid-ops (get valid-ops-by-type field-type)]
+    (if-not (contains? valid-ops field-op)
+      {:error (format "operator '%s' is not valid for %s field '%s'. Valid operators: %s"
+                     field-op field-type field-name (str/join ", " (sort valid-ops)))}
+      nil)))
+
+(defn- -validate-filter-expr-with-metadata
+  "Recursively validate filter expression operators against field types.
+   Returns nil if valid, error map if invalid.
+   Unknown fields are skipped (allows querying before data exists)."
+  [event-metadata filter-expr]
+  (cond
+    ;; Compound AND
+    (:and filter-expr)
+    (some #( -validate-filter-expr-with-metadata event-metadata %)
+          (:and filter-expr))
+
+    ;; Compound OR
+    (:or filter-expr)
+    (some #( -validate-filter-expr-with-metadata event-metadata %)
+          (:or filter-expr))
+
+    ;; Simple filter
+    :else
+    (when-let [field-meta (get event-metadata (keyword (:field filter-expr)))]
+      (-validate-filter-op-for-type (:op filter-expr)
+                                  (:type field-meta)
+                                  (:field filter-expr)))))
+
+(defn validate-filter-ops-with-metadata
+  "Validate all filter operators are valid for their field types.
+   Returns nil if valid, {:error ...} if invalid.
+   Unknown fields are skipped (allows querying before data exists)."
+  [event-metadata {:keys [filter having]}]
+  (or (when filter
+        (-validate-filter-expr-with-metadata event-metadata filter))
+      (when having
+        (-validate-filter-expr-with-metadata event-metadata having))))
 
 ;; ---------------------------------------------------------
 ;; Events Query Schema

@@ -96,6 +96,7 @@
     ">=" :>=
     "<=" :<=
     "contains" :like
+    "starts-with" :like
     "exists" :is-not))
 
 (defn- -build-simple-filter
@@ -105,6 +106,7 @@
         col (field->col field)]
     (case op
       "contains" [sql-op col (str "%" value "%")]
+      "starts-with" [sql-op col (str value "%")]
       "exists" [sql-op col nil]
       [sql-op col value])))
 

@@ -16,11 +16,11 @@
 ;; Handlers
 
 (defn- -make-events-handler
-  "Create the events query handler with duckdb dependency."
-  [duckdb]
+  "Create the events query handler with duckdb and event-metadata dependencies."
+  [duckdb event-metadata]
   (fn [request]
     (let [query (:body request)]
-      (if-let [error (events.query/validate query)]
+      (if-let [error (events.query/validate event-metadata query)]
         (response/json 400 error)
         (response/json 200 (events.query/execute duckdb query))))))
 
@@ -38,9 +38,9 @@
 
 (defn routes
   "Query API routes."
-  [{:keys [duckdb sqlite]}]
+  [{:keys [duckdb sqlite event-metadata]}]
   [["/query"
-    ["/events" {:post {:handler (-make-events-handler duckdb)}}]
+    ["/events" {:post {:handler (-make-events-handler duckdb event-metadata)}}]
     ["/metrics" {:post {:handler (-make-metrics-handler duckdb sqlite)}}]]])
 
 ;; ---------------------------------------------------------
