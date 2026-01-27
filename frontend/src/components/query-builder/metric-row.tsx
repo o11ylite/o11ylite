@@ -15,37 +15,11 @@ import type {
   MetricSummary,
 } from "@/types"
 import { MetricPicker } from "./metric-picker"
-
-// ============================================================================
-// Aggregation Options by Metric Type
-// ============================================================================
-// Based on backend query-validation.clj:
-//   gauge: sum, avg, min, max, last
-//   sum (counter): sum, rate
-//   histogram: count, sum, avg, min, max
-
-const AGGREGATIONS_BY_TYPE: Record<MetricType, MetricAggregation[]> = {
-  gauge: ["sum", "avg", "min", "max", "last"],
-  sum: ["sum", "rate"],
-  histogram: ["count", "sum", "avg", "min", "max"],
-}
-
-const AGGREGATION_LABELS: Record<MetricAggregation, string> = {
-  sum: "sum",
-  avg: "avg",
-  min: "min",
-  max: "max",
-  last: "last",
-  rate: "rate",
-  count: "count",
-}
-
-// Default aggregation when a metric is first selected
-const DEFAULT_AGGREGATION_BY_TYPE: Record<MetricType, MetricAggregation> = {
-  gauge: "avg",
-  sum: "sum",
-  histogram: "avg",
-}
+import {
+  AGGREGATIONS_BY_TYPE,
+  AGGREGATION_LABELS,
+  DEFAULT_AGGREGATION_BY_TYPE,
+} from "@/lib/metric-query-helpers"
 
 // ============================================================================
 // Component
