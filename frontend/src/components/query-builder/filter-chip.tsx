@@ -87,7 +87,7 @@ export function FilterChip({
         onBlur={commitValue}
         onKeyDown={handleKeyDown}
         placeholder="value"
-        className="h-8 w-24 text-sm"
+        className="h-8 w-[250px] text-sm"
       />
       <Button
         variant="ghost"
