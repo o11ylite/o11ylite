@@ -17,7 +17,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import type { MetricSummary, MetricType } from "@/types"
+import { MetricTypeBadge } from "@/components/metric-type-badge"
+import type { MetricSummary } from "@/types"
 
 // ============================================================================
 // API
@@ -29,36 +30,6 @@ async function fetchMetricsList(): Promise<MetricSummary[]> {
     throw new Error("Failed to fetch metrics")
   }
   return response.json() as Promise<MetricSummary[]>
-}
-
-// ============================================================================
-// Metric Type Badge
-// ============================================================================
-
-const METRIC_TYPE_COLORS: Record<MetricType, string> = {
-  gauge: "bg-blue-500/20 text-blue-700 dark:text-blue-400",
-  sum: "bg-green-500/20 text-green-700 dark:text-green-400",
-  histogram: "bg-purple-500/20 text-purple-700 dark:text-purple-400",
-}
-
-const METRIC_TYPE_LABELS: Record<MetricType, string> = {
-  gauge: "G",
-  sum: "S",
-  histogram: "H",
-}
-
-function MetricTypeBadge({ type }: { type: MetricType }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-medium",
-        METRIC_TYPE_COLORS[type]
-      )}
-      title={type}
-    >
-      {METRIC_TYPE_LABELS[type]}
-    </span>
-  )
 }
 
 // ============================================================================
