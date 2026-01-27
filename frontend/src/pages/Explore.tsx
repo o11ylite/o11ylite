@@ -252,7 +252,7 @@ export default function Explore() {
   const rightPanel = isEventsMode ? (
     <FieldsPanel fields={fields} onFieldClick={handleFieldClick} />
   ) : (
-    <MetricSidePanel onMetricClick={() => {}} />
+    <MetricSidePanel />
   )
 
   const renderResults = () => {
