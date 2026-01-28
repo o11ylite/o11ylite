@@ -28,7 +28,7 @@ export interface Field {
 // ============================================================================
 // Maps to backend schema: query_schema.clj#filter-op, simple-filter, filter-expr
 
-export type FilterOp = "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "exists"
+export type FilterOp = "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "exists" | "starts-with"
 
 export interface SimpleFilter {
   field: string
