@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { type Field, type SimpleFilter, type FilterOp } from "@/types"
+import { type Field, type SimpleFilter, type FilterOp, type FieldType } from "@/types"
 import { FieldPicker } from "./field-picker"
 
 const FILTER_OPERATORS: { value: FilterOp; label: string }[] = [
@@ -21,7 +21,20 @@ const FILTER_OPERATORS: { value: FilterOp; label: string }[] = [
   { value: ">=", label: ">=" },
   { value: "<=", label: "<=" },
   { value: "contains", label: "contains" },
+  { value: "exists", label: "exists" },
+  { value: "starts-with", label: "starts-with" },
 ]
+
+const VALID_OPERATORS_BY_TYPE: Record<
+  FieldType,
+  Set<FilterOp>
+> = {
+  string: new Set(["=", "!=", "contains", "exists", "starts-with"]),
+  integer: new Set(["=", "!=", ">", "<", ">=", "<=", "exists"]),
+  float: new Set(["=", "!=", ">", "<", ">=", "<=", "exists"]),
+  boolean: new Set(["=", "!=", "exists"]),
+  instant: new Set(["=", "!=", ">", "<", ">=", "<=", "exists"]),
+}
 
 export function FilterChip({
   filter,
@@ -57,38 +70,65 @@ export function FilterChip({
     }
   }
 
+  const selectedField = fields.find((f) => f.name === filter.field)
+  const valueLess = filter.op === "exists"
+
+  const handleFieldSelect = (fieldName: string) => {
+    const newField = fields.find((f) => f.name === fieldName)
+    if (!newField) return
+
+    const needsReset = selectedField && newField.type !== selectedField.type
+
+    onUpdate({
+      ...filter,
+      field: fieldName,
+      op: needsReset ? ("=" as FilterOp) : filter.op,
+      value: needsReset ? "" : filter.value,
+    })
+  }
+
+  const handleOpChange = (op: FilterOp) => {
+    onUpdate({ ...filter, op, value: valueLess ? "" : filter.value })
+  }
+
+  const validOps = selectedField
+    ? VALID_OPERATORS_BY_TYPE[selectedField.type]
+    : new Set(FILTER_OPERATORS.map((op) => op.value))
+  const filteredOperators = FILTER_OPERATORS.filter((op) =>
+    validOps.has(op.value)
+  )
+
   return (
     <div className="flex items-center gap-1">
       <FieldPicker
         fields={fields}
         value={filter.field}
-        onSelect={(field) => onUpdate({ ...filter, field })}
+        onSelect={handleFieldSelect}
         placeholder="field..."
       />
-      <Select
-        value={filter.op}
-        onValueChange={(op: FilterOp) => onUpdate({ ...filter, op })}
-      >
+      <Select value={filter.op} onValueChange={handleOpChange}>
         <SelectTrigger size="sm" className="w-auto min-w-[60px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {FILTER_OPERATORS.map((op) => (
+          {filteredOperators.map((op) => (
             <SelectItem key={op.value} value={op.value}>
               {op.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <Input
-        type="text"
-        value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
-        onBlur={commitValue}
-        onKeyDown={handleKeyDown}
-        placeholder="value"
-        className="h-8 w-[250px] text-sm"
-      />
+      {!valueLess && (
+        <Input
+          type="text"
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onBlur={commitValue}
+          onKeyDown={handleKeyDown}
+          placeholder="value"
+          className="h-8 w-[250px] text-sm"
+        />
+      )}
       <Button
         variant="ghost"
         size="icon-sm"
