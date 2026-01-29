@@ -313,9 +313,9 @@ describe("Explore", () => {
 
       // Wait for metrics to load and select one
       await waitFor(() => {
-        expect(screen.getByText("cpu.utilization")).toBeInTheDocument()
+        expect(screen.getByRole("option", { name: /cpu\.utilization/ })).toBeInTheDocument()
       })
-      await user.click(screen.getByText("cpu.utilization"))
+      await user.click(screen.getByRole("option", { name: /cpu\.utilization/ }))
 
       // Click Run
       const runButton = screen.getByRole("button", { name: /run/i })
