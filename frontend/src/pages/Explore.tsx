@@ -12,7 +12,7 @@ import {
   ResultsError,
   type SortConfig,
 } from "@/components/results"
-import { FieldsPanel } from "@/components/fields-panel"
+import { EventsSidePanel } from "@/components/events-side-panel"
 import { MetricSidePanel } from "@/components/metric-side-panel"
 import { useQueryState } from "@/hooks/use-query-state"
 import {
@@ -244,13 +244,8 @@ export default function Explore() {
     }
   }
 
-  const handleFieldClick = () => {
-    // TODO: Could add a filter for this field to the query builder
-    // For now, just a no-op since QueryBuilder manages its own local state
-  }
-
   const rightPanel = isEventsMode ? (
-    <FieldsPanel fields={fields} onFieldClick={handleFieldClick} />
+    <EventsSidePanel fields={fields} />
   ) : (
     <MetricSidePanel />
   )
