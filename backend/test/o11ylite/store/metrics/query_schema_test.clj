@@ -180,14 +180,14 @@
                  :metrics [{:id "A"
                             :name "http.server.errors"
                             :agg "sum"
-                            :filter {:field "attr.status_code" :op ">=" :value "500"}}]})))
+                            :filter {:field "attr.status_code" :op "starts-with" :value "5"}}]})))
 
   (testing "per-metric filter with and/or"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :metrics [{:id "A"
                             :name "http.server.errors"
                             :agg "sum"
-                            :filter {:and [{:field "attr.status_code" :op ">=" :value "500"}
+                            :filter {:and [{:field "attr.status_code" :op "starts-with" :value "5"}
                                            {:field "attr.method" :op "=" :value "POST"}]}}]}))))
 
 ;; ---------------------------------------------------------
@@ -246,7 +246,7 @@
                  :metrics [{:id "A"
                             :name "http.server.errors"
                             :agg "sum"
-                            :filter {:field "attr.status_code" :op ">=" :value "500"}}
+                            :filter {:field "attr.status_code" :op "starts-with" :value "5"}}
                            {:id "B"
                             :name "http.server.requests"
                             :agg "sum"}]
