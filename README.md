@@ -24,31 +24,44 @@ A Clojure service, the core of O11yLite.
 sequenceDiagram
     participant Client as OTLP Client
     participant GRPC as otel_grpc_server
-    participant Ingest as ingest-events!
-    participant Batcher as ingest_batcher
+    participant Handler as Signal Handler
+    participant Batcher as Batcher
     participant DB as DuckDB
 
-    Client->>GRPC: ExportTraceServiceRequest
-    GRPC->>GRPC: Parse protobuf → flat event maps
-    GRPC->>Ingest: events
-    Ingest->>Ingest: Validate, infer field types
-    Ingest->>Batcher: Submit events + fields
-    Note over Ingest,Batcher: Caller blocks until flush
+    Client->>GRPC: ExportTrace/Log/Metrics
+    GRPC->>GRPC: Parse protobuf
+    alt Traces & Logs
+        GRPC->>Handler: trace/log events
+        Handler->>Handler: Validate, infer field types
+        Handler->>Batcher: event_batcher
+    else Metrics
+        GRPC->>Handler: metric data points
+        Handler->>Handler: Normalize temporality
+        Handler->>Batcher: metric_batcher
+    end
+    Note over Handler,Batcher: Caller blocks until flush
 
     loop Periodic flush
         Batcher->>Batcher: Accumulate batch
     end
 
     Batcher->>DB: Schema diff → ALTER TABLE
-    Batcher->>DB: INSERT events
-    Batcher-->>Ingest: Done
-    Ingest-->>GRPC: Success
-    GRPC-->>Client: ExportTraceServiceResponse
+    Batcher->>DB: INSERT data
+    Batcher-->>Handler: Done
+    Handler-->>GRPC: Success
+    GRPC-->>Client: ExportServiceResponse
 ```
 
 **Type System** (`store/schema.clj`): Normalizes types between Clojure values, DuckDB columns, and the application layer (`:string`, `:instant`, `:integer`, `:float`, `:boolean`).
 
 **Schema Evolution**: New fields in events automatically create columns. The `event_metadata` cache tracks known fields; `persist-batch!` diffs incoming fields against the cache and runs `ALTER TABLE ADD COLUMN` as needed.
+
+#### Signal Support
+
+The backend ingests all three OpenTelemetry signals via OTLP/gRPC and OTLP/HTTP:
+
+- **Events (Traces & Logs)** - Unified event concept that supports both trace spans and log records with shared storage, schema evolution, and querying via `store/events/`
+- **Metrics** - Dedicated metrics pipeline (`store/metrics/`) supporting gauges, counters, and histograms with delta/cumulative temporality handling
 
 #### HTTP Routes
 
@@ -59,45 +72,11 @@ The backend serves two types of HTTP routes:
 
 #### Key Directories
 
-```
-backend/
-├── src/o11ylite/
-│   ├── system.clj           # Integrant system config & lifecycle
-│   ├── components/          # Integrant components
-│   │   ├── web_server.clj   #   Jetty HTTP server
-│   │   ├── router.clj       #   Reitit routes
-│   │   ├── inertia.clj      #   Inertia.js config
-│   │   ├── otel_grpc_server.clj  # OTLP/gRPC server
-│   │   ├── ingest_batcher.clj    # Batched ingestion with backpressure
-│   │   ├── event_metadata.clj    # Field metadata cache
-│   │   ├── duckdb_pool.clj       # DuckDB connection pool
-│   │   └── sqlite_pool.clj       # SQLite connection pool
-│   ├── api/                 # JSON API endpoints
-│   │   ├── health.clj       #   Health check endpoints
-│   │   ├── metrics.clj      #   Metrics metadata API
-│   │   └── query.clj        #   Telemetry query API
-│   ├── routes/              # Inertia page routes
-│   │   ├── home.clj         #   Home (redirects to /explore)
-│   │   ├── explore.clj      #   Explore page
-│   │   ├── dashboards.clj   #   Dashboards page
-│   │   └── monitors.clj     #   Monitor rules & notifications
-│   ├── store/               # Telemetry data storage layer
-│   │   ├── schema.clj       #   Type system & introspection
-│   │   ├── events/          #   Event ingestion & query
-│   │   └── metrics/         #   Metrics ingestion & query
-│   ├── otel_grpc/           # OTLP protocol handling
-│   │   ├── proto.clj        #   Protobuf utilities
-│   │   ├── trace.clj        #   Trace signal processing
-│   │   ├── log.clj          #   Log signal processing
-│   │   ├── metric.clj       #   Metric signal processing
-│   │   └── metric_proto.clj #   Metric protobuf helpers
-│   ├── inertia/             # Inertia.js adapter
-│   └── util/
-│       ├── response.clj     #   Response helpers
-│       └── ticker.clj       #   Go-style ticker for periodic tasks
-└── resources/
-    └── system.edn           # System configuration (Aero)
-```
+- **`components/`** - Integrant lifecycle components (web server, routers, batchers, connection pools)
+- **`api/`** - JSON API endpoints for queries and metadata
+- **`routes/`** - Inertia.js page routes (explore, trace, dashboards, monitors)
+- **`store/`** - Data storage layer with `events/` (unified logs/traces) and `metrics/` subsystems
+- **`otel_grpc/`** - OTLP protocol handlers for all three signals
 
 ### Frontend (`frontend/`)
 
@@ -105,28 +84,9 @@ An Inertia.js React frontend built with Vite + TypeScript + Tailwind CSS.
 
 Uses [shadcn/ui](https://ui.shadcn.com/) (New York style) for UI components with Lucide icons.
 
-```
-frontend/
-├── src/
-│   ├── main.tsx             # Inertia app entry point
-│   ├── index.css            # Global styles & Tailwind config
-│   ├── pages/               # Page components (matched by name)
-│   │   └── Home.tsx
-│   ├── components/
-│   │   ├── layouts/         # Page layout wrappers
-│   │   │   └── application-layout.tsx
-│   │   ├── ui/              # shadcn/ui primitives (don't modify, keep upstream-compatible)
-│   │   ├── app-sidebar.tsx  # Application sidebar
-│   │   └── search-form.tsx  # Search component
-│   ├── hooks/
-│   │   └── use-mobile.ts    # Mobile detection hook
-│   └── lib/
-│       └── utils.ts         # cn() helper for class merging
-├── public/
-│   └── favicon.svg          # Static assets
-├── components.json          # shadcn/ui configuration
-└── vite.config.ts           # Vite config (base: /frontend)
-```
+- **`pages/`** - Page components mapped to routes (Explore, Trace, Dashboards, Monitors)
+- **`components/`** - Reusable components including query-builder, results views, and trace visualization
+- **`components/ui/`** - shadcn/ui primitives
 
 Route handlers return Inertia responses that reference page components by name:
 ```clojure
@@ -167,9 +127,13 @@ We bundle everything to a single docker image, using s6 overlay.
 - **Vite** - Dev server with HMR for frontend assets
 - **Backend** - Clojure/Ring/Reitit server, serves Inertia.js HTML responses
 
-### Quick Start
+### First time running
 
 First time running you need to install this first: [Practicalli Clojure CLI Config](https://practical.li/clojure/clojure-cli/practicalli-config/).
+
+Run `dev/setup` will install all necessary dependencies for the project.
+
+### Quick Start
 
 Start all services locally:
 ```bash
@@ -232,10 +196,6 @@ export OTEL_GRPC_PORT=4320     # default: 4317
 Then run `dev/setup` to add the hostname to `/etc/hosts`, and `dev/start` to launch.
 
 Access at `https://o11ylite-feature-a.localhost:8443`
-
-### Running Testings
-
-Please read `backend/README.md` and `frontend/README.md`
 
 ### Building for Production
 
