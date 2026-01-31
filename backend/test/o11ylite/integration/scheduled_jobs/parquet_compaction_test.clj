@@ -51,8 +51,8 @@
 
 (deftest manual-compaction-test
   (testing "Manual compaction via ducklake/merge-adjacent-files! works"
-    ;; Manual compaction should not error (even with no files to compact)
-    (is (nil? (ducklake/merge-adjacent-files! (duckdb))))))
+    ;; Manual compaction should not error (even with no files to compact), returns JDBC result
+    (is (ducklake/merge-adjacent-files! (duckdb)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

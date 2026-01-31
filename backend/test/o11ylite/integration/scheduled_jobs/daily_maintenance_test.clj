@@ -55,12 +55,13 @@
     ;; Insert data so DELETE actually evaluates the WHERE clause type casts
     (ingest-sample-events! 1)
     (ingest-sample-metrics! 1)
-    (is (nil? (ducklake/delete-old-data! (duckdb) 30)))))
+    ;; Should not throw, returns JDBC result (array)
+    (is (ducklake/delete-old-data! (duckdb) 30))))
 
 (deftest manual-checkpoint-test
   (testing "Manual checkpoint via ducklake/run-checkpoint! works"
-    ;; Should not error (even with nothing to checkpoint)
-    (is (nil? (ducklake/run-checkpoint! (duckdb))))))
+    ;; Should not error (even with nothing to checkpoint), returns JDBC result
+    (is (ducklake/run-checkpoint! (duckdb)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
