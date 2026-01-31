@@ -50,31 +50,32 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :db/sqlite
-  [_ {:keys [data-path]}]
-  (mulog/log ::sqlite-pool-starting :data-path data-path)
-  (ensure-data-dir! data-path)
-  (let [db-file (sqlite-path data-path)
-        jdbc-url (str "jdbc:sqlite:" db-file)
-        datasource (connection/->pool HikariDataSource
-                                      {:jdbcUrl jdbc-url
-                                       :maximumPoolSize 10
-                                       :minimumIdle 2
-                                       :connectionTimeout 30000
-                                       :idleTimeout 600000
-                                       :maxLifetime 1800000
-                                       :poolName "sqlite-pool"
-                                       :connectionInitSql connection-init-sql
-                                       :connectionTestQuery "SELECT 1"})]
-    (try
+  [_ {:keys [core-config]}]
+  (let [data-path (:data-path core-config)]
+    (mulog/log ::sqlite-pool-starting :data-path data-path)
+    (ensure-data-dir! data-path)
+    (let [db-file (sqlite-path data-path)
+          jdbc-url (str "jdbc:sqlite:" db-file)
+          datasource (connection/->pool HikariDataSource
+                                        {:jdbcUrl jdbc-url
+                                         :maximumPoolSize 10
+                                         :minimumIdle 2
+                                         :connectionTimeout 30000
+                                         :idleTimeout 600000
+                                         :maxLifetime 1800000
+                                         :poolName "sqlite-pool"
+                                         :connectionInitSql connection-init-sql
+                                         :connectionTestQuery "SELECT 1"})]
+      (try
       ;; Validate connection pool and init SQL by getting a connection
-      (.close (jdbc/get-connection datasource))
-      (mulog/log ::sqlite-pool-started
-                 :data-path data-path
-                 :db-file db-file)
-      datasource
-      (catch Exception e
-        (.close datasource)
-        (throw e)))))
+        (.close (jdbc/get-connection datasource))
+        (mulog/log ::sqlite-pool-started
+                   :data-path data-path
+                   :db-file db-file)
+        datasource
+        (catch Exception e
+          (.close datasource)
+          (throw e))))))
 
 (defmethod ig/halt-key! :db/sqlite
   [_ ^HikariDataSource datasource]

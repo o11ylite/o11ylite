@@ -40,7 +40,7 @@
 ;; the system during development. It maintains the system state internally.
 
 ;; Tell integrant.repl how to read your system config
-(ig-repl/set-prep! #(system/read-config :dev))
+(ig-repl/set-prep! #(system/read-config))
 
 ;; Convenience functions - just call these from anywhere!
 (defn go

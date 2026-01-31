@@ -17,7 +17,7 @@
 (def publisher
   "Mulog publisher for REPL workflow.
    Call (publisher) to stop."
-  (mulog/init! :dev))
+  (mulog/init!))
 
 (defn stop
   "Stop mulog publisher"

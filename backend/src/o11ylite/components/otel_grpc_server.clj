@@ -20,19 +20,20 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :server/otel-grpc
-  [_ {:keys [port event-metadata event-batcher id-generator metric-batcher metric-normalizer sqlite]}]
-  (mulog/log ::otel-grpc-server-starting :port port)
-  (let [executor (Executors/newVirtualThreadPerTaskExecutor)
-        server (-> (ServerBuilder/forPort port)
-                   (.executor executor)
-                   (.addService (trace/create-service event-metadata event-batcher id-generator))
-                   (.addService (log/create-service event-metadata event-batcher id-generator))
-                   (.addService (metric/create-service metric-batcher sqlite metric-normalizer))
-                   (.build)
-                   (.start))]
-    (mulog/log ::otel-grpc-server-started :port port)
-    {:server server
-     :executor executor}))
+  [_ {:keys [core-config event-metadata event-batcher id-generator metric-batcher metric-normalizer sqlite]}]
+  (let [port (:otel-grpc-port core-config)]
+    (mulog/log ::otel-grpc-server-starting :port port)
+    (let [executor (Executors/newVirtualThreadPerTaskExecutor)
+          server (-> (ServerBuilder/forPort port)
+                     (.executor executor)
+                     (.addService (trace/create-service event-metadata event-batcher id-generator))
+                     (.addService (log/create-service event-metadata event-batcher id-generator))
+                     (.addService (metric/create-service metric-batcher sqlite metric-normalizer))
+                     (.build)
+                     (.start))]
+      (mulog/log ::otel-grpc-server-started :port port)
+      {:server server
+       :executor executor})))
 
 (defmethod ig/halt-key! :server/otel-grpc
   [_ {:keys [^Server server executor]}]

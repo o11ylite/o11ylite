@@ -87,12 +87,13 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :id/generator
-  [_ {:keys [node-id] :or {node-id 0}}]
-  (assert (<= 0 node-id 63) "node-id must be 0-63")
-  {:node-id node-id
-   :state (atom {:node-id node-id
-                 :last-ts 0
-                 :sequence 0})})
+  [_ {:keys [core-config]}]
+  (let [node-id (:node-id core-config 0)]
+    (assert (<= 0 node-id 63) "node-id must be 0-63")
+    {:node-id node-id
+     :state (atom {:node-id node-id
+                   :last-ts 0
+                   :sequence 0})}))
 
 ;; No halt needed - atom is garbage collected
 

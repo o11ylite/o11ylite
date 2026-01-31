@@ -22,6 +22,7 @@
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
    [next.jdbc :as jdbc]
+   [o11ylite.components.app-config :as app-config]
    [o11ylite.store.scheduler :as store]
    [o11ylite.store.ducklake :as ducklake]
    [o11ylite.util.ticker :as ticker]))
@@ -126,28 +127,28 @@
   (partial * 60000))
 
 (defmethod ig/init-key :scheduler/registry
-  [_ {:keys [duckdb
-             inlined-data-flush-interval-minutes
-             parquet-compaction-interval-minutes
-             daily-maintenance-interval-minutes
-             data-retention-days]}]
+  [_ {:keys [duckdb app-config]}]
   (mulog/log ::registry-initializing)
-  {:inlined-data-flush
-   {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
-    :description "Flush DuckLake inlined data to Parquet"
-    :handler (fn [] (ducklake/flush-inlined-data! duckdb))}
+  (let [inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
+        parquet-compaction-interval-minutes (app-config/get-setting-value app-config :parquet-compaction-interval-minutes)
+        daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
+        data-retention-days (app-config/get-setting-value app-config :data-retention-days)]
+    {:inlined-data-flush
+     {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
+      :description "Flush DuckLake inlined data to Parquet"
+      :handler (fn [] (ducklake/flush-inlined-data! duckdb))}
 
-   :parquet-compaction
-   {:interval-ms (minutes->ms parquet-compaction-interval-minutes)
-    :description "Merge small Parquet files for better query performance"
-    :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
+     :parquet-compaction
+     {:interval-ms (minutes->ms parquet-compaction-interval-minutes)
+      :description "Merge small Parquet files for better query performance"
+      :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
 
-   :daily-maintenance
-   {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
-    :description "Daily data retention and DuckLake maintenance"
-    :handler (fn []
-               (ducklake/delete-old-data! duckdb data-retention-days)
-               (ducklake/run-checkpoint! duckdb))}})
+     :daily-maintenance
+     {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
+      :description "Daily data retention and DuckLake maintenance"
+      :handler (fn []
+                 (ducklake/delete-old-data! duckdb data-retention-days)
+                 (ducklake/run-checkpoint! duckdb))}}))
 
 ;; ---------------------------------------------------------
 ;; Scheduler Component
