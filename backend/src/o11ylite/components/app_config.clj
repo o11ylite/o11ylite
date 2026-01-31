@@ -76,14 +76,19 @@
                  app-config-defs)))
 
 (defn- -resolve-setting
-  "Resolve a setting at runtime with precedence: KV → env → default.
+  "Resolve a setting at runtime with precedence: KV (if enabled) → env → default.
    Returns a map with :value and :source."
-  [sqlite env-values setting-key]
-  (let [kv-key setting-key
-        env-value (get env-values setting-key)
+  [sqlite env-values runtime-app-config? setting-key]
+  (let [env-value (get env-values setting-key)
         default-value (get default-settings setting-key)]
-    (if-let [kv-value (kv/get-value sqlite kv-key)]
-      {:value kv-value :source :kv}
+    (if runtime-app-config?
+      ;; KV override enabled: check KV store first
+      (if-let [kv-value (kv/get-value sqlite setting-key)]
+        {:value kv-value :source :kv}
+        (if env-value
+          {:value env-value :source :env}
+          {:value default-value :source :default}))
+      ;; KV override disabled: skip KV, go env → default
       (if env-value
         {:value env-value :source :env}
         {:value default-value :source :default}))))
@@ -93,15 +98,19 @@
 ;; ---------------------------------------------------------
 
 (defmethod ig/init-key :config/app
-  [_ {:keys [sqlite] :as config-map}]
+  [_ {:keys [sqlite core-config] :as config-map}]
   (let [env-values (-load-env-values)
         ;; Extract test overrides (keys that exist in default-settings)
         test-overrides (select-keys config-map (keys default-settings))
         ;; Precedence: test overrides > env vars
-        merged-values (merge env-values test-overrides)]
-    (mulog/log ::app-config-loaded)
+        merged-values (merge env-values test-overrides)
+        ;; Check if runtime config override is enabled
+        runtime-app-config? (get core-config :runtime-app-config? false)]
+    (mulog/log ::app-config-loaded
+               :runtime-app-config? runtime-app-config?)
     {:sqlite sqlite
-     :env-values merged-values}))
+     :env-values merged-values
+     :runtime-app-config? runtime-app-config?}))
 
 (defmethod ig/halt-key! :config/app
   [_ _]
@@ -113,14 +122,14 @@
 
 (defn get-setting
   "Get a configuration setting with metadata.
-   Queries KV store at runtime. Returns {:value <value> :source <:kv|:env|:default>}."
+   Queries KV store at runtime (if enabled). Returns {:value <value> :source <:kv|:env|:default>}."
   [app-config setting-key]
-  (let [{:keys [sqlite env-values]} app-config]
-    (-resolve-setting sqlite env-values setting-key)))
+  (let [{:keys [sqlite env-values runtime-app-config?]} app-config]
+    (-resolve-setting sqlite env-values runtime-app-config? setting-key)))
 
 (defn get-setting-value
   "Get just the value of a configuration setting.
-    Queries KV store at runtime."
+     Queries KV store at runtime (if enabled)."
   [app-config setting-key]
   (:value (get-setting app-config setting-key)))
 

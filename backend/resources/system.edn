@@ -14,7 +14,8 @@
  {:core-config #ig/ref :config/core}
 
  :config/app
- {:sqlite #ig/ref :db/sqlite
+ {:core-config #ig/ref :config/core
+  :sqlite #ig/ref :db/sqlite
   :_storage #ig/ref :storage/init}
 
  :cache/event-metadata

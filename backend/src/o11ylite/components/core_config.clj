@@ -20,8 +20,7 @@
 
 (def ^:private core-config-defs
   "Configuration definitions: key, env var, default, parser."
-  [
-   ;; Path to data directory for DuckLake and SQLite files
+  [;; Path to data directory for DuckLake and SQLite files
    {:key :data-path :env-var "DATA_PATH" :default "./.tmp" :parser identity}
 
    ;; Node ID for distributed ID generation (Snowflake-style)
@@ -46,7 +45,10 @@
    {:key :frontend-entry-point :env-var "FRONTEND_ENTRY_POINT" :default "src/main.tsx" :parser identity}
 
    ;; Development mode flag - enables Vite dev server integration
-   {:key :dev? :env-var "O11YLITE_DEV" :default false :parser #(= "true" %)}])
+   {:key :dev? :env-var "O11YLITE_DEV" :default false :parser #(= "true" %)}
+
+   ;; Enable runtime app configuration via KV store
+   {:key :runtime-app-config? :env-var "O11YLITE_ENABLE_RUNTIME_APP_CONFIG" :default false :parser #(= "true" %)}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps
