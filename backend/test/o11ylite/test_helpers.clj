@@ -42,19 +42,22 @@
   "Build base test configuration with test-specific overrides."
   []
   (let [temp-path (create-temp-data-path)]
-    (-> (system/read-config :dev)
-        (assoc-in [:server/web :port] test-http-port)
-        (assoc-in [:server/web :host] "127.0.0.1")
-        (assoc-in [:server/otel-grpc :port] test-grpc-port)
-        (assoc-in [:db/duckdb :data-path] temp-path)
-        (assoc-in [:db/sqlite :data-path] temp-path)
+    (-> (system/read-config)
+        (assoc-in [:config/core :data-path] temp-path)
+        (assoc-in [:config/core :host] "127.0.0.1")
+        (assoc-in [:config/core :web-port] test-http-port)
+        (assoc-in [:config/core :otel-grpc-port] test-grpc-port)
+        (assoc-in [:config/core :dev?] true)
         ;; Fast flush interval for tests (100ms)
-        (assoc-in [:ingest/event-batcher :flush-interval-ms] 100)
-        (assoc-in [:ingest/metric-batcher :flush-interval-ms] 100)
+        (assoc-in [:config/app :ingest-flush-interval-ms] 100)
+        (assoc-in [:config/app :metric-flush-interval-ms] 100)
         ;; Fast service discovery for tests (100ms)
-        (assoc-in [:discovery/services :scan-interval-ms] 100)
-        ;; Fast scheduler for tests (100ms tick, 100ms job interval)
-        (assoc-in [:scheduler/registry :inlined-data-flush-interval-ms] 100)
+        (assoc-in [:config/app :service-discovery-interval-ms] 100)
+        ;; Fast scheduler intervals for tests (in minutes for job intervals)
+        (assoc-in [:config/app :inlined-data-flush-interval-minutes] 1)
+        (assoc-in [:config/app :parquet-compaction-interval-minutes] 1)
+        (assoc-in [:config/app :daily-maintenance-interval-minutes] 1)
+        ;; Fast scheduler tick for tests (100ms)
         (assoc-in [:scheduler/executor :tick-interval-ms] 100))))
 
 (defn test-config

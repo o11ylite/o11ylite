@@ -11,8 +11,12 @@
    [o11ylite.inertia.template :as template]))
 
 (defmethod ig/init-key :inertia/config
-  [_ config]
-  (let [assets (template/load-assets config)
+  [_ {:keys [core-config]}]
+  (let [config (-> core-config
+                   (select-keys [:dev? :asset-base-url])
+                   (assoc :manifest-path (:frontend-manifest-path core-config)
+                          :entry-point (:frontend-entry-point core-config)))
+        assets (template/load-assets config)
         version (:version assets)]
     (mulog/log ::inertia-init :dev? (:dev? config) :version version)
     (assoc config

@@ -34,6 +34,7 @@
    [clojure.core.async :as a]
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.components.app-config :as app-config]
    [o11ylite.store.events.ingest :as events.ingest]
    [o11ylite.util.ticker :as ticker]))
 
@@ -155,12 +156,12 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/event-batcher
-  [_ {:keys [duckdb event-metadata flush-interval-ms]
-      :or {flush-interval-ms 60000}}]
-  (mulog/log ::event-batcher-starting :flush-interval-ms flush-interval-ms)
-  (let [state (-start-event-loop duckdb event-metadata flush-interval-ms)]
-    (mulog/log ::event-batcher-started)
-    state))
+  [_ {:keys [duckdb event-metadata app-config]}]
+  (let [flush-interval-ms (app-config/get-setting-value app-config :ingest-flush-interval-ms)]
+    (mulog/log ::event-batcher-starting :flush-interval-ms flush-interval-ms)
+    (let [state (-start-event-loop duckdb event-metadata flush-interval-ms)]
+      (mulog/log ::event-batcher-started)
+      state)))
 
 (defmethod ig/halt-key! :ingest/event-batcher
   [_ batcher]

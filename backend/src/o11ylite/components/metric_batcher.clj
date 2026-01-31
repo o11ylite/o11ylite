@@ -17,6 +17,7 @@
    [clojure.core.async :as a]
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.components.app-config :as app-config]
    [o11ylite.store.metrics.ingest :as metrics.ingest]
    [o11ylite.util.ticker :as ticker]))
 
@@ -143,12 +144,12 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/metric-batcher
-  [_ {:keys [duckdb sqlite normalizer flush-interval-ms]
-      :or {flush-interval-ms 60000}}]
-  (mulog/log ::metric-batcher-starting :flush-interval-ms flush-interval-ms)
-  (let [state (-start-event-loop duckdb sqlite normalizer flush-interval-ms)]
-    (mulog/log ::metric-batcher-started)
-    state))
+  [_ {:keys [duckdb sqlite normalizer app-config]}]
+  (let [flush-interval-ms (app-config/get-setting-value app-config :metric-flush-interval-ms)]
+    (mulog/log ::metric-batcher-starting :flush-interval-ms flush-interval-ms)
+    (let [state (-start-event-loop duckdb sqlite normalizer flush-interval-ms)]
+      (mulog/log ::metric-batcher-started)
+      state)))
 
 (defmethod ig/halt-key! :ingest/metric-batcher
   [_ batcher]

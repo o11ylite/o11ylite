@@ -20,13 +20,15 @@
     (.setVirtualThreadsExecutor (java.util.concurrent.Executors/newVirtualThreadPerTaskExecutor))))
 
 (defmethod ig/init-key :server/web
-  [_ {:keys [host port handler]}]
-  (mulog/log ::web-server-starting :host host :port port)
-  (jetty/run-jetty handler
-                   {:host host
-                    :port port
-                    :join? false
-                    :thread-pool (virtual-thread-pool)}))
+  [_ {:keys [core-config handler]}]
+  (let [host (:host core-config)
+        port (:web-port core-config)]
+    (mulog/log ::web-server-starting :host host :port port)
+    (jetty/run-jetty handler
+                     {:host host
+                      :port port
+                      :join? false
+                      :thread-pool (virtual-thread-pool)})))
 
 (defmethod ig/halt-key! :server/web
   [_ ^Server server]

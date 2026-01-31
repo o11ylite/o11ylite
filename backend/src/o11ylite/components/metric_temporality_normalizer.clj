@@ -21,6 +21,7 @@
    [clojure.core.async :as a]
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.components.app-config :as app-config]
    [o11ylite.store.metrics.series :as series]
    [o11ylite.util.ticker :as ticker])
   (:import
@@ -153,18 +154,18 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/metric-normalizer
-  [_ {:keys [ttl-ms cleanup-interval-ms]
-      :or {ttl-ms 1800000            ; 30 minutes
-           cleanup-interval-ms 60000}}] ; 1 minute
-  (mulog/log ::normalizer-starting
-             :ttl-ms ttl-ms
-             :cleanup-interval-ms cleanup-interval-ms)
-  (let [state-atom (atom {})
-        cleanup-ticker (-start-cleanup-ticker state-atom ttl-ms cleanup-interval-ms)]
-    (mulog/log ::normalizer-started)
-    {:state state-atom
-     :ttl-ms ttl-ms
-     :cleanup-ticker cleanup-ticker}))
+  [_ {:keys [app-config]}]
+  (let [ttl-ms (app-config/get-setting-value app-config :metric-normalizer-ttl-ms)
+        cleanup-interval-ms (app-config/get-setting-value app-config :metric-normalizer-cleanup-ms)]
+    (mulog/log ::normalizer-starting
+               :ttl-ms ttl-ms
+               :cleanup-interval-ms cleanup-interval-ms)
+    (let [state-atom (atom {})
+          cleanup-ticker (-start-cleanup-ticker state-atom ttl-ms cleanup-interval-ms)]
+      (mulog/log ::normalizer-started)
+      {:state state-atom
+       :ttl-ms ttl-ms
+       :cleanup-ticker cleanup-ticker})))
 
 (defmethod ig/halt-key! :ingest/metric-normalizer
   [_ normalizer]

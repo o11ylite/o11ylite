@@ -19,6 +19,8 @@ elif [[ -f "$HOME/.local/share/caddy/pki/authorities/local/root.crt" ]]; then
   export OTEL_EXPORTER_OTLP_CERTIFICATE="$HOME/.local/share/caddy/pki/authorities/local/root.crt"
 fi
 
+export O11YLITE_DEV=true
+
 # Default to repl mode, use server mode if any argument is passed
 if [[ $# -gt 0 ]]; then
   export BACKEND_CMD="clojure -M:otel:run/dev"

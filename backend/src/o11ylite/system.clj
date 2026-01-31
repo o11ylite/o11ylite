@@ -11,6 +11,8 @@
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
    ;; Load component namespaces for ig/init-key methods
+   [o11ylite.components.core-config]
+   [o11ylite.components.app-config]
    [o11ylite.components.duckdb-pool]
    [o11ylite.components.sqlite-pool]
    [o11ylite.components.id-gen]
@@ -40,21 +42,21 @@
   (ig/ref value))
 
 (defn read-config
-  "Read and parse the system configuration file using Aero."
-  ([] (read-config :default))
-  ([profile]
-   (aero/read-config (io/resource "system.edn") {:profile profile})))
+  "Read the system configuration from system.edn.
+   Note: All configuration values are now defined in core-config and
+   app-config components, not in this file."
+  []
+  (aero/read-config (io/resource "system.edn")))
 
 ;; ---------------------------------------------------------
 ;; System Lifecycle
 
 (defn start
-  "Start the system with the given profile."
-  ([] (start :default))
-  ([profile]
-   (let [config (read-config profile)]
-     (mulog/log ::system-starting :profile profile)
-     (ig/init config))))
+  "Start the system."
+  []
+  (let [config (read-config)]
+    (mulog/log ::system-starting)
+    (ig/init config)))
 
 (defn stop
   "Stop the running system."

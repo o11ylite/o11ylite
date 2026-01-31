@@ -9,6 +9,7 @@
   (:require
    [integrant.core :as ig]
    [com.brunobonacci.mulog :as mulog]
+   [o11ylite.components.app-config :as app-config]
    [o11ylite.store.services :as services]
    [o11ylite.util.ticker :as ticker]))
 
@@ -54,16 +55,16 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :discovery/services
-  [_ {:keys [sqlite duckdb scan-interval-ms]
-      :or {scan-interval-ms default-scan-interval-ms}}]
-  (mulog/log ::service-discovery-starting :scan-interval-ms scan-interval-ms)
-  (let [scan-window-ms (+ scan-interval-ms scan-buffer-ms)]
-    ;; Initial discovery
-    (-discover! sqlite duckdb scan-window-ms)
-    ;; Start background loop
-    (let [ticker (-start-discovery-loop sqlite duckdb scan-interval-ms)]
-      (mulog/log ::service-discovery-started)
-      {:ticker ticker})))
+  [_ {:keys [sqlite duckdb app-config]}]
+  (let [scan-interval-ms (app-config/get-setting-value app-config :service-discovery-interval-ms)]
+    (mulog/log ::service-discovery-starting :scan-interval-ms scan-interval-ms)
+    (let [scan-window-ms (+ scan-interval-ms scan-buffer-ms)]
+      ;; Initial discovery
+      (-discover! sqlite duckdb scan-window-ms)
+      ;; Start background loop
+      (let [ticker (-start-discovery-loop sqlite duckdb scan-interval-ms)]
+        (mulog/log ::service-discovery-started)
+        {:ticker ticker}))))
 
 (defmethod ig/halt-key! :discovery/services
   [_ {:keys [ticker]}]

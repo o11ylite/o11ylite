@@ -43,14 +43,19 @@
 ;; ---------------------------------------------------------
 ;; Public API
 
+(defn- -dev-mode?
+  "Check if running in development mode via env var."
+  []
+  (= "true" (System/getenv "O11YLITE_DEV")))
+
 (defn init!
   "Initialize mulog publisher and global context.
 
-   Dev mode: console (pretty) + OpenTelemetry for dogfooding.
+   Dev mode (O11YLITE_DEV=true): console (pretty) + OpenTelemetry for dogfooding.
    Prod mode: console (JSON) for log collectors."
-  [profile]
+  []
   (mulog/start-publisher!
-   (if (= :dev profile)
+   (if (-dev-mode?)
      (-dev-publisher)
      (-prod-publisher)))
   (mulog/set-global-context!
@@ -60,11 +65,8 @@
 ;; Rich Comment
 (comment
 
-  ;; Initialize for dev
-  (init! :dev)
-
-  ;; Initialize for prod
-  (init! :default)
+  ;; Initialize mulog (checks O11YLITE_DEV env var)
+  (init!)
 
   ;; Test logging
   (mulog/log ::test-event :foo "bar" :count 42)

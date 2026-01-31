@@ -83,14 +83,7 @@
    ;; Run in development mode (uses Vite dev server)
    ;; Sets O11YLITE_DEV env var to enable dev profile
   :run/dev
-  {:main-opts ["-m" "o11ylite.backend"]
-   :jvm-opts ["-DO11YLITE_DEV=1"]}
-
-  ;; Clojure.exec execution of specified function
-  :run/greet
-  {:exec-fn o11ylite.backend/greet
-   :exec-args {:name "Clojure"}}
-  ;; ------------
+  {:main-opts ["-m" "o11ylite.backend"]}
 
   ;; ------------
   ;; Add libraries and paths to support additional test tools

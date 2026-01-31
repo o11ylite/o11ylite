@@ -144,19 +144,20 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :db/duckdb
-  [_ {:keys [data-path]}]
-  (mulog/log ::duckdb-pool-starting :data-path data-path)
-  (ensure-data-dir! data-path)
-  (let [datasource (create-pool-datasource {:data-path data-path})]
-    ;; Validate pool by getting and closing a connection
-    (.close (.getConnection datasource))
-    (mulog/log ::duckdb-pool-started :data-path data-path)
-    ;; Wrap with default options for automatic Timestamp -> epoch-ms conversion.
-    ;; Note: jdbc/with-options returns a wrapper that applies these options to
-    ;; all next.jdbc operations. However, raw Java calls like .getConnection
-    ;; bypass the wrapper. Use jdbc/with-transaction+options for transactions.
-    (jdbc/with-options datasource
-      {:builder-fn jdbc-types/as-unqualified-maps})))
+  [_ {:keys [core-config]}]
+  (let [data-path (:data-path core-config)]
+    (mulog/log ::duckdb-pool-starting :data-path data-path)
+    (ensure-data-dir! data-path)
+    (let [datasource (create-pool-datasource {:data-path data-path})]
+      ;; Validate pool by getting and closing a connection
+      (.close (.getConnection datasource))
+      (mulog/log ::duckdb-pool-started :data-path data-path)
+      ;; Wrap with default options for automatic Timestamp -> epoch-ms conversion.
+      ;; Note: jdbc/with-options returns a wrapper that applies these options to
+      ;; all next.jdbc operations. However, raw Java calls like .getConnection
+      ;; bypass the wrapper. Use jdbc/with-transaction+options for transactions.
+      (jdbc/with-options datasource
+        {:builder-fn jdbc-types/as-unqualified-maps}))))
 
 (defmethod ig/halt-key! :db/duckdb
   [_ datasource]
