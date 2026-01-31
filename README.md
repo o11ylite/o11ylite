@@ -174,9 +174,9 @@ caddy run --config dev/Caddyfile
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `O11YLITE_DEV` | - | Set to enable dev mode (uses Vite HMR) |
-| `PORT` | 3000 | Backend server port |
-| `HOST` | 0.0.0.0 | Backend server host |
-| `ASSET_BASE_URL` | /frontend | Base URL for frontend assets |
+| `O11YLITE_WEB_PORT` | 3000 | Backend server port |
+| `O11YLITE_WEB_HOST` | 0.0.0.0 | Backend server host |
+| `O11YLITE_ASSET_BASE_URL` | /frontend | Base URL for frontend assets |
 
 
 ### Multiple Dev Environments
@@ -188,9 +188,9 @@ Create a `.envrc` in each repository clone:
 ```bash
 export O11YLITE_DEV_HOSTNAME="o11ylite-feature-a.localhost"  # default: o11ylite.localhost
 export DEV_HTTPS_PORT=8443     # default: 443
-export PORT=3010               # default: 3000
+export O11YLITE_WEB_PORT=3010  # default: 3000
 export VITE_PORT=5180          # default: 5173
-export OTEL_GRPC_PORT=4320     # default: 4317
+export O11YLITE_OTEL_GRPC_PORT=4320  # default: 4317
 ```
 
 Then run `dev/setup` to add the hostname to `/etc/hosts`, and `dev/start` to launch.

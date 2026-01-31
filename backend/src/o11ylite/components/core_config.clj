@@ -21,28 +21,28 @@
 (def ^:private core-config-defs
   "Configuration definitions: key, env var, default, parser."
   [;; Path to data directory for DuckLake and SQLite files
-   {:key :data-path :env-var "DATA_PATH" :default "./.tmp" :parser identity}
+   {:key :data-path :env-var "O11YLITE_DATA_PATH" :default "./.tmp" :parser identity}
 
    ;; Node ID for distributed ID generation (Snowflake-style)
    {:key :node-id :env-var "O11YLITE_NODE_ID" :default 0 :parser #(Long/parseLong %)}
 
    ;; Host interface to bind web server (0.0.0.0 for all interfaces)
-   {:key :host :env-var "HOST" :default "0.0.0.0" :parser identity}
+   {:key :host :env-var "O11YLITE_WEB_HOST" :default "0.0.0.0" :parser identity}
 
    ;; HTTP web server port
-   {:key :web-port :env-var "PORT" :default 3000 :parser #(Long/parseLong %)}
+   {:key :web-port :env-var "O11YLITE_WEB_PORT" :default 3000 :parser #(Long/parseLong %)}
 
    ;; OTLP/gRPC ingestion port for OpenTelemetry data
-   {:key :otel-grpc-port :env-var "OTEL_GRPC_PORT" :default 4317 :parser #(Long/parseLong %)}
+   {:key :otel-grpc-port :env-var "O11YLITE_OTEL_GRPC_PORT" :default 4317 :parser #(Long/parseLong %)}
 
    ;; Base URL for static assets (e.g., '/frontend' or CDN URL)
-   {:key :asset-base-url :env-var "ASSET_BASE_URL" :default "/frontend" :parser identity}
+   {:key :asset-base-url :env-var "O11YLITE_ASSET_BASE_URL" :default "/frontend" :parser identity}
 
    ;; Path to Vite manifest relative to resources/ (prod only)
-   {:key :frontend-manifest-path :env-var "FRONTEND_MANIFEST_PATH" :default ".vite/manifest.json" :parser identity}
+   {:key :frontend-manifest-path :env-var "O11YLITE_FRONTEND_MANIFEST_PATH" :default ".vite/manifest.json" :parser identity}
 
    ;; Entry point for frontend, must match vite.config.ts rollupOptions.input
-   {:key :frontend-entry-point :env-var "FRONTEND_ENTRY_POINT" :default "src/main.tsx" :parser identity}
+   {:key :frontend-entry-point :env-var "O11YLITE_FRONTEND_ENTRY_POINT" :default "src/main.tsx" :parser identity}
 
    ;; Development mode flag - enables Vite dev server integration
    {:key :dev? :env-var "O11YLITE_DEV" :default false :parser #(= "true" %)}
