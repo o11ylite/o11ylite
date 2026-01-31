@@ -21,33 +21,33 @@
 
 (def ^:private app-config-defs
   "Configuration definitions: key, env var, default, parser."
-  [
-   ;; Service discovery scan interval in milliseconds
-   {:key :service-discovery-interval-ms :env-var "SERVICE_DISCOVERY_INTERVAL_MS" :default 300000 :parser #(Long/parseLong %)}
+   [
+    ;; Service discovery scan interval in milliseconds
+    {:key :service-discovery-interval-ms :env-var "O11YLITE_SERVICE_DISCOVERY_INTERVAL_MS" :default 300000 :parser #(Long/parseLong %)}
 
-   ;; Ingest flush interval in milliseconds
-   {:key :ingest-flush-interval-ms :env-var "INGEST_FLUSH_INTERVAL_MS" :default 1000 :parser #(Long/parseLong %)}
+    ;; Ingest flush interval in milliseconds
+    {:key :ingest-flush-interval-ms :env-var "O11YLITE_INGEST_FLUSH_INTERVAL_MS" :default 1000 :parser #(Long/parseLong %)}
 
-   ;; TTL for metric normalizer series state in milliseconds
-   {:key :metric-normalizer-ttl-ms :env-var "METRIC_NORMALIZER_TTL_MS" :default 1800000 :parser #(Long/parseLong %)}
+    ;; TTL for metric normalizer series state in milliseconds
+    {:key :metric-normalizer-ttl-ms :env-var "O11YLITE_METRIC_NORMALIZER_TTL_MS" :default 1800000 :parser #(Long/parseLong %)}
 
-   ;; Cleanup interval for metric normalizer in milliseconds
-   {:key :metric-normalizer-cleanup-ms :env-var "METRIC_NORMALIZER_CLEANUP_MS" :default 60000 :parser #(Long/parseLong %)}
+    ;; Cleanup interval for metric normalizer in milliseconds
+    {:key :metric-normalizer-cleanup-ms :env-var "O11YLITE_METRIC_NORMALIZER_CLEANUP_MS" :default 60000 :parser #(Long/parseLong %)}
 
-   ;; Metric flush interval in milliseconds
-   {:key :metric-flush-interval-ms :env-var "METRIC_FLUSH_INTERVAL_MS" :default 1000 :parser #(Long/parseLong %)}
+    ;; Metric flush interval in milliseconds
+    {:key :metric-flush-interval-ms :env-var "O11YLITE_METRIC_FLUSH_INTERVAL_MS" :default 1000 :parser #(Long/parseLong %)}
 
-   ;; Interval for flushing inlined data to Parquet in minutes
-   {:key :inlined-data-flush-interval-minutes :env-var "INLINED_DATA_FLUSH_INTERVAL_MINUTES" :default 15 :parser #(Long/parseLong %)}
+    ;; Interval for flushing inlined data to Parquet in minutes
+    {:key :inlined-data-flush-interval-minutes :env-var "O11YLITE_INLINED_DATA_FLUSH_INTERVAL_MINUTES" :default 15 :parser #(Long/parseLong %)}
 
-   ;; Interval for Parquet compaction in minutes
-   {:key :parquet-compaction-interval-minutes :env-var "PARQUET_COMPACTION_INTERVAL_MINUTES" :default 60 :parser #(Long/parseLong %)}
+    ;; Interval for Parquet compaction in minutes
+    {:key :parquet-compaction-interval-minutes :env-var "O11YLITE_PARQUET_COMPACTION_INTERVAL_MINUTES" :default 60 :parser #(Long/parseLong %)}
 
-   ;; Interval for daily maintenance tasks in minutes
-   {:key :daily-maintenance-interval-minutes :env-var "DAILY_MAINTENANCE_INTERVAL_MINUTES" :default 1440 :parser #(Long/parseLong %)}
+    ;; Interval for daily maintenance tasks in minutes
+    {:key :daily-maintenance-interval-minutes :env-var "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES" :default 1440 :parser #(Long/parseLong %)}
 
-   ;; Data retention period in days
-   {:key :data-retention-days :env-var "DATA_RETENTION_DAYS" :default 30 :parser #(Long/parseLong %)}])
+    ;; Data retention period in days
+    {:key :data-retention-days :env-var "O11YLITE_DATA_RETENTION_DAYS" :default 30 :parser #(Long/parseLong %)}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps
