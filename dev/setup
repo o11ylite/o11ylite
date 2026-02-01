@@ -9,8 +9,13 @@ OTEL_AGENT_JAR="opentelemetry-javaagent.jar"
 OTEL_AGENT_DIR="backend/.tmp"
 OTEL_AGENT_PATH="${OTEL_AGENT_DIR}/${OTEL_AGENT_JAR}"
 
+mise install
+
 echo "Updating /etc/hosts..."
 hosts --auto-sudo add 127.0.0.1 "${O11YLITE_DEV_HOSTNAME:-o11ylite.localhost}" || true
+
+echo "Downloading Clojure and dependencies..."
+(cd backend && make deps)
 
 echo "Downloading OpenTelemetry protos..."
 (cd backend && make otel-proto-download)

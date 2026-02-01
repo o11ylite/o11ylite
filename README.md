@@ -129,9 +129,13 @@ We bundle everything to a single docker image, using s6 overlay.
 
 ### First time running
 
-First time running you need to install this first: [Practicalli Clojure CLI Config](https://practical.li/clojure/clojure-cli/practicalli-config/).
+Install the required tools (Java, Clojure, Node.js) using [mise](https://mise.jdx.dev/) or [asdf](https://asdf-vm.com/) with the versions specified in `.tool-versions`:
 
-Run `dev/setup` will install all necessary dependencies for the project.
+```bash
+mise install  # or: asdf install
+```
+
+Then run `dev/setup` to install all necessary dependencies for the project.
 
 ### Quick Start
 
