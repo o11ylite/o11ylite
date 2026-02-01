@@ -12,7 +12,7 @@
 
 (ns o11ylite.components.id-gen
   (:require
-   [integrant.core :as ig]))
+    [integrant.core :as ig]))
 
 ;; ---------------------------------------------------------
 ;; Constants
@@ -71,16 +71,16 @@
   (assert (not (neg? n)) "n must not be negative")
   (let [now (- (System/currentTimeMillis) custom-epoch)
         new-state (swap! (:state generator)
-                        (fn [state]
-                          (loop [s state
-                                 remaining n
-                                 ids []]
-                            (if (zero? remaining)
-                              (with-meta s {::ids ids})
-                              (let [next-s (-generate-next-state s now)]
-                                (recur next-s
-                                       (dec remaining)
-                                       (conj ids (-state->id next-s))))))))]
+                         (fn [state]
+                           (loop [s state
+                                  remaining n
+                                  ids []]
+                             (if (zero? remaining)
+                               (with-meta s {::ids ids})
+                               (let [next-s (-generate-next-state s now)]
+                                 (recur next-s
+                                        (dec remaining)
+                                        (conj ids (-state->id next-s))))))))]
     (::ids (meta new-state))))
 
 ;; ---------------------------------------------------------

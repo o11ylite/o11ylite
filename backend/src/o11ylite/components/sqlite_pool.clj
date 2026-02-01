@@ -7,13 +7,13 @@
 
 (ns o11ylite.components.sqlite-pool
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [next.jdbc :as jdbc]
-   [next.jdbc.connection :as connection])
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [next.jdbc :as jdbc]
+    [next.jdbc.connection :as connection])
   (:import
-   [com.zaxxer.hikari HikariDataSource]
-   [java.io File]))
+    [com.zaxxer.hikari HikariDataSource]
+    [java.io File]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -67,7 +67,7 @@
                                          :connectionInitSql connection-init-sql
                                          :connectionTestQuery "SELECT 1"})]
       (try
-      ;; Validate connection pool and init SQL by getting a connection
+        ;; Validate connection pool and init SQL by getting a connection
         (.close (jdbc/get-connection datasource))
         (mulog/log ::sqlite-pool-started
                    :data-path data-path

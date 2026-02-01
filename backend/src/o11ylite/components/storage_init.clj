@@ -7,10 +7,10 @@
 
 (ns o11ylite.components.storage-init
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [migratus.core :as migratus]
-   [o11ylite.store.init :as store]))
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [migratus.core :as migratus]
+    [o11ylite.store.init :as store]))
 
 ;; ---------------------------------------------------------
 ;; Constants

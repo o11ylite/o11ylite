@@ -6,14 +6,14 @@
 
 (ns o11ylite.otel-grpc.metric
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.otel-grpc.metric-proto :as metric-proto]
-   [o11ylite.store.metrics.ingest :as metrics.ingest])
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.otel-grpc.metric-proto :as metric-proto]
+    [o11ylite.store.metrics.ingest :as metrics.ingest])
   (:import
-   [io.grpc.stub StreamObserver]
-   [io.opentelemetry.proto.collector.metrics.v1
-    MetricsServiceGrpc$MetricsServiceImplBase
-    ExportMetricsServiceRequest]))
+    [io.grpc.stub StreamObserver]
+    [io.opentelemetry.proto.collector.metrics.v1
+     MetricsServiceGrpc$MetricsServiceImplBase
+     ExportMetricsServiceRequest]))
 
 ;; ---------------------------------------------------------
 ;; Handler
@@ -44,7 +44,8 @@
      metric-normalizer - Temporality normalizer for cumulative→delta conversion"
   [metric-batcher sqlite metric-normalizer]
   (proxy [MetricsServiceGrpc$MetricsServiceImplBase] []
-    (export [^ExportMetricsServiceRequest request ^StreamObserver response-observer]
+    (export
+      [^ExportMetricsServiceRequest request ^StreamObserver response-observer]
       (try
         (let [response-map (-metric-handler metric-batcher sqlite metric-normalizer request)
               response (metric-proto/metric-response->proto (or response-map {}))]

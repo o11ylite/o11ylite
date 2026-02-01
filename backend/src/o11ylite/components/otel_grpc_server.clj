@@ -7,14 +7,14 @@
 
 (ns o11ylite.components.otel-grpc-server
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.otel-grpc.trace :as trace]
-   [o11ylite.otel-grpc.log :as log]
-   [o11ylite.otel-grpc.metric :as metric])
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.otel-grpc.trace :as trace]
+    [o11ylite.otel-grpc.log :as log]
+    [o11ylite.otel-grpc.metric :as metric])
   (:import
-   [io.grpc Server ServerBuilder]
-   [java.util.concurrent Executors TimeUnit]))
+    [io.grpc Server ServerBuilder]
+    [java.util.concurrent Executors TimeUnit]))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle

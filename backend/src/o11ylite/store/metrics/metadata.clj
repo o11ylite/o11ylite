@@ -10,9 +10,9 @@
 
 (ns o11ylite.store.metrics.metadata
   (:require
-   [clojure.core.memoize :as memo]
-   [next.jdbc :as jdbc]
-   [jsonista.core :as json]))
+    [clojure.core.memoize :as memo]
+    [next.jdbc :as jdbc]
+    [jsonista.core :as json]))
 
 ;; ---------------------------------------------------------
 ;; SQLite Metadata Queries

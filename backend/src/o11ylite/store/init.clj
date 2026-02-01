@@ -7,9 +7,9 @@
 
 (ns o11ylite.store.init
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [next.jdbc :as jdbc]
-   [next.jdbc.date-time]))
+    [com.brunobonacci.mulog :as mulog]
+    [next.jdbc :as jdbc]
+    [next.jdbc.date-time]))
 
 ;; ---------------------------------------------------------
 ;; Schema

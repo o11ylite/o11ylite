@@ -7,9 +7,9 @@
 
 (ns o11ylite.test-helpers.metric-ingest
   (:require
-   [o11ylite.store.metrics.ingest :as metrics.ingest])
+    [o11ylite.store.metrics.ingest :as metrics.ingest])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Random Data Generators
@@ -75,13 +75,13 @@
   (let [names (distinct (map :name data-points))]
     (into {}
           (map-indexed
-           (fn [idx metric-name]
-             [metric-name
-              {:description (str "Test metric " metric-name)
-               :unit (nth units (mod idx (count units)))
-               :metric_type :gauge
-               :attributes #{"host.name"}}])
-           names))))
+            (fn [idx metric-name]
+              [metric-name
+               {:description (str "Test metric " metric-name)
+                :unit (nth units (mod idx (count units)))
+                :metric_type :gauge
+                :attributes #{"host.name"}}])
+            names))))
 
 (defn ingest-metrics!
   "Ingest metrics directly via the batcher, bypassing gRPC.

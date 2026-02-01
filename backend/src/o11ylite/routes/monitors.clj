@@ -6,7 +6,7 @@
 
 (ns o11ylite.routes.monitors
   (:require
-   [o11ylite.util.response :as response]))
+    [o11ylite.util.response :as response]))
 
 (defn rules-handler
   "Rules page handler - renders Inertia MonitorRules component."

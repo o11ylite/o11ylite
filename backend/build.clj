@@ -21,8 +21,8 @@
 
 (ns build
   (:require
-   [clojure.tools.build.api :as build-api]
-   [clojure.pprint :as pprint]))
+    [clojure.tools.build.api :as build-api]
+    [clojure.pprint :as pprint]))
 
 ;; ---------------------------------------------------------
 ;; Project configuration

@@ -6,8 +6,8 @@
 
 (ns o11ylite.store.ducklake
   (:require
-   [next.jdbc :as jdbc]
-   [steffan-westcott.clj-otel.api.trace.span :as span]))
+    [next.jdbc :as jdbc]
+    [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -24,8 +24,8 @@
    See: https://ducklake.select/docs/stable/duckdb/advanced_features/data_inlining"
   [duckdb-ds]
   (span/with-span! [::flush-inlined-data]
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"]))))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"]))))
 
 (defn merge-adjacent-files!
   "Merge small Parquet files into larger ones for better query performance.
@@ -37,18 +37,18 @@
    See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
   [duckdb-ds]
   (span/with-span! [::merge-adjacent-files]
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_merge_adjacent_files('o11ylite')"]))))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_merge_adjacent_files('o11ylite')"]))))
 
 (defn delete-old-data!
   "Delete events and metrics older than retention-days."
   [duckdb-ds retention-days]
   (span/with-span! [::delete-old-data {:retention-days retention-days}]
-    (jdbc/with-transaction [tx duckdb-ds]
-      ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
-      ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type
-      (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::TIMESTAMP_NS" retention-days)])
-      (jdbc/execute! tx [(format "DELETE FROM o11ylite.metrics WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP" retention-days)]))))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
+                                          ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type
+                                          (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::TIMESTAMP_NS" retention-days)])
+                                          (jdbc/execute! tx [(format "DELETE FROM o11ylite.metrics WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP" retention-days)]))))
 
 (defn run-checkpoint!
   "Run DuckLake maintenance operations for comprehensive cleanup.
@@ -71,15 +71,15 @@
    See: https://ducklake.select/docs/stable/duckdb/maintenance/checkpoint"
   [duckdb-ds]
   (span/with-span! [::run-checkpoint]
-    ;; Each operation runs in its own transaction to avoid DuckLake scanning issues
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_rewrite_data_files('o11ylite')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
+                   ;; Each operation runs in its own transaction to avoid DuckLake scanning issues
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_rewrite_data_files('o11ylite')"]))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

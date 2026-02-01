@@ -8,9 +8,9 @@
 
 (ns o11ylite.components.event-metadata
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.store.schema :as schema]))
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.store.schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Public API

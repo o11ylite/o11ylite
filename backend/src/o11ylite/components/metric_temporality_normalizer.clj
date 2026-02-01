@@ -18,14 +18,14 @@
 
 (ns o11ylite.components.metric-temporality-normalizer
   (:require
-   [clojure.core.async :as a]
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.components.app-config :as app-config]
-   [o11ylite.store.metrics.series :as series]
-   [o11ylite.util.ticker :as ticker])
+    [clojure.core.async :as a]
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.app-config :as app-config]
+    [o11ylite.store.metrics.series :as series]
+    [o11ylite.util.ticker :as ticker])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - TTL Cleanup

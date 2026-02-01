@@ -6,9 +6,9 @@
 
 (ns o11ylite.integration.components.event-metadata-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.test-helpers :as h]
-   [o11ylite.components.event-metadata :as event-metadata]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.test-helpers :as h]
+    [o11ylite.components.event-metadata :as event-metadata]))
 
 ;; Only start the event metadata component and its dependencies
 (use-fixtures :each (h/with-partial-system [:cache/event-metadata]))
@@ -16,7 +16,8 @@
 ;; ---------------------------------------------------------
 ;; Helper to get event metadata component from system
 
-(defn- event-metadata-component []
+(defn- event-metadata-component
+  []
   (:cache/event-metadata h/*system*))
 
 ;; ---------------------------------------------------------

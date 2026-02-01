@@ -7,13 +7,14 @@
 
 (ns o11ylite.store.services
   (:require
-   [next.jdbc :as jdbc]
-   [next.jdbc.result-set :as rs]))
+    [next.jdbc :as jdbc]
+    [next.jdbc.result-set :as rs]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-(defn- -now-ms []
+(defn- -now-ms
+  []
   (System/currentTimeMillis))
 
 ;; ---------------------------------------------------------
@@ -25,12 +26,12 @@
   [duckdb scan-window-ms]
   (let [cutoff-ms (- (-now-ms) scan-window-ms)]
     (->> (jdbc/execute!
-          duckdb
-          ["SELECT DISTINCT service
+           duckdb
+           ["SELECT DISTINCT service
             FROM o11ylite.events
             WHERE timestamp > (epoch_ms(?::BIGINT))::TIMESTAMP_NS"
-           cutoff-ms]
-          {:builder-fn rs/as-unqualified-lower-maps})
+            cutoff-ms]
+           {:builder-fn rs/as-unqualified-lower-maps})
          (map :service))))
 
 (defn register-services!
@@ -38,25 +39,25 @@
   [sqlite services]
   (let [now (-now-ms)]
     (jdbc/with-transaction [tx sqlite]
-      (doseq [service services]
-        (jdbc/execute!
-         tx
-         ["INSERT OR IGNORE INTO service_metadata (service, first_seen_at, updated_at)
+                           (doseq [service services]
+                             (jdbc/execute!
+                               tx
+                               ["INSERT OR IGNORE INTO service_metadata (service, first_seen_at, updated_at)
            VALUES (?, ?, ?)"
-          service
-          now
-          now])))))
+                                service
+                                now
+                                now])))))
 
 (defn get-services
   "Get all registered services.
    Returns a list of {:name, :first_seen_at, :updated_at}."
   [sqlite]
   (jdbc/execute!
-   sqlite
-   ["SELECT service AS name, first_seen_at, updated_at
+    sqlite
+    ["SELECT service AS name, first_seen_at, updated_at
      FROM service_metadata
      ORDER BY service"]
-   {:builder-fn rs/as-unqualified-lower-maps}))
+    {:builder-fn rs/as-unqualified-lower-maps}))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

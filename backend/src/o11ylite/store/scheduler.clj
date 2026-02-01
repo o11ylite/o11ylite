@@ -8,14 +8,15 @@
 
 (ns o11ylite.store.scheduler
   (:require
-   [clojure.string :as str]
-   [next.jdbc :as jdbc]
-   [next.jdbc.result-set :as rs]))
+    [clojure.string :as str]
+    [next.jdbc :as jdbc]
+    [next.jdbc.result-set :as rs]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-(defn- -now-ms []
+(defn- -now-ms
+  []
   (System/currentTimeMillis))
 
 ;; ---------------------------------------------------------
@@ -27,16 +28,16 @@
   [sqlite job-name interval-ms]
   (let [now (-now-ms)]
     (jdbc/execute!
-     sqlite
-     ["INSERT INTO scheduled_jobs (job_name, interval_ms, created_at, updated_at)
+      sqlite
+      ["INSERT INTO scheduled_jobs (job_name, interval_ms, created_at, updated_at)
        VALUES (?, ?, ?, ?)
        ON CONFLICT(job_name) DO UPDATE SET
          interval_ms = excluded.interval_ms,
          updated_at = excluded.updated_at"
-      (name job-name)
-      interval-ms
-      now
-      now])))
+       (name job-name)
+       interval-ms
+       now
+       now])))
 
 (defn get-due-jobs
   "Get all enabled jobs that are due to run.
@@ -46,13 +47,13 @@
   [sqlite]
   (let [now (-now-ms)]
     (jdbc/execute!
-     sqlite
-     ["SELECT job_name, interval_ms, last_run_at, last_success_at, last_error
+      sqlite
+      ["SELECT job_name, interval_ms, last_run_at, last_success_at, last_error
        FROM scheduled_jobs
        WHERE enabled = 1
          AND (last_run_at IS NULL OR ? - last_run_at >= interval_ms)"
-      now]
-     {:builder-fn rs/as-unqualified-lower-maps})))
+       now]
+      {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn record-success!
   "Record a successful job execution.
@@ -60,14 +61,14 @@
   [sqlite job-name]
   (let [now (-now-ms)]
     (jdbc/execute!
-     sqlite
-     ["UPDATE scheduled_jobs
+      sqlite
+      ["UPDATE scheduled_jobs
        SET last_run_at = ?,
            last_success_at = ?,
            last_error = NULL,
            updated_at = ?
        WHERE job_name = ?"
-      now now now (name job-name)])))
+       now now now (name job-name)])))
 
 (defn record-failure!
   "Record a failed job execution.
@@ -75,24 +76,24 @@
   [sqlite job-name error-msg]
   (let [now (-now-ms)]
     (jdbc/execute!
-     sqlite
-     ["UPDATE scheduled_jobs
+      sqlite
+      ["UPDATE scheduled_jobs
        SET last_run_at = ?,
            last_error = ?,
            updated_at = ?
        WHERE job_name = ?"
-      now error-msg now (name job-name)])))
+       now error-msg now (name job-name)])))
 
 (defn get-all-jobs
   "Get all jobs with their current state.
    For system status page."
   [sqlite]
   (jdbc/execute!
-   sqlite
-   ["SELECT job_name, interval_ms, last_run_at, last_success_at, last_error, enabled, created_at, updated_at
+    sqlite
+    ["SELECT job_name, interval_ms, last_run_at, last_success_at, last_error, enabled, created_at, updated_at
      FROM scheduled_jobs
      ORDER BY job_name"]
-   {:builder-fn rs/as-unqualified-lower-maps}))
+    {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn delete-unrecognized-jobs!
   "Delete jobs from DB that are not in the provided set of job names.

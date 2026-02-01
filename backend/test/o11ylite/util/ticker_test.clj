@@ -6,9 +6,9 @@
 
 (ns o11ylite.util.ticker-test
   (:require
-   [clojure.core.async :as a]
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.util.ticker :as ticker]))
+    [clojure.core.async :as a]
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
 ;; Tests

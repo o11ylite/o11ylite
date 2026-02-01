@@ -8,9 +8,9 @@
 
 (ns o11ylite.api.query
   (:require
-   [o11ylite.store.events.query :as events.query]
-   [o11ylite.store.metrics.query :as metrics.query]
-   [o11ylite.util.response :as response]))
+    [o11ylite.store.events.query :as events.query]
+    [o11ylite.store.metrics.query :as metrics.query]
+    [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
 ;; Handlers

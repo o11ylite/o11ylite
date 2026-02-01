@@ -6,16 +6,18 @@
 
 (ns o11ylite.integration.otel-grpc-log-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [next.jdbc :as jdbc]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [next.jdbc :as jdbc]
+    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- duckdb [] (:db/duckdb h/*system*))
+(defn- duckdb
+  []
+  (:db/duckdb h/*system*))
 
 (defn- query-events-by-service
   "Query events from DuckLake by service name."
@@ -31,12 +33,12 @@
   (testing "LogsService/Export accepts a single log record and persists to DuckDB"
     (let [service-name "log-single-test-service"
           response (h/export-logs!
-                    {:service-name service-name
-                     :logger-name "test-logger"
-                     :logs [{:body "Test log message"
-                             :severity :info
-                             :severity-text "INFO"
-                             :attributes {"user.id" "12345"}}]})]
+                     {:service-name service-name
+                      :logger-name "test-logger"
+                      :logs [{:body "Test log message"
+                              :severity :info
+                              :severity-text "INFO"
+                              :attributes {"user.id" "12345"}}]})]
       (is (some? response))
       (is (= 0 (-> response .getPartialSuccess .getRejectedLogRecords)))
       (let [rows (query-events-by-service service-name)]
@@ -54,14 +56,14 @@
   (testing "LogsService/Export accepts multiple log records and persists to DuckDB"
     (let [service-name "log-multi-test-service"
           response (h/export-logs!
-                    {:service-name service-name
-                     :logger-name "test-logger"
-                     :logs [{:body "First log message"
-                             :severity :info}
-                            {:body "Second log message"
-                             :severity :warn}
-                            {:body "Third log message"
-                             :severity :error}]})]
+                     {:service-name service-name
+                      :logger-name "test-logger"
+                      :logs [{:body "First log message"
+                              :severity :info}
+                             {:body "Second log message"
+                              :severity :warn}
+                             {:body "Third log message"
+                              :severity :error}]})]
       (is (some? response))
       (is (= 0 (-> response .getPartialSuccess .getRejectedLogRecords)))
       (let [rows (query-events-by-service service-name)
@@ -75,9 +77,9 @@
 (deftest log-export-skips-without-service-test
   (testing "LogsService/Export skips logs without service.name (not persisted)"
     (let [response (h/export-logs!
-                    {:logger-name "test-logger"
-                     :logs [{:body "Orphan log"
-                             :severity :info}]})]
+                     {:logger-name "test-logger"
+                      :logs [{:body "Orphan log"
+                              :severity :info}]})]
       (is (some? response))
       ;; Events without service.name are filtered during proto parsing,
       ;; not reported as "rejected" in OTLP response (returning 0 is valid)

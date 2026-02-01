@@ -6,20 +6,21 @@
 
 (ns o11ylite.integration.components.event-batcher-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.test-helpers :as h]
-   [o11ylite.components.event-batcher :as event-batcher]
-   [o11ylite.store.batcher :as batcher]
-   [o11ylite.store.events.ingest :as events.ingest])
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.test-helpers :as h]
+    [o11ylite.components.event-batcher :as event-batcher]
+    [o11ylite.store.batcher :as batcher]
+    [o11ylite.store.events.ingest :as events.ingest])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 (use-fixtures :each h/with-system)
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- batcher-component []
+(defn- batcher-component
+  []
   (:ingest/event-batcher h/*system*))
 
 (def ^:private base-fields
@@ -76,8 +77,8 @@
   (testing "Ingest accepts events with fields map"
     (let [b (batcher-component)
           result (batcher/->batcher! b (make-payload
-                                        [(make-event {:attr.custom.field "value"})]
-                                        {:attr.custom.field {:type :string}}))]
+                                         [(make-event {:attr.custom.field "value"})]
+                                         {:attr.custom.field {:type :string}}))]
       (is (true? result) "Ingest with fields should return true"))))
 
 (deftest batcher-concurrent-ingest-test
@@ -85,8 +86,8 @@
     (let [b (batcher-component)
           n 10
           futures (doall
-                   (for [i (range n)]
-                     (future (batcher/->batcher! b (make-payload [(make-event {:name (str "span-" i)})])))))
+                    (for [i (range n)]
+                      (future (batcher/->batcher! b (make-payload [(make-event {:name (str "span-" i)})])))))
           results (mapv deref futures)]
       (is (= n (count results)) "All should complete")
       (is (every? true? results) "All should return true"))))
@@ -126,8 +127,8 @@
                                                  :field-count (count fields)})
                       true)]
         (let [futures (doall
-                       (for [i (range n)]
-                         (future (batcher/->batcher! b (make-payload [(make-event {:name (str "span-" i)})])))))]
+                        (for [i (range n)]
+                          (future (batcher/->batcher! b (make-payload [(make-event {:name (str "span-" i)})])))))]
           (doseq [f futures] @f)
           ;; Should have been batched into few persist-batch! calls
           (is (<= (count @persist-calls) 2)

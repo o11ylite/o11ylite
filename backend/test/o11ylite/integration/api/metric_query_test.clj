@@ -7,17 +7,19 @@
 
 (ns o11ylite.integration.api.metric-query-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.store.metrics.metadata :as metadata]
-   [o11ylite.test-helpers :as h]
-   [tick.core :as t]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.store.metrics.metadata :as metadata]
+    [o11ylite.test-helpers :as h]
+    [tick.core :as t]))
 
 (use-fixtures :each h/with-system)
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
 
 (defn- instant->time-ns
   "Convert a tick Instant to nanoseconds since epoch."
@@ -79,12 +81,12 @@
   (testing "POST /api/query/metrics auto-calculates bucket_ms using nice intervals"
     ;; Ingest a metric so queries have valid data context
     (h/export-metrics!
-     {:service-name "bucket-test-service"
-      :meter-name "test-meter"
-      :metrics [(h/build-gauge-metric
-                 {:name "test.metric"
-                  :unit "1"
-                  :data-points [{:value 1.0}]})]})
+      {:service-name "bucket-test-service"
+       :meter-name "test-meter"
+       :metrics [(h/build-gauge-metric
+                   {:name "test.metric"
+                    :unit "1"
+                    :data-points [{:value 1.0}]})]})
 
     (let [query-bucket (fn [start end]
                          (get-in (h/post-json "/api/query/metrics"
@@ -110,15 +112,15 @@
 
       ;; Ingest gauge data points in the same bucket
       (h/export-metrics!
-       {:service-name "gauge-single-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-gauge-metric
-                   {:name "cpu.utilization"
-                    :description "CPU usage"
-                    :unit "%"
-                    :data-points [{:value 10.0 :time-ns time-ns}
-                                  {:value 20.0 :time-ns time-ns}
-                                  {:value 30.0 :time-ns time-ns}]})]})
+        {:service-name "gauge-single-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "cpu.utilization"
+                      :description "CPU usage"
+                      :unit "%"
+                      :data-points [{:value 10.0 :time-ns time-ns}
+                                    {:value 20.0 :time-ns time-ns}
+                                    {:value 30.0 :time-ns time-ns}]})]})
 
       ;; Query with avg aggregation
       (let [response (h/post-json "/api/query/metrics"
@@ -148,20 +150,20 @@
 
       ;; Ingest gauge data points from different services
       (h/export-metrics!
-       {:service-name "grouped-service-1"
-        :meter-name "test-meter"
-        :metrics [(h/build-gauge-metric
-                   {:name "memory.usage.grouped"
-                    :description "Memory usage"
-                    :unit "bytes"
-                    :data-points [{:value 100.0 :time-ns time-ns}]})]})
+        {:service-name "grouped-service-1"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "memory.usage.grouped"
+                      :description "Memory usage"
+                      :unit "bytes"
+                      :data-points [{:value 100.0 :time-ns time-ns}]})]})
       (h/export-metrics!
-       {:service-name "grouped-service-2"
-        :meter-name "test-meter"
-        :metrics [(h/build-gauge-metric
-                   {:name "memory.usage.grouped"
-                    :unit "bytes"
-                    :data-points [{:value 200.0 :time-ns time-ns}]})]})
+        {:service-name "grouped-service-2"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "memory.usage.grouped"
+                      :unit "bytes"
+                      :data-points [{:value 200.0 :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -200,15 +202,15 @@
 
       ;; Ingest gauge data points in two different buckets
       (h/export-metrics!
-       {:service-name "gauge-buckets-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-gauge-metric
-                   {:name "disk.usage"
-                    :unit "bytes"
-                    :data-points [{:value 50.0 :time-ns time-ns-1}
-                                  {:value 60.0 :time-ns time-ns-1}
-                                  {:value 80.0 :time-ns time-ns-2}
-                                  {:value 100.0 :time-ns time-ns-2}]})]})
+        {:service-name "gauge-buckets-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "disk.usage"
+                      :unit "bytes"
+                      :data-points [{:value 50.0 :time-ns time-ns-1}
+                                    {:value 60.0 :time-ns time-ns-1}
+                                    {:value 80.0 :time-ns time-ns-2}
+                                    {:value 100.0 :time-ns time-ns-2}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-1-ms :end end-ms}
@@ -242,15 +244,15 @@
       ;; Ingest sum (counter) data point with delta temporality
       ;; Rate = sum(value) / bucket_seconds = 600 / 60 = 10
       (h/export-metrics!
-       {:service-name "sum-rate-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "http.requests.count"
-                    :description "HTTP request count"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 600.0 :time-ns time-ns}]})]})
+        {:service-name "sum-rate-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "http.requests.count"
+                      :description "HTTP request count"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 600.0 :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -279,14 +281,14 @@
 
       ;; Ingest sum data point with delta temporality (single data point)
       (h/export-metrics!
-       {:service-name "sum-agg-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "http.errors.count"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 18.0 :time-ns time-ns}]})]})
+        {:service-name "sum-agg-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "http.errors.count"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 18.0 :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -318,19 +320,19 @@
 
       ;; Ingest data from different services
       (h/export-metrics!
-       {:service-name "filter-service-prod"
-        :meter-name "test-meter"
-        :metrics [(h/build-gauge-metric
-                   {:name "error.rate.filter"
-                    :unit "%"
-                    :data-points [{:value 5.0 :time-ns time-ns}]})]})
+        {:service-name "filter-service-prod"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "error.rate.filter"
+                      :unit "%"
+                      :data-points [{:value 5.0 :time-ns time-ns}]})]})
       (h/export-metrics!
-       {:service-name "filter-service-staging"
-        :meter-name "test-meter"
-        :metrics [(h/build-gauge-metric
-                   {:name "error.rate.filter"
-                    :unit "%"
-                    :data-points [{:value 10.0 :time-ns time-ns}]})]})
+        {:service-name "filter-service-staging"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "error.rate.filter"
+                      :unit "%"
+                      :data-points [{:value 10.0 :time-ns time-ns}]})]})
 
       ;; Query with filter for prod service only
       (let [response (h/post-json "/api/query/metrics"
@@ -361,23 +363,23 @@
 
       ;; Ingest data from different services (delta temporality)
       (h/export-metrics!
-       {:service-name "responses-ok-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "http.responses.permetric"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 100.0 :time-ns time-ns}]})]})
+        {:service-name "responses-ok-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "http.responses.permetric"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 100.0 :time-ns time-ns}]})]})
       (h/export-metrics!
-       {:service-name "responses-error-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "http.responses.permetric"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 50.0 :time-ns time-ns}]})]})
+        {:service-name "responses-error-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "http.responses.permetric"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 50.0 :time-ns time-ns}]})]})
 
       ;; Query with per-metric filter for error service only
       (let [response (h/post-json "/api/query/metrics"
@@ -411,20 +413,20 @@
 
       ;; Ingest two different metrics (delta temporality)
       (h/export-metrics!
-       {:service-name "multi-metric-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "http.server.errors"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 50.0 :time-ns time-ns}]})
-                  (h/build-sum-metric
-                   {:name "http.server.requests"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 1000.0 :time-ns time-ns}]})]})
+        {:service-name "multi-metric-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "http.server.errors"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 50.0 :time-ns time-ns}]})
+                   (h/build-sum-metric
+                     {:name "http.server.requests"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 1000.0 :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -464,31 +466,31 @@
 
       ;; Ingest metrics from different services (delta temporality for sum)
       (h/export-metrics!
-       {:service-name "complex-api"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "requests.complex"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 100.0 :time-ns time-ns}]})
-                  (h/build-gauge-metric
-                   {:name "latency.complex"
-                    :unit "ms"
-                    :data-points [{:value 50.0 :time-ns time-ns}]})]})
+        {:service-name "complex-api"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "requests.complex"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 100.0 :time-ns time-ns}]})
+                   (h/build-gauge-metric
+                     {:name "latency.complex"
+                      :unit "ms"
+                      :data-points [{:value 50.0 :time-ns time-ns}]})]})
       (h/export-metrics!
-       {:service-name "complex-web"
-        :meter-name "test-meter"
-        :metrics [(h/build-sum-metric
-                   {:name "requests.complex"
-                    :unit "1"
-                    :temporality :delta
-                    :monotonic? true
-                    :data-points [{:value 200.0 :time-ns time-ns}]})
-                  (h/build-gauge-metric
-                   {:name "latency.complex"
-                    :unit "ms"
-                    :data-points [{:value 30.0 :time-ns time-ns}]})]})
+        {:service-name "complex-web"
+         :meter-name "test-meter"
+         :metrics [(h/build-sum-metric
+                     {:name "requests.complex"
+                      :unit "1"
+                      :temporality :delta
+                      :monotonic? true
+                      :data-points [{:value 200.0 :time-ns time-ns}]})
+                   (h/build-gauge-metric
+                     {:name "latency.complex"
+                      :unit "ms"
+                      :data-points [{:value 30.0 :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -548,20 +550,20 @@
     ;; Single data ingestion with all histogram fields populated
     ;; count=100, sum=15.5, min=0.001, max=1.5
     (h/export-metrics!
-     {:service-name "histogram-agg-service"
-      :meter-name "test-meter"
-      :metrics [(h/build-histogram-metric
-                 {:name "http.request.duration"
-                  :description "HTTP request duration"
-                  :unit "s"
-                  :temporality :delta
-                  :boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0]
-                  :data-points [{:bucket-counts [10 20 30 25 10 3 1 0 1]
-                                 :count 100
-                                 :sum 15.5
-                                 :min 0.001
-                                 :max 1.5
-                                 :time-ns time-ns}]})]})
+      {:service-name "histogram-agg-service"
+       :meter-name "test-meter"
+       :metrics [(h/build-histogram-metric
+                   {:name "http.request.duration"
+                    :description "HTTP request duration"
+                    :unit "s"
+                    :temporality :delta
+                    :boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0]
+                    :data-points [{:bucket-counts [10 20 30 25 10 3 1 0 1]
+                                   :count 100
+                                   :sum 15.5
+                                   :min 0.001
+                                   :max 1.5
+                                   :time-ns time-ns}]})]})
 
     (testing "count aggregation returns hist.count"
       (let [data (get-in (query-agg "count") [:body :data])]
@@ -593,29 +595,29 @@
 
       ;; Need separate exports for different services (service is a resource attribute)
       (h/export-metrics!
-       {:service-name "histogram-grouped-api"
-        :meter-name "test-meter"
-        :metrics [(h/build-histogram-metric
-                   {:name "db.query.duration.grouped"
-                    :unit "s"
-                    :temporality :delta
-                    :boundaries [0.001 0.01 0.1]
-                    :data-points [{:bucket-counts [100 200 50 25]
-                                   :count 375
-                                   :sum 18.5
-                                   :time-ns time-ns}]})]})
+        {:service-name "histogram-grouped-api"
+         :meter-name "test-meter"
+         :metrics [(h/build-histogram-metric
+                     {:name "db.query.duration.grouped"
+                      :unit "s"
+                      :temporality :delta
+                      :boundaries [0.001 0.01 0.1]
+                      :data-points [{:bucket-counts [100 200 50 25]
+                                     :count 375
+                                     :sum 18.5
+                                     :time-ns time-ns}]})]})
       (h/export-metrics!
-       {:service-name "histogram-grouped-web"
-        :meter-name "test-meter"
-        :metrics [(h/build-histogram-metric
-                   {:name "db.query.duration.grouped"
-                    :unit "s"
-                    :temporality :delta
-                    :boundaries [0.001 0.01 0.1]
-                    :data-points [{:bucket-counts [50 100 25 10]
-                                   :count 185
-                                   :sum 9.2
-                                   :time-ns time-ns}]})]})
+        {:service-name "histogram-grouped-web"
+         :meter-name "test-meter"
+         :metrics [(h/build-histogram-metric
+                     {:name "db.query.duration.grouped"
+                      :unit "s"
+                      :temporality :delta
+                      :boundaries [0.001 0.01 0.1]
+                      :data-points [{:bucket-counts [50 100 25 10]
+                                     :count 185
+                                     :sum 9.2
+                                     :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -651,21 +653,21 @@
 
       ;; Single export with both histogram and gauge metrics
       (h/export-metrics!
-       {:service-name "mixed-metrics-service"
-        :meter-name "test-meter"
-        :metrics [(h/build-histogram-metric
-                   {:name "request.latency.mixed"
-                    :unit "s"
-                    :temporality :delta
-                    :boundaries [0.01 0.1 1.0]
-                    :data-points [{:bucket-counts [100 200 50 25]
-                                   :count 375
-                                   :sum 45.5
-                                   :time-ns time-ns}]})
-                  (h/build-gauge-metric
-                   {:name "active.connections.mixed"
-                    :unit "1"
-                    :data-points [{:value 42.0 :time-ns time-ns}]})]})
+        {:service-name "mixed-metrics-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-histogram-metric
+                     {:name "request.latency.mixed"
+                      :unit "s"
+                      :temporality :delta
+                      :boundaries [0.01 0.1 1.0]
+                      :data-points [{:bucket-counts [100 200 50 25]
+                                     :count 375
+                                     :sum 45.5
+                                     :time-ns time-ns}]})
+                   (h/build-gauge-metric
+                     {:name "active.connections.mixed"
+                      :unit "1"
+                      :data-points [{:value 42.0 :time-ns time-ns}]})]})
 
       (let [response (h/post-json "/api/query/metrics"
                                   {:time_range {:start bucket-ms :end end-ms}
@@ -706,4 +708,3 @@
                                             :agg "rate"}]})]
       (is (= 400 (h/status response)))
       (is (re-find #"not valid for histogram" (get-in response [:body :error]))))))
-

@@ -8,10 +8,10 @@
 
 (ns o11ylite.integration.scheduled-jobs.parquet-compaction-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.components.scheduler :as scheduler]
-   [o11ylite.store.ducklake :as ducklake]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.components.scheduler :as scheduler]
+    [o11ylite.store.ducklake :as ducklake]
+    [o11ylite.test-helpers :as h]))
 
 ;; Start scheduler for these tests
 (use-fixtures :each (h/with-partial-system [:scheduler/executor]))
@@ -19,10 +19,15 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
-(defn- duckdb [] (:db/duckdb h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
+(defn- duckdb
+  []
+  (:db/duckdb h/*system*))
 
-(defn- get-compaction-job-status []
+(defn- get-compaction-job-status
+  []
   (->> (scheduler/get-job-status (sqlite))
        (filter #(= "parquet-compaction" (:job_name %)))
        first))

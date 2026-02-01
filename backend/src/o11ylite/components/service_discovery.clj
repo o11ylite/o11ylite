@@ -7,11 +7,11 @@
 
 (ns o11ylite.components.service-discovery
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.components.app-config :as app-config]
-   [o11ylite.store.services :as services]
-   [o11ylite.util.ticker :as ticker]))
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.app-config :as app-config]
+    [o11ylite.store.services :as services]
+    [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
 ;; Configuration

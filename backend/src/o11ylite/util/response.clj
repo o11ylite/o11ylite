@@ -6,8 +6,8 @@
 
 (ns o11ylite.util.response
   (:require
-   [o11ylite.util.json :as json]
-   [ring.util.response :as rr]))
+    [o11ylite.util.json :as json]
+    [ring.util.response :as rr]))
 
 ;; ---------------------------------------------------------
 ;; JSON Responses

@@ -19,13 +19,13 @@
 
 (ns o11ylite.components.scheduler
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [next.jdbc :as jdbc]
-   [o11ylite.components.app-config :as app-config]
-   [o11ylite.store.scheduler :as store]
-   [o11ylite.store.ducklake :as ducklake]
-   [o11ylite.util.ticker :as ticker]))
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [next.jdbc :as jdbc]
+    [o11ylite.components.app-config :as app-config]
+    [o11ylite.store.scheduler :as store]
+    [o11ylite.store.ducklake :as ducklake]
+    [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
 ;; Configuration

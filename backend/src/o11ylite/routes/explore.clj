@@ -6,9 +6,9 @@
 
 (ns o11ylite.routes.explore
   (:require
-   [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.store.services :as services]
-   [o11ylite.util.response :as response]))
+    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.store.services :as services]
+    [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers

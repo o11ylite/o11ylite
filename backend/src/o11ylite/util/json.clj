@@ -9,12 +9,12 @@
 
 (ns o11ylite.util.json
   (:require
-   [jsonista.core :as json])
+    [jsonista.core :as json])
   (:import
-   [com.fasterxml.jackson.core JsonGenerator]
-   [com.fasterxml.jackson.databind SerializerProvider]
-   [com.fasterxml.jackson.databind.module SimpleModule]
-   [com.fasterxml.jackson.databind.ser.std StdSerializer]))
+    [com.fasterxml.jackson.core JsonGenerator]
+    [com.fasterxml.jackson.databind SerializerProvider]
+    [com.fasterxml.jackson.databind.module SimpleModule]
+    [com.fasterxml.jackson.databind.ser.std StdSerializer]))
 
 ;; ---------------------------------------------------------
 ;; Constants
@@ -35,7 +35,8 @@
    Values within JavaScript's safe integer range are written as numbers."
   []
   (proxy [StdSerializer] [Long]
-    (serialize [^Long value ^JsonGenerator gen ^SerializerProvider _provider]
+    (serialize
+      [^Long value ^JsonGenerator gen ^SerializerProvider _provider]
       (if (and (>= value min-safe-integer)
                (<= value max-safe-integer))
         (.writeNumber gen (long value))

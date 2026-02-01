@@ -7,9 +7,9 @@
 
 (ns o11ylite.mulog
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   ;; Require to register :open-telemetry publisher multimethod
-   [com.brunobonacci.mulog.publishers.open-telemetry]))
+    [com.brunobonacci.mulog :as mulog]
+    ;; Require to register :open-telemetry publisher multimethod
+    [com.brunobonacci.mulog.publishers.open-telemetry]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -55,11 +55,11 @@
    Prod mode: console (JSON) for log collectors."
   []
   (mulog/start-publisher!
-   (if (-dev-mode?)
-     (-dev-publisher)
-     (-prod-publisher)))
+    (if (-dev-mode?)
+      (-dev-publisher)
+      (-prod-publisher)))
   (mulog/set-global-context!
-   {:app-name "o11ylite" :version "0.1.0-SNAPSHOT"}))
+    {:app-name "o11ylite" :version "0.1.0-SNAPSHOT"}))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

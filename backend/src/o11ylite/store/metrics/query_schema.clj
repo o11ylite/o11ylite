@@ -18,8 +18,8 @@
 
 (ns o11ylite.store.metrics.query-schema
   (:require
-   [malli.core :as m]
-   [malli.error :as me]))
+    [malli.core :as m]
+    [malli.error :as me]))
 
 ;; ---------------------------------------------------------
 ;; Primitive Schemas

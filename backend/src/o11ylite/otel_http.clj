@@ -23,18 +23,18 @@
 
 (ns o11ylite.otel-http
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.store.events.ingest :as events.ingest]
-   [o11ylite.store.metrics.ingest :as metrics.ingest]
-   [o11ylite.otel-grpc.trace-events :as trace-events]
-   [o11ylite.otel-grpc.log-events :as log-events]
-   [o11ylite.otel-grpc.metric-proto :as metric-proto])
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.store.events.ingest :as events.ingest]
+    [o11ylite.store.metrics.ingest :as metrics.ingest]
+    [o11ylite.otel-grpc.trace-events :as trace-events]
+    [o11ylite.otel-grpc.log-events :as log-events]
+    [o11ylite.otel-grpc.metric-proto :as metric-proto])
   (:import
-   [com.google.protobuf.util JsonFormat]
-   [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest]
-   [io.opentelemetry.proto.collector.logs.v1 ExportLogsServiceRequest]
-   [io.opentelemetry.proto.collector.metrics.v1 ExportMetricsServiceRequest]
-   [java.io InputStream]))
+    [com.google.protobuf.util JsonFormat]
+    [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest]
+    [io.opentelemetry.proto.collector.logs.v1 ExportLogsServiceRequest]
+    [io.opentelemetry.proto.collector.metrics.v1 ExportMetricsServiceRequest]
+    [java.io InputStream]))
 
 ;; ---------------------------------------------------------
 ;; Content-Type Detection
@@ -118,8 +118,8 @@
   [request {:keys [rejected-span-count error-message]
             :or {rejected-span-count 0 error-message ""}}]
   (let [proto-response (trace-events/trace-response->proto
-                        {:rejected-span-count rejected-span-count
-                         :error-message error-message})]
+                         {:rejected-span-count rejected-span-count
+                          :error-message error-message})]
     (if (-accepts-protobuf? request)
       {:status 200
        :headers {"Content-Type" content-type-protobuf}
@@ -134,8 +134,8 @@
   [request {:keys [rejected-log-count error-message]
             :or {rejected-log-count 0 error-message ""}}]
   (let [proto-response (log-events/log-response->proto
-                        {:rejected-log-count rejected-log-count
-                         :error-message error-message})]
+                         {:rejected-log-count rejected-log-count
+                          :error-message error-message})]
     (if (-accepts-protobuf? request)
       {:status 200
        :headers {"Content-Type" content-type-protobuf}
@@ -150,8 +150,8 @@
   [request {:keys [rejected-data-point-count error-message]
             :or {rejected-data-point-count 0 error-message ""}}]
   (let [proto-response (metric-proto/metric-response->proto
-                        {:rejected-data-point-count rejected-data-point-count
-                         :error-message error-message})]
+                         {:rejected-data-point-count rejected-data-point-count
+                          :error-message error-message})]
     (if (-accepts-protobuf? request)
       {:status 200
        :headers {"Content-Type" content-type-protobuf}

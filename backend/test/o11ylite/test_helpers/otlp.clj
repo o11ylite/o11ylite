@@ -6,17 +6,17 @@
 
 (ns o11ylite.test-helpers.otlp
   (:import
-   [com.google.protobuf ByteString]
-   [io.grpc ManagedChannelBuilder]
-   [io.opentelemetry.proto.common.v1 AnyValue KeyValue InstrumentationScope]
-   [io.opentelemetry.proto.resource.v1 Resource]
-   [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
-   [io.opentelemetry.proto.logs.v1 LogRecord SeverityNumber ResourceLogs ScopeLogs]
-   [io.opentelemetry.proto.metrics.v1 Gauge Sum Histogram AggregationTemporality NumberDataPoint HistogramDataPoint ResourceMetrics ScopeMetrics Metric]
-   [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
-   [io.opentelemetry.proto.collector.logs.v1 LogsServiceGrpc ExportLogsServiceRequest]
-   [io.opentelemetry.proto.collector.metrics.v1 MetricsServiceGrpc ExportMetricsServiceRequest]
-   [java.util.concurrent TimeUnit]))
+    [com.google.protobuf ByteString]
+    [io.grpc ManagedChannelBuilder]
+    [io.opentelemetry.proto.common.v1 AnyValue KeyValue InstrumentationScope]
+    [io.opentelemetry.proto.resource.v1 Resource]
+    [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
+    [io.opentelemetry.proto.logs.v1 LogRecord SeverityNumber ResourceLogs ScopeLogs]
+    [io.opentelemetry.proto.metrics.v1 Gauge Sum Histogram AggregationTemporality NumberDataPoint HistogramDataPoint ResourceMetrics ScopeMetrics Metric]
+    [io.opentelemetry.proto.collector.trace.v1 TraceServiceGrpc ExportTraceServiceRequest]
+    [io.opentelemetry.proto.collector.logs.v1 LogsServiceGrpc ExportLogsServiceRequest]
+    [io.opentelemetry.proto.collector.metrics.v1 MetricsServiceGrpc ExportMetricsServiceRequest]
+    [java.util.concurrent TimeUnit]))
 
 ;; ---------------------------------------------------------
 ;; Configuration

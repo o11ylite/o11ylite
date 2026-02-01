@@ -6,8 +6,8 @@
 
 (ns o11ylite.integration.api.health-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
 

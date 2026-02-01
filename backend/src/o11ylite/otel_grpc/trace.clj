@@ -6,14 +6,14 @@
 
 (ns o11ylite.otel-grpc.trace
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.store.events.ingest :as events.ingest]
-   [o11ylite.otel-grpc.trace-events :as trace-events])
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.store.events.ingest :as events.ingest]
+    [o11ylite.otel-grpc.trace-events :as trace-events])
   (:import
-   [io.grpc.stub StreamObserver]
-   [io.opentelemetry.proto.collector.trace.v1
-    TraceServiceGrpc$TraceServiceImplBase
-    ExportTraceServiceRequest]))
+    [io.grpc.stub StreamObserver]
+    [io.opentelemetry.proto.collector.trace.v1
+     TraceServiceGrpc$TraceServiceImplBase
+     ExportTraceServiceRequest]))
 
 ;; ---------------------------------------------------------
 ;; Handler
@@ -44,7 +44,8 @@
      id-generator   - ID generator component"
   [event-metadata batcher id-generator]
   (proxy [TraceServiceGrpc$TraceServiceImplBase] []
-    (export [^ExportTraceServiceRequest request ^StreamObserver response-observer]
+    (export
+      [^ExportTraceServiceRequest request ^StreamObserver response-observer]
       (try
         (let [response-map (-trace-handler event-metadata batcher id-generator request)
               response (trace-events/trace-response->proto (or response-map {}))]

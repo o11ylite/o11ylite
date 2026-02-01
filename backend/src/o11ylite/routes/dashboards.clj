@@ -6,7 +6,7 @@
 
 (ns o11ylite.routes.dashboards
   (:require
-   [o11ylite.util.response :as response]))
+    [o11ylite.util.response :as response]))
 
 (defn handler
   "Dashboards page handler - renders Inertia Dashboards component."

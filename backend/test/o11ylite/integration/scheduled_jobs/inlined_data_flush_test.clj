@@ -8,14 +8,14 @@
 
 (ns o11ylite.integration.scheduled-jobs.inlined-data-flush-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [next.jdbc :as jdbc]
-   [o11ylite.components.scheduler :as scheduler]
-   [o11ylite.store.ducklake :as ducklake]
-   [o11ylite.store.events.ingest :as events.ingest]
-   [o11ylite.test-helpers :as h])
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [next.jdbc :as jdbc]
+    [o11ylite.components.scheduler :as scheduler]
+    [o11ylite.store.ducklake :as ducklake]
+    [o11ylite.store.events.ingest :as events.ingest]
+    [o11ylite.test-helpers :as h])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 ;; Start scheduler and event-metadata for these tests
 ;; Note: We use persist-batch! directly instead of the batcher to avoid a
@@ -27,9 +27,15 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
-(defn- duckdb [] (:db/duckdb h/*system*))
-(defn- event-metadata [] (:cache/event-metadata h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
+(defn- duckdb
+  []
+  (:db/duckdb h/*system*))
+(defn- event-metadata
+  []
+  (:cache/event-metadata h/*system*))
 
 (def ^:private test-id-counter (atom 0))
 
@@ -60,7 +66,8 @@
   (-> (jdbc/execute-one! (duckdb) ["SELECT COUNT(*) AS cnt FROM events"])
       :cnt))
 
-(defn- get-flush-job-status []
+(defn- get-flush-job-status
+  []
   (->> (scheduler/get-job-status (sqlite))
        (filter #(= "inlined-data-flush" (:job_name %)))
        first))

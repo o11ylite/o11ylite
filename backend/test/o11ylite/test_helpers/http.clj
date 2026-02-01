@@ -6,8 +6,8 @@
 
 (ns o11ylite.test-helpers.http
   (:require
-   [babashka.http-client :as http]
-   [jsonista.core :as json]))
+    [babashka.http-client :as http]
+    [jsonista.core :as json]))
 
 ;; ---------------------------------------------------------
 ;; Configuration

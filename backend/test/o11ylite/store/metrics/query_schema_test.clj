@@ -6,16 +6,18 @@
 
 (ns o11ylite.store.metrics.query-schema-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.store.metrics.query-schema :as schema]))
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.store.metrics.query-schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Helper
 
-(defn valid? [data]
+(defn valid?
+  [data]
   (nil? (schema/validate schema/metrics-query data)))
 
-(defn invalid? [data]
+(defn invalid?
+  [data]
   (some? (schema/validate schema/metrics-query data)))
 
 (defn- query-base

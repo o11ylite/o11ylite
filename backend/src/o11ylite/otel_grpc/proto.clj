@@ -7,13 +7,13 @@
 
 (ns o11ylite.otel-grpc.proto
   (:require
-   [clojure.string :as str]
-   [jsonista.core :as json])
+    [clojure.string :as str]
+    [jsonista.core :as json])
   (:import
-   [com.google.protobuf ByteString]
-   [io.opentelemetry.proto.common.v1 AnyValue AnyValue$ValueCase KeyValue InstrumentationScope]
-   [io.opentelemetry.proto.resource.v1 Resource]
-   [java.time Instant]))
+    [com.google.protobuf ByteString]
+    [io.opentelemetry.proto.common.v1 AnyValue AnyValue$ValueCase KeyValue InstrumentationScope]
+    [io.opentelemetry.proto.resource.v1 Resource]
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Byte conversions
@@ -41,8 +41,8 @@
   [nanos]
   (when (and nanos (pos? nanos))
     (Instant/ofEpochSecond
-     (quot nanos 1000000000)
-     (mod nanos 1000000000))))
+      (quot nanos 1000000000)
+      (mod nanos 1000000000))))
 
 ;; ---------------------------------------------------------
 ;; AnyValue / Attribute conversions

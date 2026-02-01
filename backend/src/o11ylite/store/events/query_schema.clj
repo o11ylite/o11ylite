@@ -7,9 +7,9 @@
 
 (ns o11ylite.store.events.query-schema
   (:require
-   [clojure.string :as str]
-   [malli.core :as m]
-   [malli.error :as me]))
+    [clojure.string :as str]
+    [malli.core :as m]
+    [malli.error :as me]))
 
 ;; ---------------------------------------------------------
 ;; Primitive Schemas
@@ -160,7 +160,7 @@
   (let [valid-ops (get valid-ops-by-type field-type)]
     (if-not (contains? valid-ops field-op)
       {:error (format "operator '%s' is not valid for %s field '%s'. Valid operators: %s"
-                     field-op field-type field-name (str/join ", " (sort valid-ops)))}
+                      field-op field-type field-name (str/join ", " (sort valid-ops)))}
       nil)))
 
 (defn- -validate-filter-expr-with-metadata
@@ -171,20 +171,20 @@
   (cond
     ;; Compound AND
     (:and filter-expr)
-    (some #( -validate-filter-expr-with-metadata event-metadata %)
+    (some #(-validate-filter-expr-with-metadata event-metadata %)
           (:and filter-expr))
 
     ;; Compound OR
     (:or filter-expr)
-    (some #( -validate-filter-expr-with-metadata event-metadata %)
+    (some #(-validate-filter-expr-with-metadata event-metadata %)
           (:or filter-expr))
 
     ;; Simple filter
     :else
     (when-let [field-meta (get event-metadata (keyword (:field filter-expr)))]
       (-validate-filter-op-for-type (:op filter-expr)
-                                  (:type field-meta)
-                                  (:field filter-expr)))))
+                                    (:type field-meta)
+                                    (:field filter-expr)))))
 
 (defn validate-filter-ops-with-metadata
   "Validate all filter operators are valid for their field types.

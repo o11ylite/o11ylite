@@ -9,7 +9,7 @@
 
 (ns o11ylite.store.metrics.series
   (:require
-   [clojure.string :as str]))
+    [clojure.string :as str]))
 
 ;; ---------------------------------------------------------
 ;; Series Key Generation
@@ -19,8 +19,9 @@
    Only includes attr.* keys, strips the prefix for the key part."
   [data-point]
   (->> data-point
-       (filter (fn [[k _]] (and (keyword? k)
-                                (.startsWith (name k) "attr."))))
+       (filter (fn [[k _]]
+                 (and (keyword? k)
+                      (.startsWith (name k) "attr."))))
        (map (fn [[k v]] [(subs (name k) 5) (str v)]))
        (sort-by first)
        (map (fn [[k v]] (str k "=" v)))
