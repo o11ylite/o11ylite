@@ -5,7 +5,7 @@
  :rules
  {:namespaces
   {:enabled? false,
-   :indent-size 2,
+   :indent-size 1,
    :break-libs? true,
    :import-break-width 60},
   :whitespace
@@ -29,10 +29,10 @@
    :trim-consecutive? true,
    :max-consecutive 2,
    :insert-padding? false,
-   :padding-lines 2},
+   :padding-lines 1},
   :indentation
   {:enabled? true,
-   :list-indent 1,
+   :list-indent 2,
    :indents
    {
     #"^def" [[:inner 0]],

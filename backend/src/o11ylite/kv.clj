@@ -7,9 +7,9 @@
 
 (ns o11ylite.kv
   (:require
-   [next.jdbc :as jdbc]
-   [next.jdbc.result-set :as rs]
-   [taoensso.nippy :as nippy]))
+    [next.jdbc :as jdbc]
+    [next.jdbc.result-set :as rs]
+    [taoensso.nippy :as nippy]))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -18,9 +18,9 @@
   "Get a value by key. Returns nil if not found."
   [sqlite key]
   (when-let [row (jdbc/execute-one!
-                  sqlite
-                  ["SELECT value FROM kv WHERE key = ?" key]
-                  {:builder-fn rs/as-unqualified-lower-maps})]
+                   sqlite
+                   ["SELECT value FROM kv WHERE key = ?" key]
+                   {:builder-fn rs/as-unqualified-lower-maps})]
     (nippy/thaw (:value row))))
 
 (defn set-value!
@@ -28,10 +28,10 @@
   [sqlite key value]
   (let [frozen (nippy/freeze value)]
     (jdbc/execute!
-     sqlite
-     ["INSERT INTO kv (key, value) VALUES (?, ?)
+      sqlite
+      ["INSERT INTO kv (key, value) VALUES (?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-      key frozen]))
+       key frozen]))
   nil)
 
 (defn delete-value!

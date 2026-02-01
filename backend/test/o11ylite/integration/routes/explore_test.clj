@@ -6,10 +6,10 @@
 
 (ns o11ylite.integration.routes.explore-test
   (:require
-   [clojure.string :as str]
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.store.services :as services]
-   [o11ylite.test-helpers :as h]))
+    [clojure.string :as str]
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.store.services :as services]
+    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
 

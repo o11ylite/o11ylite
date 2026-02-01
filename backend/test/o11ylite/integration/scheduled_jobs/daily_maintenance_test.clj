@@ -8,10 +8,10 @@
 
 (ns o11ylite.integration.scheduled-jobs.daily-maintenance-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.components.scheduler :as scheduler]
-   [o11ylite.store.ducklake :as ducklake]
-   [o11ylite.test-helpers :as h :refer [ingest-sample-events! ingest-sample-metrics!]]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.components.scheduler :as scheduler]
+    [o11ylite.store.ducklake :as ducklake]
+    [o11ylite.test-helpers :as h :refer [ingest-sample-events! ingest-sample-metrics!]]))
 
 ;; Start scheduler and ingest components for these tests
 (use-fixtures :each (h/with-partial-system
@@ -20,10 +20,15 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
-(defn- duckdb [] (:db/duckdb h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
+(defn- duckdb
+  []
+  (:db/duckdb h/*system*))
 
-(defn- get-maintenance-job-status []
+(defn- get-maintenance-job-status
+  []
   (->> (scheduler/get-job-status (sqlite))
        (filter #(= "daily-maintenance" (:job_name %)))
        first))

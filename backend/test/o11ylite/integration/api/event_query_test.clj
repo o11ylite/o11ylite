@@ -7,9 +7,9 @@
 
 (ns o11ylite.integration.api.event-query-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.test-helpers :as h]
-   [tick.core :as t]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.test-helpers :as h]
+    [tick.core :as t]))
 
 (use-fixtures :each h/with-system)
 

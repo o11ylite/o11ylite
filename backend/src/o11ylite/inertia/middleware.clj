@@ -6,7 +6,7 @@
 
 (ns o11ylite.inertia.middleware
   (:require
-   [o11ylite.inertia.core :as inertia]))
+    [o11ylite.inertia.core :as inertia]))
 
 ;; ---------------------------------------------------------
 ;; Anti-Forgery (CSRF)
@@ -57,13 +57,13 @@
     ;; Check for version mismatch first (avoids unnecessary handler call)
     (if (inertia/version-mismatch? request version)
       (inertia/version-conflict-response request)
-      
+
       (let [response (handler request)]
         (cond
           ;; Handle redirects
           (inertia/redirect-response? response)
           (inertia/handle-redirect response request)
-          
+
           ;; Check if this is an Inertia response (has :component in body)
           (and (map? (:body response))
                (:component (:body response)))
@@ -72,6 +72,6 @@
             (if (inertia/inertia-request? request)
               (inertia/json-response page-data status)
               (inertia/html-response template-fn page-data status)))
-          
+
           ;; Not an Inertia response, pass through
           :else response)))))

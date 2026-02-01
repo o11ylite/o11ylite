@@ -33,15 +33,15 @@
 
 (ns o11ylite.components.duckdb-pool
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [next.jdbc :as jdbc]
-   [o11ylite.store.jdbc-types :as jdbc-types])
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [next.jdbc :as jdbc]
+    [o11ylite.store.jdbc-types :as jdbc-types])
   (:import
-   [org.duckdb DuckDBConnection]
-   [com.zaxxer.hikari HikariConfig HikariDataSource]
-   [javax.sql DataSource]
-   [java.io File Closeable]))
+    [org.duckdb DuckDBConnection]
+    [com.zaxxer.hikari HikariConfig HikariDataSource]
+    [javax.sql DataSource]
+    [java.io File Closeable]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -74,9 +74,9 @@
   [ducklake-file]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
         attach-sql (format
-                    "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s)"
-                    ducklake-file
-                    data-inlining-row-limit)]
+                     "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s)"
+                     ducklake-file
+                     data-inlining-row-limit)]
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
@@ -91,17 +91,28 @@
    cheaper than creating new JDBC connections and avoids DuckLake re-attachment."
   [^DuckDBConnection root-conn]
   (reify DataSource
-    (getConnection [_]
+    (getConnection
+      [_]
       (.duplicate root-conn))
-    (getConnection [_ _user _pass]
+
+    (getConnection
+      [_ _user _pass]
       (.duplicate root-conn))
+
     (getLogWriter [_] nil)
+
     (setLogWriter [_ _])
+
     (setLoginTimeout [_ _])
+
     (getLoginTimeout [_] 0)
-    (getParentLogger [_]
+
+    (getParentLogger
+      [_]
       (throw (java.sql.SQLFeatureNotSupportedException.)))
+
     (^boolean isWrapperFor [_ ^Class _c] false)
+
     (unwrap [_ _c] (throw (java.sql.SQLException. "Not a wrapper")))))
 
 (defn- create-pool-datasource
@@ -124,17 +135,28 @@
     (reify
       DataSource
       (getConnection [_] (.getConnection hikari-ds))
+
       (getConnection [_ u p] (.getConnection hikari-ds u p))
+
       (getLogWriter [_] (.getLogWriter hikari-ds))
+
       (setLogWriter [_ w] (.setLogWriter hikari-ds w))
+
       (setLoginTimeout [_ t] (.setLoginTimeout hikari-ds t))
+
       (getLoginTimeout [_] (.getLoginTimeout hikari-ds))
+
       (getParentLogger [_] (.getParentLogger hikari-ds))
+
       (^boolean isWrapperFor [_ ^Class c] (.isWrapperFor hikari-ds c))
+
       (unwrap [_ c] (.unwrap hikari-ds c))
 
+
       Closeable
-      (close [_]
+
+      (close
+        [_]
         (mulog/log ::duckdb-pool-closing)
         (.close hikari-ds)
         (.close root-conn)
@@ -157,7 +179,7 @@
       ;; all next.jdbc operations. However, raw Java calls like .getConnection
       ;; bypass the wrapper. Use jdbc/with-transaction+options for transactions.
       (jdbc/with-options datasource
-        {:builder-fn jdbc-types/as-unqualified-maps}))))
+                         {:builder-fn jdbc-types/as-unqualified-maps}))))
 
 (defmethod ig/halt-key! :db/duckdb
   [_ datasource]

@@ -7,13 +7,13 @@
 
 (ns o11ylite.otel-grpc.log-events
   (:require
-   [clojure.string :as str]
-   [o11ylite.otel-grpc.proto :as proto])
+    [clojure.string :as str]
+    [o11ylite.otel-grpc.proto :as proto])
   (:import
-   [io.opentelemetry.proto.resource.v1 Resource]
-   [io.opentelemetry.proto.logs.v1 LogRecord ResourceLogs ScopeLogs]
-   [io.opentelemetry.proto.collector.logs.v1 ExportLogsServiceRequest ExportLogsServiceResponse ExportLogsPartialSuccess]
-   [java.time Instant]))
+    [io.opentelemetry.proto.resource.v1 Resource]
+    [io.opentelemetry.proto.logs.v1 LogRecord ResourceLogs ScopeLogs]
+    [io.opentelemetry.proto.collector.logs.v1 ExportLogsServiceRequest ExportLogsServiceResponse ExportLogsPartialSuccess]
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Severity parsing
@@ -50,29 +50,29 @@
         body (proto/any-value->clj (.getBody log))
         prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs log-attrs)]
     (merge
-     {:service service-name
-      :timestamp (or (proto/nanos->instant time-nanos)
-                     (proto/nanos->instant (.getObservedTimeUnixNano log))
-                     observed-time)
+      {:service service-name
+       :timestamp (or (proto/nanos->instant time-nanos)
+                      (proto/nanos->instant (.getObservedTimeUnixNano log))
+                      observed-time)
 
-      ;; Trace context (optional)
-      :trace_id (proto/bytestring->hex (.getTraceId log))
-      :span_id (proto/bytestring->hex (.getSpanId log))
+       ;; Trace context (optional)
+       :trace_id (proto/bytestring->hex (.getTraceId log))
+       :span_id (proto/bytestring->hex (.getSpanId log))
 
-      ;; Log-specific fields
-      :name (let [event-name (.getEventName log)]
-              (when (seq event-name) event-name))
-      :log.severity (-parse-severity (.getSeverityText log))
-      :log.body body
+       ;; Log-specific fields
+       :name (let [event-name (.getEventName log)]
+               (when (seq event-name) event-name))
+       :log.severity (-parse-severity (.getSeverityText log))
+       :log.body body
 
-      ;; Instrumentation scope
-      :scope.name scope-name
-      :scope.version scope-version
+       ;; Instrumentation scope
+       :scope.name scope-name
+       :scope.version scope-version
 
-      ;; Meta
-      :meta.observed_time observed-time
-      :meta.signal_type :log}
-     prefixed-attrs)))
+       ;; Meta
+       :meta.observed_time observed-time
+       :meta.signal_type :log}
+      prefixed-attrs)))
 
 ;; ---------------------------------------------------------
 ;; Public API

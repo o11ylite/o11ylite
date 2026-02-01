@@ -6,16 +6,18 @@
 
 (ns o11ylite.store.events.query-schema-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.store.events.query-schema :as schema]))
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.store.events.query-schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Helper
 
-(defn valid? [data]
+(defn valid?
+  [data]
   (nil? (schema/validate schema/events-query data)))
 
-(defn invalid? [data]
+(defn invalid?
+  [data]
   (some? (schema/validate schema/events-query data)))
 
 ;; ---------------------------------------------------------
@@ -378,8 +380,8 @@
 
   (testing "error message includes field info"
     (let [result (schema/validate-filter-ops-with-metadata
-                  test-event-metadata
-                  {:filter {:field "service" :op ">" :value "api"}})]
+                   test-event-metadata
+                   {:filter {:field "service" :op ">" :value "api"}})]
       (is (some? result) "should return error")
       (is (string? (:error result)) "error should be a string")
       (is (.contains (:error result) "service") "error should mention field name")

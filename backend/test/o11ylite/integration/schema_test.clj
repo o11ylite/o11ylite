@@ -6,9 +6,9 @@
 
 (ns o11ylite.integration.schema-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.store.schema :as schema]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.store.schema :as schema]
+    [o11ylite.test-helpers :as h]))
 
 ;; Only start storage (creates events table) and duckdb
 (use-fixtures :each (h/with-partial-system [:storage/init]))
@@ -16,7 +16,8 @@
 ;; ---------------------------------------------------------
 ;; Helper to get DuckDB datasource from system
 
-(defn- duckdb []
+(defn- duckdb
+  []
   (:db/duckdb h/*system*))
 
 ;; ---------------------------------------------------------

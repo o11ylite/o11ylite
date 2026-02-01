@@ -6,9 +6,9 @@
 
 (ns o11ylite.integration.kv-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.test-helpers :as h]
-   [o11ylite.kv :as kv]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.test-helpers :as h]
+    [o11ylite.kv :as kv]))
 
 ;; Only start storage (creates kv table) and sqlite
 (use-fixtures :each (h/with-partial-system [:storage/init]))
@@ -16,7 +16,8 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite []
+(defn- sqlite
+  []
   (get-in h/*system* [:db/sqlite]))
 
 ;; ---------------------------------------------------------

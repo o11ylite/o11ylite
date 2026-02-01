@@ -9,7 +9,7 @@
 
 (ns o11ylite.store.events.enrich
   (:require
-   [o11ylite.components.id-gen :as id-gen]))
+    [o11ylite.components.id-gen :as id-gen]))
 
 ;; ---------------------------------------------------------
 ;; Error Detection

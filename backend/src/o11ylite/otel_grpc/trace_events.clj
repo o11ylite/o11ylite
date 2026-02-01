@@ -7,12 +7,12 @@
 
 (ns o11ylite.otel-grpc.trace-events
   (:require
-   [o11ylite.otel-grpc.proto :as proto])
+    [o11ylite.otel-grpc.proto :as proto])
   (:import
-   [io.opentelemetry.proto.resource.v1 Resource]
-   [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
-   [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest ExportTraceServiceResponse ExportTracePartialSuccess]
-   [java.time Instant]))
+    [io.opentelemetry.proto.resource.v1 Resource]
+    [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
+    [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest ExportTraceServiceResponse ExportTracePartialSuccess]
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Trace-specific enum conversions
@@ -51,22 +51,22 @@
         span-attrs (proto/extract-attributes (.getAttributesList span))
         prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs span-attrs event-attrs)]
     (merge
-     {:service service-name
-      :timestamp (proto/nanos->instant (.getTimeUnixNano span-event))
+      {:service service-name
+       :timestamp (proto/nanos->instant (.getTimeUnixNano span-event))
 
-      :trace_id trace-id
-      :span_id span-id
+       :trace_id trace-id
+       :span_id span-id
 
-      :name (.getName span-event)
+       :name (.getName span-event)
 
-      ;; Instrumentation scope
-      :scope.name scope-name
-      :scope.version scope-version
+       ;; Instrumentation scope
+       :scope.name scope-name
+       :scope.version scope-version
 
-      ;; Meta
-      :meta.observed_time observed-time
-      :meta.signal_type :span_event}
-     prefixed-attrs)))
+       ;; Meta
+       :meta.observed_time observed-time
+       :meta.signal_type :span_event}
+      prefixed-attrs)))
 
 (defn- -span->event
   "Convert Span protobuf directly to unified event.
@@ -78,30 +78,30 @@
         span-attrs (proto/extract-attributes (.getAttributesList span))
         prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs span-attrs)]
     (merge
-     {:service service-name
-      :timestamp (proto/nanos->instant start-nanos)
+      {:service service-name
+       :timestamp (proto/nanos->instant start-nanos)
 
-      :trace_id (proto/bytestring->hex (.getTraceId span))
-      :span_id (proto/bytestring->hex (.getSpanId span))
-      :parent_span_id (proto/bytestring->hex (.getParentSpanId span))
+       :trace_id (proto/bytestring->hex (.getTraceId span))
+       :span_id (proto/bytestring->hex (.getSpanId span))
+       :parent_span_id (proto/bytestring->hex (.getParentSpanId span))
 
-      :name (.getName span)
-      :span.kind (-span-kind->kw (.getKind span))
-      :span.status_code (-status-code->kw (.getCode status))
-      :span.status_message (.getMessage status)
-      :span.start_time (proto/nanos->instant start-nanos)
-      :span.end_time (proto/nanos->instant end-nanos)
-      :span.duration_ms (when (and (pos? end-nanos) (pos? start-nanos))
-                          (/ (- end-nanos start-nanos) 1e6))
+       :name (.getName span)
+       :span.kind (-span-kind->kw (.getKind span))
+       :span.status_code (-status-code->kw (.getCode status))
+       :span.status_message (.getMessage status)
+       :span.start_time (proto/nanos->instant start-nanos)
+       :span.end_time (proto/nanos->instant end-nanos)
+       :span.duration_ms (when (and (pos? end-nanos) (pos? start-nanos))
+                           (/ (- end-nanos start-nanos) 1e6))
 
-      ;; Instrumentation scope
-      :scope.name scope-name
-      :scope.version scope-version
+       ;; Instrumentation scope
+       :scope.name scope-name
+       :scope.version scope-version
 
-      ;; Meta
-      :meta.observed_time observed-time
-      :meta.signal_type :span}
-     prefixed-attrs)))
+       ;; Meta
+       :meta.observed_time observed-time
+       :meta.signal_type :span}
+      prefixed-attrs)))
 
 (defn- -span->events
   "Convert Span protobuf to events (span + span events)."

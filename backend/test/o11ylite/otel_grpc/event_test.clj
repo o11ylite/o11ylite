@@ -6,9 +6,9 @@
 
 (ns o11ylite.otel-grpc.event-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.otel-grpc.trace-events :as trace-events]
-   [o11ylite.test-helpers.otlp :as otlp]))
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.otel-grpc.trace-events :as trace-events]
+    [o11ylite.test-helpers.otlp :as otlp]))
 
 ;; ---------------------------------------------------------
 ;; Test Data Builders
@@ -17,44 +17,44 @@
   "Build a sample trace request with resource, scope, and spans."
   []
   (otlp/build-trace-request
-   {:service-name "test-service"
-    :resource-attrs {"host.name" "localhost"}
-    :tracer-name "test-tracer"
-    :tracer-version "1.0.0"
-    :scope-attrs {"scope.attr" "scope-value"}
-    :spans [{:trace-id "0af7651916cd43dd8448eb211c80319c"
-             :span-id "b7ad6b7169203331"
-             :name "parent-span"
-             :kind :server
-             :start-time-ns 1000000000000000000
-             :end-time-ns   1000000100000000000
-             :attributes {"http.method" "GET"}
-             :status :ok
-             :events [{:name "event-1"
-                       :time-ns 1000000050000000000
-                       :attributes {"event.attr" "event-value"}}]}
-            {:trace-id "0af7651916cd43dd8448eb211c80319c"
-             :span-id "00f067aa0ba902b7"
-             :parent-span-id "b7ad6b7169203331"
-             :name "child-span"
-             :kind :internal
-             :start-time-ns 1000000020000000000
-             :end-time-ns   1000000080000000000
-             :attributes {"db.system" "postgresql"}
-             :status :ok}]}))
+    {:service-name "test-service"
+     :resource-attrs {"host.name" "localhost"}
+     :tracer-name "test-tracer"
+     :tracer-version "1.0.0"
+     :scope-attrs {"scope.attr" "scope-value"}
+     :spans [{:trace-id "0af7651916cd43dd8448eb211c80319c"
+              :span-id "b7ad6b7169203331"
+              :name "parent-span"
+              :kind :server
+              :start-time-ns 1000000000000000000
+              :end-time-ns   1000000100000000000
+              :attributes {"http.method" "GET"}
+              :status :ok
+              :events [{:name "event-1"
+                        :time-ns 1000000050000000000
+                        :attributes {"event.attr" "event-value"}}]}
+             {:trace-id "0af7651916cd43dd8448eb211c80319c"
+              :span-id "00f067aa0ba902b7"
+              :parent-span-id "b7ad6b7169203331"
+              :name "child-span"
+              :kind :internal
+              :start-time-ns 1000000020000000000
+              :end-time-ns   1000000080000000000
+              :attributes {"db.system" "postgresql"}
+              :status :ok}]}))
 
 (defn- build-request-without-service
   "Build a request without service.name - should be rejected."
   []
   (otlp/build-trace-request
-   {:tracer-name "test-tracer"
-    :spans [{:trace-id "abc123def456abc123def456abc12345"
-             :span-id "def456abc1234567"
-             :name "orphan-span"
-             :kind :internal
-             :start-time-ns 1000000000000000000
-             :end-time-ns   1000000100000000000
-             :status :ok}]}))
+    {:tracer-name "test-tracer"
+     :spans [{:trace-id "abc123def456abc123def456abc12345"
+              :span-id "def456abc1234567"
+              :name "orphan-span"
+              :kind :internal
+              :start-time-ns 1000000000000000000
+              :end-time-ns   1000000100000000000
+              :status :ok}]}))
 
 ;; ---------------------------------------------------------
 ;; Tests
@@ -108,7 +108,6 @@
   (testing "Rejects spans without service.name"
     (let [events (trace-events/trace-request->events (build-request-without-service))]
       (is (empty? events)))))
-
 
 
 ;; ---------------------------------------------------------

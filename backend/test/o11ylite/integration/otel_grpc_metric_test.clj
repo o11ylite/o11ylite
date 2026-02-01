@@ -6,10 +6,10 @@
 
 (ns o11ylite.integration.otel-grpc-metric-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [next.jdbc :as jdbc]
-   [jsonista.core :as json]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [next.jdbc :as jdbc]
+    [jsonista.core :as json]
+    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
 
@@ -20,10 +20,10 @@
   (testing "MetricsService/Export silently drops metrics without service.name"
     (let [metric-name "orphan.metric.no.service"
           _response (h/export-metrics!
-                     {:meter-name "test-meter"
-                      :metrics [(h/build-gauge-metric
-                                 {:name metric-name
-                                  :data-points [{:value 100}]})]})
+                      {:meter-name "test-meter"
+                       :metrics [(h/build-gauge-metric
+                                   {:name metric-name
+                                    :data-points [{:value 100}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
@@ -36,14 +36,14 @@
     (let [service-name "persist-test-service"
           metric-name "system.cpu.usage"
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "system-meter"
-                      :metrics [(h/build-gauge-metric
-                                 {:name metric-name
-                                  :description "System CPU usage"
-                                  :unit "%"
-                                  :data-points [{:value 75.5
-                                                 :attributes {"host.name" "server-1"}}]})]})
+                      {:service-name service-name
+                       :meter-name "system-meter"
+                       :metrics [(h/build-gauge-metric
+                                   {:name metric-name
+                                    :description "System CPU usage"
+                                    :unit "%"
+                                    :data-points [{:value 75.5
+                                                   :attributes {"host.name" "server-1"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, service, value FROM o11ylite.metrics WHERE name = ?"
@@ -58,14 +58,14 @@
     (let [service-name "metadata-test-service"
           metric-name "process.memory.heap"
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "process-meter"
-                      :metrics [(h/build-gauge-metric
-                                 {:name metric-name
-                                  :description "Heap memory usage"
-                                  :unit "bytes"
-                                  :data-points [{:value 1024000
-                                                 :attributes {"process.pid" "12345"}}]})]})
+                      {:service-name service-name
+                       :meter-name "process-meter"
+                       :metrics [(h/build-gauge-metric
+                                   {:name metric-name
+                                    :description "Heap memory usage"
+                                    :unit "bytes"
+                                    :data-points [{:value 1024000
+                                                   :attributes {"process.pid" "12345"}}]})]})
           sqlite (:db/sqlite h/*system*)
           rows (jdbc/execute! sqlite
                               ["SELECT * FROM metrics_metadata WHERE name = ?"
@@ -86,23 +86,23 @@
           metric-name "http.request.duration"
           ;; First export with one attribute
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "http-meter"
-              :metrics [(h/build-gauge-metric
-                         {:name metric-name
-                          :description "HTTP request duration"
-                          :unit "ms"
-                          :data-points [{:value 100
-                                         :attributes {"http.method" "GET"}}]})]})
+              {:service-name service-name
+               :meter-name "http-meter"
+               :metrics [(h/build-gauge-metric
+                           {:name metric-name
+                            :description "HTTP request duration"
+                            :unit "ms"
+                            :data-points [{:value 100
+                                           :attributes {"http.method" "GET"}}]})]})
           ;; Second export with different attribute
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "http-meter"
-              :metrics [(h/build-gauge-metric
-                         {:name metric-name
-                          :unit "ms"
-                          :data-points [{:value 200
-                                         :attributes {"http.status_code" "200"}}]})]})
+              {:service-name service-name
+               :meter-name "http-meter"
+               :metrics [(h/build-gauge-metric
+                           {:name metric-name
+                            :unit "ms"
+                            :data-points [{:value 200
+                                           :attributes {"http.status_code" "200"}}]})]})
           sqlite (:db/sqlite h/*system*)
           rows (jdbc/execute! sqlite
                               ["SELECT * FROM metrics_metadata WHERE name = ?"
@@ -119,15 +119,15 @@
     (let [service-name "schema-evo-test-service"
           metric-name "disk.io.reads"
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "disk-meter"
-                      :metrics [(h/build-gauge-metric
-                                 {:name metric-name
-                                  :description "Disk read operations"
-                                  :unit "ops"
-                                  :data-points [{:value 1500
-                                                 :attributes {"disk.device" "sda1"
-                                                              "disk.type" "ssd"}}]})]})
+                      {:service-name service-name
+                       :meter-name "disk-meter"
+                       :metrics [(h/build-gauge-metric
+                                   {:name metric-name
+                                    :description "Disk read operations"
+                                    :unit "ops"
+                                    :data-points [{:value 1500
+                                                   :attributes {"disk.device" "sda1"
+                                                                "disk.type" "ssd"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, service, value, \"attr.disk.device\", \"attr.disk.type\"
@@ -146,16 +146,16 @@
     (let [service-name "sum-delta-test-service"
           metric-name "http.requests.count"
           response (h/export-metrics!
-                    {:service-name service-name
-                     :meter-name "http-meter"
-                     :metrics [(h/build-sum-metric
-                                {:name metric-name
-                                 :description "Total HTTP requests"
-                                 :unit "requests"
-                                 :temporality :delta
-                                 :monotonic? true
-                                 :data-points [{:value 100
-                                                :attributes {"http.method" "GET"}}]})]})
+                     {:service-name service-name
+                      :meter-name "http-meter"
+                      :metrics [(h/build-sum-metric
+                                  {:name metric-name
+                                   :description "Total HTTP requests"
+                                   :unit "requests"
+                                   :temporality :delta
+                                   :monotonic? true
+                                   :data-points [{:value 100
+                                                  :attributes {"http.method" "GET"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
@@ -170,16 +170,16 @@
     (let [service-name "sum-cumulative-first-service"
           metric-name "process.cpu.time.first"
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "process-meter"
-                      :metrics [(h/build-sum-metric
-                                 {:name metric-name
-                                  :description "CPU time"
-                                  :unit "seconds"
-                                  :temporality :cumulative
-                                  :monotonic? true
-                                  :data-points [{:value 1000
-                                                 :attributes {"cpu.core" "0"}}]})]})
+                      {:service-name service-name
+                       :meter-name "process-meter"
+                       :metrics [(h/build-sum-metric
+                                   {:name metric-name
+                                    :description "CPU time"
+                                    :unit "seconds"
+                                    :temporality :cumulative
+                                    :monotonic? true
+                                    :data-points [{:value 1000
+                                                   :attributes {"cpu.core" "0"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
@@ -192,26 +192,26 @@
           metric-name "process.cpu.time.delta"
           ;; First export: cumulative value 1000 (will be dropped, but state stored)
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "process-meter"
-              :metrics [(h/build-sum-metric
-                         {:name metric-name
-                          :description "CPU time"
-                          :unit "seconds"
-                          :temporality :cumulative
-                          :monotonic? true
-                          :data-points [{:value 1000
-                                         :attributes {"cpu.core" "0"}}]})]})
+              {:service-name service-name
+               :meter-name "process-meter"
+               :metrics [(h/build-sum-metric
+                           {:name metric-name
+                            :description "CPU time"
+                            :unit "seconds"
+                            :temporality :cumulative
+                            :monotonic? true
+                            :data-points [{:value 1000
+                                           :attributes {"cpu.core" "0"}}]})]})
           ;; Second export: cumulative value 1500 → delta should be 500
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "process-meter"
-              :metrics [(h/build-sum-metric
-                         {:name metric-name
-                          :unit "seconds"
-                          :temporality :cumulative
-                          :data-points [{:value 1500
-                                         :attributes {"cpu.core" "0"}}]})]})
+              {:service-name service-name
+               :meter-name "process-meter"
+               :metrics [(h/build-sum-metric
+                           {:name metric-name
+                            :unit "seconds"
+                            :temporality :cumulative
+                            :data-points [{:value 1500
+                                           :attributes {"cpu.core" "0"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
@@ -224,16 +224,16 @@
     (let [service-name "sum-metadata-test-service"
           metric-name "network.bytes.sent"
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "network-meter"
-                      :metrics [(h/build-sum-metric
-                                 {:name metric-name
-                                  :description "Bytes sent over network"
-                                  :unit "bytes"
-                                  :temporality :delta
-                                  :monotonic? true
-                                  :data-points [{:value 1024
-                                                 :attributes {"interface" "eth0"}}]})]})
+                      {:service-name service-name
+                       :meter-name "network-meter"
+                       :metrics [(h/build-sum-metric
+                                   {:name metric-name
+                                    :description "Bytes sent over network"
+                                    :unit "bytes"
+                                    :temporality :delta
+                                    :monotonic? true
+                                    :data-points [{:value 1024
+                                                   :attributes {"interface" "eth0"}}]})]})
           sqlite (:db/sqlite h/*system*)
           rows (jdbc/execute! sqlite
                               ["SELECT * FROM metrics_metadata WHERE name = ?"
@@ -250,29 +250,29 @@
           metric-name "process.requests.total"
           ;; First export: cumulative value 1000 (dropped, state stored)
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "process-meter"
-              :metrics [(h/build-sum-metric
-                         {:name metric-name
-                          :description "Total requests processed"
-                          :unit "requests"
-                          :temporality :cumulative
-                          :monotonic? true
-                          :data-points [{:value 1000
-                                         :attributes {"instance" "pod-1"}}]})]})
+              {:service-name service-name
+               :meter-name "process-meter"
+               :metrics [(h/build-sum-metric
+                           {:name metric-name
+                            :description "Total requests processed"
+                            :unit "requests"
+                            :temporality :cumulative
+                            :monotonic? true
+                            :data-points [{:value 1000
+                                           :attributes {"instance" "pod-1"}}]})]})
           ;; Second export: cumulative value 50 (simulates service restart)
           ;; Without reset detection, delta would be 50 - 1000 = -950
           ;; With reset detection, delta should be 50 (the current value)
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "process-meter"
-              :metrics [(h/build-sum-metric
-                         {:name metric-name
-                          :unit "requests"
-                          :temporality :cumulative
-                          :monotonic? true
-                          :data-points [{:value 50
-                                         :attributes {"instance" "pod-1"}}]})]})
+              {:service-name service-name
+               :meter-name "process-meter"
+               :metrics [(h/build-sum-metric
+                           {:name metric-name
+                            :unit "requests"
+                            :temporality :cumulative
+                            :monotonic? true
+                            :data-points [{:value 50
+                                           :attributes {"instance" "pod-1"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
@@ -289,18 +289,18 @@
           ;; Send two data points for same series in one request
           ;; Should keep the one with later timestamp
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "api-meter"
-                      :metrics [(h/build-sum-metric
-                                 {:name metric-name
-                                  :unit "calls"
-                                  :temporality :delta
-                                  :data-points [{:value 10
-                                                 :time-ns now-ns
-                                                 :attributes {"endpoint" "/api/v1"}}
-                                                {:value 20
-                                                 :time-ns (+ now-ns 1000000)  ; 1ms later
-                                                 :attributes {"endpoint" "/api/v1"}}]})]})
+                      {:service-name service-name
+                       :meter-name "api-meter"
+                       :metrics [(h/build-sum-metric
+                                   {:name metric-name
+                                    :unit "calls"
+                                    :temporality :delta
+                                    :data-points [{:value 10
+                                                   :time-ns now-ns
+                                                   :attributes {"endpoint" "/api/v1"}}
+                                                  {:value 20
+                                                   :time-ns (+ now-ns 1000000)  ; 1ms later
+                                                   :attributes {"endpoint" "/api/v1"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
@@ -317,20 +317,20 @@
           metric-name "http.request.duration"
           boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0]
           response (h/export-metrics!
-                    {:service-name service-name
-                     :meter-name "http-meter"
-                     :metrics [(h/build-histogram-metric
-                                {:name metric-name
-                                 :description "HTTP request duration"
-                                 :unit "s"
-                                 :temporality :delta
-                                 :boundaries boundaries
-                                 :data-points [{:bucket-counts [10 20 30 25 10 3 1 0 1]
-                                                :count 100
-                                                :sum 15.5
-                                                :min 0.001
-                                                :max 1.5
-                                                :attributes {"http.method" "GET"}}]})]})
+                     {:service-name service-name
+                      :meter-name "http-meter"
+                      :metrics [(h/build-histogram-metric
+                                  {:name metric-name
+                                   :description "HTTP request duration"
+                                   :unit "s"
+                                   :temporality :delta
+                                   :boundaries boundaries
+                                   :data-points [{:bucket-counts [10 20 30 25 10 3 1 0 1]
+                                                  :count 100
+                                                  :sum 15.5
+                                                  :min 0.001
+                                                  :max 1.5
+                                                  :attributes {"http.method" "GET"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, service, \"hist.count\", \"hist.sum\", \"hist.min\", \"hist.max\"
@@ -353,18 +353,18 @@
           metric-name "db.query.duration"
           boundaries [0.001 0.005 0.01 0.05 0.1 0.5 1.0 5.0]
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "db-meter"
-                      :metrics [(h/build-histogram-metric
-                                 {:name metric-name
-                                  :description "Database query duration"
-                                  :unit "s"
-                                  :temporality :delta
-                                  :boundaries boundaries
-                                  :data-points [{:bucket-counts [5 10 15 20 15 10 5 3 2]
-                                                 :count 85
-                                                 :sum 42.5
-                                                 :attributes {"db.system" "postgresql"}}]})]})
+                      {:service-name service-name
+                       :meter-name "db-meter"
+                       :metrics [(h/build-histogram-metric
+                                   {:name metric-name
+                                    :description "Database query duration"
+                                    :unit "s"
+                                    :temporality :delta
+                                    :boundaries boundaries
+                                    :data-points [{:bucket-counts [5 10 15 20 15 10 5 3 2]
+                                                   :count 85
+                                                   :sum 42.5
+                                                   :attributes {"db.system" "postgresql"}}]})]})
           sqlite (:db/sqlite h/*system*)
           rows (jdbc/execute! sqlite
                               ["SELECT * FROM metrics_metadata WHERE name = ?"
@@ -384,16 +384,16 @@
           metric-name "cache.latency.first"
           boundaries [0.001 0.01 0.1 1.0]
           _response (h/export-metrics!
-                     {:service-name service-name
-                      :meter-name "cache-meter"
-                      :metrics [(h/build-histogram-metric
-                                 {:name metric-name
-                                  :unit "s"
-                                  :temporality :cumulative
-                                  :boundaries boundaries
-                                  :data-points [{:bucket-counts [100 200 50 25 25]
-                                                 :count 400
-                                                 :sum 45.0}]})]})
+                      {:service-name service-name
+                       :meter-name "cache-meter"
+                       :metrics [(h/build-histogram-metric
+                                   {:name metric-name
+                                    :unit "s"
+                                    :temporality :cumulative
+                                    :boundaries boundaries
+                                    :data-points [{:bucket-counts [100 200 50 25 25]
+                                                   :count 400
+                                                   :sum 45.0}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
@@ -407,30 +407,30 @@
           boundaries [0.01 0.05 0.1 0.5 1.0]
           ;; First export: cumulative (will be dropped, state stored)
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "rpc-meter"
-              :metrics [(h/build-histogram-metric
-                         {:name metric-name
-                          :unit "s"
-                          :temporality :cumulative
-                          :boundaries boundaries
-                          :data-points [{:bucket-counts [10 20 30 20 15 5]
-                                         :count 100
-                                         :sum 25.0
-                                         :attributes {"rpc.method" "GetUser"}}]})]})
+              {:service-name service-name
+               :meter-name "rpc-meter"
+               :metrics [(h/build-histogram-metric
+                           {:name metric-name
+                            :unit "s"
+                            :temporality :cumulative
+                            :boundaries boundaries
+                            :data-points [{:bucket-counts [10 20 30 20 15 5]
+                                           :count 100
+                                           :sum 25.0
+                                           :attributes {"rpc.method" "GetUser"}}]})]})
           ;; Second export: cumulative values increased
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "rpc-meter"
-              :metrics [(h/build-histogram-metric
-                         {:name metric-name
-                          :unit "s"
-                          :temporality :cumulative
-                          :boundaries boundaries
-                          :data-points [{:bucket-counts [15 30 45 30 20 10]
-                                         :count 150
-                                         :sum 40.0
-                                         :attributes {"rpc.method" "GetUser"}}]})]})
+              {:service-name service-name
+               :meter-name "rpc-meter"
+               :metrics [(h/build-histogram-metric
+                           {:name metric-name
+                            :unit "s"
+                            :temporality :cumulative
+                            :boundaries boundaries
+                            :data-points [{:bucket-counts [15 30 45 30 20 10]
+                                           :count 150
+                                           :sum 40.0
+                                           :attributes {"rpc.method" "GetUser"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
@@ -449,30 +449,30 @@
           boundaries [0.1 0.5 1.0 5.0]
           ;; First export: cumulative (dropped, state stored)
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "worker-meter"
-              :metrics [(h/build-histogram-metric
-                         {:name metric-name
-                          :unit "s"
-                          :temporality :cumulative
-                          :boundaries boundaries
-                          :data-points [{:bucket-counts [100 200 150 50 25]
-                                         :count 525
-                                         :sum 500.0
-                                         :attributes {"worker.id" "w1"}}]})]})
+              {:service-name service-name
+               :meter-name "worker-meter"
+               :metrics [(h/build-histogram-metric
+                           {:name metric-name
+                            :unit "s"
+                            :temporality :cumulative
+                            :boundaries boundaries
+                            :data-points [{:bucket-counts [100 200 150 50 25]
+                                           :count 525
+                                           :sum 500.0
+                                           :attributes {"worker.id" "w1"}}]})]})
           ;; Second export: lower cumulative values (service restart)
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "worker-meter"
-              :metrics [(h/build-histogram-metric
-                         {:name metric-name
-                          :unit "s"
-                          :temporality :cumulative
-                          :boundaries boundaries
-                          :data-points [{:bucket-counts [5 10 8 3 2]
-                                         :count 28
-                                         :sum 25.0
-                                         :attributes {"worker.id" "w1"}}]})]})
+              {:service-name service-name
+               :meter-name "worker-meter"
+               :metrics [(h/build-histogram-metric
+                           {:name metric-name
+                            :unit "s"
+                            :temporality :cumulative
+                            :boundaries boundaries
+                            :data-points [{:bucket-counts [5 10 8 3 2]
+                                           :count 28
+                                           :sum 25.0
+                                           :attributes {"worker.id" "w1"}}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
@@ -493,22 +493,22 @@
           histogram-name "http.request.duration.mixed"
           boundaries [0.005 0.01 0.025 0.05 0.1]
           response (h/export-metrics!
-                    {:service-name service-name
-                     :meter-name "test-meter"
-                     :metrics [(h/build-gauge-metric
-                                {:name gauge-name
-                                 :description "CPU usage"
-                                 :unit "%"
-                                 :data-points [{:value 75.5}]})
-                               (h/build-histogram-metric
-                                {:name histogram-name
-                                 :description "Request duration"
-                                 :unit "s"
-                                 :temporality :delta
-                                 :boundaries boundaries
-                                 :data-points [{:bucket-counts [10 20 30 25 15 5]
-                                                :count 105
-                                                :sum 12.5}]})]})
+                     {:service-name service-name
+                      :meter-name "test-meter"
+                      :metrics [(h/build-gauge-metric
+                                  {:name gauge-name
+                                   :description "CPU usage"
+                                   :unit "%"
+                                   :data-points [{:value 75.5}]})
+                                (h/build-histogram-metric
+                                  {:name histogram-name
+                                   :description "Request duration"
+                                   :unit "s"
+                                   :temporality :delta
+                                   :boundaries boundaries
+                                   :data-points [{:bucket-counts [10 20 30 25 15 5]
+                                                  :count 105
+                                                  :sum 12.5}]})]})
           duckdb (:db/duckdb h/*system*)
           gauge-rows (jdbc/execute! duckdb
                                     ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
@@ -535,21 +535,21 @@
           metric-name "request.latency.unit"
           ;; First export: unit is "ms"
           _ (h/export-metrics!
-             {:service-name service-name
-              :meter-name "test-meter"
-              :metrics [(h/build-gauge-metric
-                         {:name metric-name
-                          :description "Request latency"
-                          :unit "ms"
-                          :data-points [{:value 100}]})]})
+              {:service-name service-name
+               :meter-name "test-meter"
+               :metrics [(h/build-gauge-metric
+                           {:name metric-name
+                            :description "Request latency"
+                            :unit "ms"
+                            :data-points [{:value 100}]})]})
           ;; Second export: try to change unit to "s" (should be rejected)
           response (h/export-metrics!
-                    {:service-name service-name
-                     :meter-name "test-meter"
-                     :metrics [(h/build-gauge-metric
-                                {:name metric-name
-                                 :unit "s"
-                                 :data-points [{:value 0.1}]})]})
+                     {:service-name service-name
+                      :meter-name "test-meter"
+                      :metrics [(h/build-gauge-metric
+                                  {:name metric-name
+                                   :unit "s"
+                                   :data-points [{:value 0.1}]})]})
           duckdb (:db/duckdb h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"

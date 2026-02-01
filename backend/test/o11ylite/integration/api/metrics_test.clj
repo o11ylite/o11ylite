@@ -6,16 +6,18 @@
 
 (ns o11ylite.integration.api.metrics-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.store.metrics.metadata :as metadata]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.store.metrics.metadata :as metadata]
+    [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
 
 ;; ---------------------------------------------------------
 ;; GET /api/metrics - List Metrics

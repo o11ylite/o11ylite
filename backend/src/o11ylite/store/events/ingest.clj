@@ -30,17 +30,17 @@
 
 (ns o11ylite.store.events.ingest
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [next.jdbc.sql :as sql]
-   [next.jdbc.quoted]
-   [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.store.batcher :as batcher]
-   [o11ylite.store.events.cleanse :as cleanse]
-   [o11ylite.store.events.enrich :as enrich]
-   [o11ylite.store.schema :as schema]
-   [steffan-westcott.clj-otel.api.trace.span :as span])
+    [com.brunobonacci.mulog :as mulog]
+    [next.jdbc.sql :as sql]
+    [next.jdbc.quoted]
+    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.store.batcher :as batcher]
+    [o11ylite.store.events.cleanse :as cleanse]
+    [o11ylite.store.events.enrich :as enrich]
+    [o11ylite.store.schema :as schema]
+    [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
-   [java.time Instant LocalDateTime ZoneOffset]))
+    [java.time Instant LocalDateTime ZoneOffset]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - Field Extraction
@@ -165,7 +165,8 @@
      Exception on failure (batcher will catch and notify callers).
      OTLP clients are expected to retry on transient failures."
   [duckdb event-metadata events fields]
-  (span/with-span! [::persist-batch {:event-count (count events)}]
+  (span/with-span!
+    [::persist-batch {:event-count (count events)}]
     (let [new-fields (-compute-schema-diff event-metadata fields)]
       (span/add-span-data! {:attributes {:new-field-count (count new-fields)}})
 

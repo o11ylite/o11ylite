@@ -6,12 +6,12 @@
 
 (ns o11ylite.components.web-server
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [ring.adapter.jetty :as jetty])
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [ring.adapter.jetty :as jetty])
   (:import
-   [org.eclipse.jetty.server Server]
-   [org.eclipse.jetty.util.thread QueuedThreadPool]))
+    [org.eclipse.jetty.server Server]
+    [org.eclipse.jetty.util.thread QueuedThreadPool]))
 
 (defn- virtual-thread-pool
   "Create a QueuedThreadPool that uses virtual threads."

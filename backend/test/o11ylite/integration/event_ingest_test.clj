@@ -6,22 +6,30 @@
 
 (ns o11ylite.integration.event-ingest-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [next.jdbc :as jdbc]
-   [o11ylite.test-helpers :as h]
-   [o11ylite.store.events.ingest :as events.ingest])
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [next.jdbc :as jdbc]
+    [o11ylite.test-helpers :as h]
+    [o11ylite.store.events.ingest :as events.ingest])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 (use-fixtures :each h/with-system)
 
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- duckdb [] (:db/duckdb h/*system*))
-(defn- event-metadata [] (:cache/event-metadata h/*system*))
-(defn- event-batcher [] (:ingest/event-batcher h/*system*))
-(defn- id-generator [] (:id/generator h/*system*))
+(defn- duckdb
+  []
+  (:db/duckdb h/*system*))
+(defn- event-metadata
+  []
+  (:cache/event-metadata h/*system*))
+(defn- event-batcher
+  []
+  (:ingest/event-batcher h/*system*))
+(defn- id-generator
+  []
+  (:id/generator h/*system*))
 
 (defn- query-events
   "Query all events from DuckLake, ordered by name."

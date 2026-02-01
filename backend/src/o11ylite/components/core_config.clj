@@ -7,9 +7,9 @@
 
 (ns o11ylite.components.core-config
   (:require
-   [clojure.string :as str]
-   [com.brunobonacci.mulog :as mulog]
-   [integrant.core :as ig]))
+    [clojure.string :as str]
+    [com.brunobonacci.mulog :as mulog]
+    [integrant.core :as ig]))
 
 ;; ---------------------------------------------------------
 ;; Core Configuration Definitions

@@ -7,7 +7,7 @@
 
 (ns o11ylite.util.ticker
   (:require
-   [clojure.core.async :as a]))
+    [clojure.core.async :as a]))
 
 ;; ---------------------------------------------------------
 ;; Ticker Implementation

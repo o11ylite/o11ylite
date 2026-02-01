@@ -12,20 +12,20 @@
 
 (ns o11ylite.otel-grpc.metric-proto
   (:require
-   [clojure.string :as str]
-   [o11ylite.otel-grpc.proto :as proto])
+    [clojure.string :as str]
+    [o11ylite.otel-grpc.proto :as proto])
   (:import
-   [io.opentelemetry.proto.resource.v1 Resource]
-   [io.opentelemetry.proto.metrics.v1
-    ResourceMetrics ScopeMetrics Metric Metric$DataCase
-    NumberDataPoint NumberDataPoint$ValueCase
-    Sum AggregationTemporality
-    Histogram HistogramDataPoint]
-   [io.opentelemetry.proto.collector.metrics.v1
-    ExportMetricsServiceRequest
-    ExportMetricsServiceResponse
-    ExportMetricsPartialSuccess]
-   [java.time Instant]))
+    [io.opentelemetry.proto.resource.v1 Resource]
+    [io.opentelemetry.proto.metrics.v1
+     ResourceMetrics ScopeMetrics Metric Metric$DataCase
+     NumberDataPoint NumberDataPoint$ValueCase
+     Sum AggregationTemporality
+     Histogram HistogramDataPoint]
+    [io.opentelemetry.proto.collector.metrics.v1
+     ExportMetricsServiceRequest
+     ExportMetricsServiceResponse
+     ExportMetricsPartialSuccess]
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Attribute helpers
@@ -81,15 +81,15 @@
   (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
         prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
     (merge
-     {:name metric-name
-      :service service-name
-      :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
-                     observed-time)
-      :value (-number-data-point-value dp)
-      :scope.name scope-name
-      :scope.version scope-version
-      :meta.observed_time observed-time}
-     prefixed-attrs)))
+      {:name metric-name
+       :service service-name
+       :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
+                      observed-time)
+       :value (-number-data-point-value dp)
+       :scope.name scope-name
+       :scope.version scope-version
+       :meta.observed_time observed-time}
+      prefixed-attrs)))
 
 (defn- -gauge->data-points
   "Convert Gauge metric to sequence of data point maps."
@@ -130,15 +130,15 @@
   (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
         prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
     (merge
-     {:name metric-name
-      :service service-name
-      :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
-                     observed-time)
-      :value (-number-data-point-value dp)
-      :scope.name scope-name
-      :scope.version scope-version
-      :meta.observed_time observed-time}
-     prefixed-attrs)))
+      {:name metric-name
+       :service service-name
+       :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
+                      observed-time)
+       :value (-number-data-point-value dp)
+       :scope.name scope-name
+       :scope.version scope-version
+       :meta.observed_time observed-time}
+      prefixed-attrs)))
 
 (defn- -sum->data-points
   "Convert Sum metric to sequence of data point maps."
@@ -183,23 +183,23 @@
   (let [dp-attrs (-extract-string-attributes (.getAttributesList dp))
         prefixed-attrs (-prefix-string-attributes resource-attrs dp-attrs)]
     (merge
-     {:name metric-name
-      :service service-name
-      :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
-                     observed-time)
-      ;; Histograms set value to 0 (ignored, required for NOT NULL constraint
-      ;; when batched with gauge/sum metrics that have :value in their fields)
-      :value 0.0
-      ;; Histogram-specific fields
-      :hist.counts (vec (.getBucketCountsList dp))
-      :hist.count (.getCount dp)
-      :hist.sum (when (.hasSum dp) (.getSum dp))
-      :hist.min (when (.hasMin dp) (.getMin dp))
-      :hist.max (when (.hasMax dp) (.getMax dp))
-      :scope.name scope-name
-      :scope.version scope-version
-      :meta.observed_time observed-time}
-     prefixed-attrs)))
+      {:name metric-name
+       :service service-name
+       :timestamp (or (proto/nanos->instant (.getTimeUnixNano dp))
+                      observed-time)
+       ;; Histograms set value to 0 (ignored, required for NOT NULL constraint
+       ;; when batched with gauge/sum metrics that have :value in their fields)
+       :value 0.0
+       ;; Histogram-specific fields
+       :hist.counts (vec (.getBucketCountsList dp))
+       :hist.count (.getCount dp)
+       :hist.sum (when (.hasSum dp) (.getSum dp))
+       :hist.min (when (.hasMin dp) (.getMin dp))
+       :hist.max (when (.hasMax dp) (.getMax dp))
+       :scope.name scope-name
+       :scope.version scope-version
+       :meta.observed_time observed-time}
+      prefixed-attrs)))
 
 (defn- -histogram->data-points
   "Convert Histogram metric to sequence of data point maps."

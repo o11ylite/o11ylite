@@ -19,9 +19,9 @@
 
 (ns o11ylite.store.schema
   (:require
-   [next.jdbc :as jdbc])
+    [next.jdbc :as jdbc])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Type Conversions
@@ -129,20 +129,20 @@
                            :attr.http.status_code {:type :integer}})"
   [duckdb-ds fields]
   (jdbc/with-transaction [tx duckdb-ds]
-    (doseq [[field-key field-meta] fields]
-      (let [duckdb-type (app-type->duckdb (:type field-meta))
-            ;; Notice the IF NOT EXISTS here.
-            ;; There is a chance that we swallow a conflicting type error here.
-            ;; It may cause the whole batch to fail. This a compromise.
-            ;; But we anticipate this to be rare:
-            ;; - 1. Conflicting data types from source are rare.
-            ;; - 2. We had various prevention mechanism before this.
-            ;; - 3. We anticipate client side to retry error. Retry would work because the metadata
-            ;;      cache would've catch up, and reject only the bad seed retry.
-            sql (format "ALTER TABLE o11ylite.events ADD COLUMN IF NOT EXISTS \"%s\" %s"
-                        (name field-key)
-                        duckdb-type)]
-        (jdbc/execute! tx [sql])))))
+                         (doseq [[field-key field-meta] fields]
+                           (let [duckdb-type (app-type->duckdb (:type field-meta))
+                                 ;; Notice the IF NOT EXISTS here.
+                                 ;; There is a chance that we swallow a conflicting type error here.
+                                 ;; It may cause the whole batch to fail. This a compromise.
+                                 ;; But we anticipate this to be rare:
+                                 ;; - 1. Conflicting data types from source are rare.
+                                 ;; - 2. We had various prevention mechanism before this.
+                                 ;; - 3. We anticipate client side to retry error. Retry would work because the metadata
+                                 ;;      cache would've catch up, and reject only the bad seed retry.
+                                 sql (format "ALTER TABLE o11ylite.events ADD COLUMN IF NOT EXISTS \"%s\" %s"
+                                             (name field-key)
+                                             duckdb-type)]
+                             (jdbc/execute! tx [sql])))))
 
 (defn add-metrics-fields!
   "Add new fields (columns) to the metrics table for schema evolution.
@@ -157,10 +157,10 @@
      (add-metrics-fields! ds #{:attr.host.name :attr.cpu.core})"
   [duckdb-ds fields]
   (jdbc/with-transaction [tx duckdb-ds]
-    (doseq [field-name fields]
-      (let [sql (format "ALTER TABLE o11ylite.metrics ADD COLUMN IF NOT EXISTS \"%s\" VARCHAR"
-                        (name field-name))]
-        (jdbc/execute! tx [sql])))))
+                         (doseq [field-name fields]
+                           (let [sql (format "ALTER TABLE o11ylite.metrics ADD COLUMN IF NOT EXISTS \"%s\" VARCHAR"
+                                             (name field-name))]
+                             (jdbc/execute! tx [sql])))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

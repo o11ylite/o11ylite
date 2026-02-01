@@ -8,9 +8,9 @@
 
 (ns o11ylite.store.metrics.query-validation-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.store.metrics.metadata :as metadata]
-   [o11ylite.store.metrics.query-validation :as validation]))
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.store.metrics.metadata :as metadata]
+    [o11ylite.store.metrics.query-validation :as validation]))
 
 ;; ---------------------------------------------------------
 ;; Mock Helpers
@@ -33,9 +33,9 @@
   "Validate a single metric query with mocked metadata."
   [metric-type metric-name agg]
   (validate-with-mock
-   {metric-name {:metric_type metric-type}}
-   {:time_range {:start 1702000000000 :end 1702003600000}
-    :metrics [{:id "A" :name metric-name :agg agg}]}))
+    {metric-name {:metric_type metric-type}}
+    {:time_range {:start 1702000000000 :end 1702003600000}
+     :metrics [{:id "A" :name metric-name :agg agg}]}))
 
 ;; ---------------------------------------------------------
 ;; Gauge Metrics
@@ -141,9 +141,9 @@
   (testing "unknown metric is skipped (returns nil)"
     ;; Empty metadata map = all metrics unknown
     (let [result (validate-with-mock
-                  {}
-                  {:time_range {:start 1702000000000 :end 1702003600000}
-                   :metrics [{:id "A" :name "unknown.metric" :agg "avg"}]})]
+                   {}
+                   {:time_range {:start 1702000000000 :end 1702003600000}
+                    :metrics [{:id "A" :name "unknown.metric" :agg "avg"}]})]
       (is (nil? result))))
 
   (testing "unknown metric allows any aggregation"
@@ -163,27 +163,27 @@
 
     (testing "all valid metrics pass"
       (let [result (validate-with-mock
-                    metrics-map
-                    {:time_range {:start 1702000000000 :end 1702003600000}
-                     :metrics [{:id "A" :name "multi.gauge" :agg "avg"}
-                               {:id "B" :name "multi.sum" :agg "sum"}]})]
+                     metrics-map
+                     {:time_range {:start 1702000000000 :end 1702003600000}
+                      :metrics [{:id "A" :name "multi.gauge" :agg "avg"}
+                                {:id "B" :name "multi.sum" :agg "sum"}]})]
         (is (nil? result))))
 
     (testing "first invalid metric fails"
       (let [result (validate-with-mock
-                    metrics-map
-                    {:time_range {:start 1702000000000 :end 1702003600000}
-                     :metrics [{:id "A" :name "multi.gauge" :agg "rate"}  ; invalid
-                               {:id "B" :name "multi.sum" :agg "sum"}]})]
+                     metrics-map
+                     {:time_range {:start 1702000000000 :end 1702003600000}
+                      :metrics [{:id "A" :name "multi.gauge" :agg "rate"}  ; invalid
+                                {:id "B" :name "multi.sum" :agg "sum"}]})]
         (is (some? result))
         (is (re-find #"id: A" (:error result)))))
 
     (testing "second invalid metric fails"
       (let [result (validate-with-mock
-                    metrics-map
-                    {:time_range {:start 1702000000000 :end 1702003600000}
-                     :metrics [{:id "A" :name "multi.gauge" :agg "avg"}
-                               {:id "B" :name "multi.sum" :agg "avg"}]})]  ; invalid
+                     metrics-map
+                     {:time_range {:start 1702000000000 :end 1702003600000}
+                      :metrics [{:id "A" :name "multi.gauge" :agg "avg"}
+                                {:id "B" :name "multi.sum" :agg "avg"}]})]  ; invalid
         (is (some? result))
         (is (re-find #"id: B" (:error result)))))))
 

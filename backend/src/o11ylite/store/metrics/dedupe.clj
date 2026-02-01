@@ -13,7 +13,7 @@
 
 (ns o11ylite.store.metrics.dedupe
   (:require
-   [o11ylite.store.metrics.series :as series]))
+    [o11ylite.store.metrics.series :as series]))
 
 ;; ---------------------------------------------------------
 ;; Deduplication

@@ -6,9 +6,9 @@
 
 (ns o11ylite.components.inertia
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.inertia.template :as template]))
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.inertia.template :as template]))
 
 (defmethod ig/init-key :inertia/config
   [_ {:keys [core-config]}]

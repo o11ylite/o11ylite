@@ -6,9 +6,9 @@
 
 (ns o11ylite.store.events.cleanse-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.store.events.cleanse :as cleanse]))
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.store.events.cleanse :as cleanse]))
 
 ;; ---------------------------------------------------------
 ;; Tests

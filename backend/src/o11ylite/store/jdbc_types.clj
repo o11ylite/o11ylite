@@ -13,10 +13,10 @@
 
 (ns o11ylite.store.jdbc-types
   (:require
-   [next.jdbc.result-set :as rs])
+    [next.jdbc.result-set :as rs])
   (:import
-   [java.sql ResultSet ResultSetMetaData Timestamp]
-   [java.time ZoneOffset]))
+    [java.sql ResultSet ResultSetMetaData Timestamp]
+    [java.time ZoneOffset]))
 
 ;; ---------------------------------------------------------
 ;; Timestamp Conversion

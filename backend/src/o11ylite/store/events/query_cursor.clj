@@ -8,9 +8,9 @@
 
 (ns o11ylite.store.events.query-cursor
   (:require
-   [jsonista.core :as json])
+    [jsonista.core :as json])
   (:import
-   [java.util Base64]))
+    [java.util Base64]))
 
 ;; ---------------------------------------------------------
 ;; Cursor Encoding/Decoding

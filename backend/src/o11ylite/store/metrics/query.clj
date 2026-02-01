@@ -22,12 +22,12 @@
 
 (ns o11ylite.store.metrics.query
   (:require
-   [honey.sql :as sql]
-   [next.jdbc :as jdbc]
-   [o11ylite.store.metrics.metadata :as metadata]
-   [o11ylite.store.metrics.query-schema :as query-schema]
-   [o11ylite.store.metrics.query-validation :as query-validation]
-   [o11ylite.store.query-util :as query-util]))
+    [honey.sql :as sql]
+    [next.jdbc :as jdbc]
+    [o11ylite.store.metrics.metadata :as metadata]
+    [o11ylite.store.metrics.query-schema :as query-schema]
+    [o11ylite.store.metrics.query-validation :as query-validation]
+    [o11ylite.store.query-util :as query-util]))
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -39,7 +39,6 @@
   [sqlite query]
   (or (query-schema/validate query-schema/metrics-query query)
       (query-validation/validate-with-metadata sqlite query)))
-
 
 
 ;; ---------------------------------------------------------

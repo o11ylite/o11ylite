@@ -14,12 +14,12 @@
 
 (ns o11ylite.components.metric-batcher
   (:require
-   [clojure.core.async :as a]
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.components.app-config :as app-config]
-   [o11ylite.store.metrics.ingest :as metrics.ingest]
-   [o11ylite.util.ticker :as ticker]))
+    [clojure.core.async :as a]
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.app-config :as app-config]
+    [o11ylite.store.metrics.ingest :as metrics.ingest]
+    [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers

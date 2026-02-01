@@ -14,8 +14,8 @@
 
 (ns o11ylite.store.metrics.query-validation
   (:require
-   [clojure.string :as str]
-   [o11ylite.store.metrics.metadata :as metadata]))
+    [clojure.string :as str]
+    [o11ylite.store.metrics.metadata :as metadata]))
 
 ;; ---------------------------------------------------------
 ;; Aggregation Rules

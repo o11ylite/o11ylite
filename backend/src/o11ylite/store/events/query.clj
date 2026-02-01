@@ -11,12 +11,12 @@
 
 (ns o11ylite.store.events.query
   (:require
-   [honey.sql :as sql]
-   [next.jdbc :as jdbc]
-   [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.store.events.query-cursor :as query-cursor]
-   [o11ylite.store.events.query-schema :as query-schema]
-   [o11ylite.store.query-util :as query-util]))
+    [honey.sql :as sql]
+    [next.jdbc :as jdbc]
+    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.store.events.query-cursor :as query-cursor]
+    [o11ylite.store.events.query-schema :as query-schema]
+    [o11ylite.store.query-util :as query-util]))
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -29,8 +29,8 @@
   [event-metadata-component query]
   (or (query-schema/validate query-schema/events-query query)
       (query-schema/validate-filter-ops-with-metadata
-       (event-metadata/get-fields event-metadata-component)
-       query)))
+        (event-metadata/get-fields event-metadata-component)
+        query)))
 
 ;; ---------------------------------------------------------
 ;; Column Name Handling (delegated to query-util)
@@ -302,7 +302,7 @@
               :timestamp]
      :from [:events]
      :where [:and
-             ; DuckLake has some weird bug, if I reorder these few lines it crashes or spitting out wrong result!
+             ;; DuckLake has some weird bug, if I reorder these few lines it crashes or spitting out wrong result!
              [:or
               [:= signal-type-col "span"]
               [:= signal-type-col "span_event"]]

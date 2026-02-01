@@ -7,10 +7,10 @@
 
 (ns o11ylite.test-helpers.event-ingest
   (:require
-   [o11ylite.store.events.ingest :as events.ingest])
+    [o11ylite.store.events.ingest :as events.ingest])
   (:import
-   [java.time Instant]
-   [java.util UUID]))
+    [java.time Instant]
+    [java.util UUID]))
 
 ;; ---------------------------------------------------------
 ;; Random Data Generators
@@ -30,10 +30,12 @@
   (let [chars "0123456789abcdef"]
     (apply str (repeatedly len #(rand-nth chars)))))
 
-(defn- -random-trace-id []
+(defn- -random-trace-id
+  []
   (-random-hex 32))
 
-(defn- -random-span-id []
+(defn- -random-span-id
+  []
   (-random-hex 16))
 
 (defn- -random-timestamp

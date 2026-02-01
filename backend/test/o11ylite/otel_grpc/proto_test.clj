@@ -6,35 +6,40 @@
 
 (ns o11ylite.otel-grpc.proto-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.otel-grpc.proto :as proto])
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.otel-grpc.proto :as proto])
   (:import
-   [io.opentelemetry.proto.common.v1 AnyValue KeyValue ArrayValue KeyValueList]))
+    [io.opentelemetry.proto.common.v1 AnyValue KeyValue ArrayValue KeyValueList]))
 
 ;; ---------------------------------------------------------
 ;; Test Helpers
 
-(defn- build-any-value-string [s]
+(defn- build-any-value-string
+  [s]
   (-> (AnyValue/newBuilder)
       (.setStringValue s)
       (.build)))
 
-(defn- build-any-value-int [n]
+(defn- build-any-value-int
+  [n]
   (-> (AnyValue/newBuilder)
       (.setIntValue n)
       (.build)))
 
-(defn- build-any-value-bool [b]
+(defn- build-any-value-bool
+  [b]
   (-> (AnyValue/newBuilder)
       (.setBoolValue b)
       (.build)))
 
-(defn- build-any-value-double [d]
+(defn- build-any-value-double
+  [d]
   (-> (AnyValue/newBuilder)
       (.setDoubleValue d)
       (.build)))
 
-(defn- build-any-value-array [values]
+(defn- build-any-value-array
+  [values]
   (let [array-builder (ArrayValue/newBuilder)]
     (doseq [v values]
       (.addValues array-builder v))
@@ -42,7 +47,8 @@
         (.setArrayValue (.build array-builder))
         (.build))))
 
-(defn- build-any-value-kvlist [kvs]
+(defn- build-any-value-kvlist
+  [kvs]
   (let [kvlist-builder (KeyValueList/newBuilder)]
     (doseq [[k v] kvs]
       (.addValues kvlist-builder
@@ -100,7 +106,8 @@
 ;; ---------------------------------------------------------
 ;; extract-attributes Tests
 
-(defn- build-kv [k v]
+(defn- build-kv
+  [k v]
   (-> (KeyValue/newBuilder)
       (.setKey k)
       (.setValue v)

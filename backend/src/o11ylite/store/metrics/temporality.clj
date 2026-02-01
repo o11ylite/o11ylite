@@ -25,8 +25,8 @@
 
 (ns o11ylite.store.metrics.temporality
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.components.metric-temporality-normalizer :as normalizer]))
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.metric-temporality-normalizer :as normalizer]))
 
 ;; ---------------------------------------------------------
 ;; Normalization

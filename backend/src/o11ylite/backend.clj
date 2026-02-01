@@ -7,9 +7,9 @@
 (ns o11ylite.backend
   (:gen-class)
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.mulog]
-   [o11ylite.system :as system]))
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.mulog]
+    [o11ylite.system :as system]))
 
 ;; ---------------------------------------------------------
 ;; Application
@@ -24,13 +24,13 @@
 
   ;; Start the system
   (let [sys (system/start)]
-      ;; Add shutdown hook for graceful shutdown
+    ;; Add shutdown hook for graceful shutdown
     (.addShutdownHook
-     (Runtime/getRuntime)
-     (Thread. ^Runnable (fn []
-                          (mulog/log ::shutdown-initiated)
-                          (system/stop sys))))
-      ;; Keep the main thread alive
+      (Runtime/getRuntime)
+      (Thread. ^Runnable (fn []
+                           (mulog/log ::shutdown-initiated)
+                           (system/stop sys))))
+    ;; Keep the main thread alive
     @(promise)))
 
 ;; ---------------------------------------------------------

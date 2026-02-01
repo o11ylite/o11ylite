@@ -6,11 +6,11 @@
 
 (ns o11ylite.inertia.template
   (:require
-   [clojure.java.io :as io]
-   [com.brunobonacci.mulog :as mulog]
-   [hiccup2.core :as h]
-   [hiccup.util :refer [raw-string]]
-   [jsonista.core :as json]))
+    [clojure.java.io :as io]
+    [com.brunobonacci.mulog :as mulog]
+    [hiccup2.core :as h]
+    [hiccup.util :refer [raw-string]]
+    [jsonista.core :as json]))
 
 ;; ---------------------------------------------------------
 ;; Vite Manifest
@@ -82,7 +82,8 @@
 ;; React Refresh preamble - required for HMR when serving HTML from backend.
 ;; Sets up window.$RefreshReg$ and $RefreshSig$ before any React code loads.
 ;; Per: https://vite.dev/guide/backend-integration.html
-(defn- react-refresh-preamble [react-refresh-url]
+(defn- react-refresh-preamble
+  [react-refresh-url]
   (str "import RefreshRuntime from '" react-refresh-url "';
 RefreshRuntime.injectIntoGlobalHook(window);
 window.$RefreshReg$ = () => {};
@@ -93,27 +94,27 @@ window.__vite_plugin_react_preamble_installed__ = true;"))
   "Generate the HTML template for Inertia."
   [{:keys [title assets page-data]}]
   (str
-   (h/html
-    (raw-string "<!DOCTYPE html>")
-    [:html {:lang "en" :class "h-full dark"}
-     [:head
-      [:meta {:charset "utf-8"}]
-      [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
-      [:title (or title "o11ylite")]
-      [:link {:rel "icon" :href (:favicon assets) :type "image/svg+xml"}]
-      ;; CSS (prod only - dev injects via JS)
-      (for [css-path (:css assets)]
-        [:link {:rel "stylesheet" :href css-path}])
-      ;; Vite client (dev only)
-      (when-let [vite-client (:vite-client assets)]
-        [:script {:type "module" :src vite-client}])
-      ;; React Refresh preamble (dev only) - must run before app code
-      (when-let [react-refresh (:react-refresh assets)]
-        [:script {:type "module"}
-         (raw-string (react-refresh-preamble react-refresh))])]
-     [:body.h-full
-      [:div#app {:data-page page-data}]
-      [:script {:type "module" :src (:js assets)}]]])))
+    (h/html
+      (raw-string "<!DOCTYPE html>")
+      [:html {:lang "en" :class "h-full dark"}
+       [:head
+        [:meta {:charset "utf-8"}]
+        [:meta {:name "viewport" :content "width=device-width, initial-scale=1.0"}]
+        [:title (or title "o11ylite")]
+        [:link {:rel "icon" :href (:favicon assets) :type "image/svg+xml"}]
+        ;; CSS (prod only - dev injects via JS)
+        (for [css-path (:css assets)]
+          [:link {:rel "stylesheet" :href css-path}])
+        ;; Vite client (dev only)
+        (when-let [vite-client (:vite-client assets)]
+          [:script {:type "module" :src vite-client}])
+        ;; React Refresh preamble (dev only) - must run before app code
+        (when-let [react-refresh (:react-refresh assets)]
+          [:script {:type "module"}
+           (raw-string (react-refresh-preamble react-refresh))])]
+       [:body.h-full
+        [:div#app {:data-page page-data}]
+        [:script {:type "module" :src (:js assets)}]]])))
 
 (defn make-template-fn
   "Create a template function for use with Inertia middleware.

@@ -6,24 +6,24 @@
 
 (ns o11ylite.components.router
   (:require
-   [integrant.core :as ig]
-   [com.brunobonacci.mulog :as mulog]
-   [ring.middleware.defaults :refer [wrap-defaults site-defaults api-defaults]]
-   [reitit.ring :as ring]
-   [reitit.ring.middleware.exception :as exception]
-   [steffan-westcott.clj-otel.api.trace.span :as span]
-   [jsonista.core :as json]
-   [o11ylite.util.response :as response]
-   [o11ylite.inertia.middleware :as inertia]
-   [o11ylite.api.health :as api.health]
-   [o11ylite.api.metrics :as api.metrics]
-   [o11ylite.api.query :as api.query]
-   [o11ylite.otel-http :as otel-http]
-   [o11ylite.routes.home :as home]
-   [o11ylite.routes.explore :as explore]
-   [o11ylite.routes.trace :as trace]
-   [o11ylite.routes.dashboards :as dashboards]
-   [o11ylite.routes.monitors :as monitors]))
+    [integrant.core :as ig]
+    [com.brunobonacci.mulog :as mulog]
+    [ring.middleware.defaults :refer [wrap-defaults site-defaults api-defaults]]
+    [reitit.ring :as ring]
+    [reitit.ring.middleware.exception :as exception]
+    [steffan-westcott.clj-otel.api.trace.span :as span]
+    [jsonista.core :as json]
+    [o11ylite.util.response :as response]
+    [o11ylite.inertia.middleware :as inertia]
+    [o11ylite.api.health :as api.health]
+    [o11ylite.api.metrics :as api.metrics]
+    [o11ylite.api.query :as api.query]
+    [o11ylite.otel-http :as otel-http]
+    [o11ylite.routes.home :as home]
+    [o11ylite.routes.explore :as explore]
+    [o11ylite.routes.trace :as trace]
+    [o11ylite.routes.dashboards :as dashboards]
+    [o11ylite.routes.monitors :as monitors]))
 
 ;; ---------------------------------------------------------
 ;; Middleware Factories
@@ -70,9 +70,9 @@
   "API routes - no CSRF, no sessions."
   [{:keys [duckdb sqlite event-metadata]}]
   ["/api" {:middleware [wrap-api-defaults]}
-    (api.health/routes {})
-    (api.metrics/routes {:sqlite sqlite})
-    (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})])
+   (api.health/routes {})
+   (api.metrics/routes {:sqlite sqlite})
+   (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})])
 
 (defn otlp-routes
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
@@ -109,9 +109,9 @@
 (def ^:private -exception-middleware
   "Custom exception middleware that returns JSON responses."
   (exception/create-exception-middleware
-   (merge
-    exception/default-handlers
-    {::exception/default -exception-handler})))
+    (merge
+      exception/default-handlers
+      {::exception/default -exception-handler})))
 
 ;; ---------------------------------------------------------
 ;; Router Component
@@ -120,14 +120,14 @@
   "Create the Reitit ring handler with routes and middleware."
   [opts]
   (ring/ring-handler
-   (ring/router
-    [(api-routes opts)
-     (otlp-routes opts)
-     (page-routes opts)]
-    {:data {:middleware [-exception-middleware]}})
-   (ring/routes
-    (ring/create-default-handler
-     {:not-found (constantly (response/not-found))}))))
+    (ring/router
+      [(api-routes opts)
+       (otlp-routes opts)
+       (page-routes opts)]
+      {:data {:middleware [-exception-middleware]}})
+    (ring/routes
+      (ring/create-default-handler
+        {:not-found (constantly (response/not-found))}))))
 
 (defmethod ig/init-key :router/routes
   [_ opts]

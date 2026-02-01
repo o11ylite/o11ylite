@@ -6,7 +6,7 @@
 
 (ns o11ylite.routes.home
   (:require
-   [ring.util.response :as rr]))
+    [ring.util.response :as rr]))
 
 (defn handler
   "Home page handler - redirects to explore."

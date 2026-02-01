@@ -16,9 +16,9 @@
 
 (ns o11ylite.store.events.cleanse
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.components.event-metadata :as event-metadata]
-   [o11ylite.store.schema :as schema]))
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.store.schema :as schema]))
 
 ;; ---------------------------------------------------------
 ;; Constants
@@ -52,34 +52,34 @@
   [known-fields event]
   (let [field-count (count event)]
     (reduce-kv
-     (fn [acc field-key field-value]
-       (let [kw-key (keyword field-key)
-             existing-meta (get known-fields kw-key)
-             existing-type (:type existing-meta)
-             is-new-field? (nil? existing-meta)
-             has-type-conflict? (-field-type-conflict? existing-type field-value)
-             exceeds-limit? (and is-new-field?
-                                 (> field-count max-fields-per-event))]
-         (cond
-           ;; Type conflict - skip field
-           has-type-conflict?
-           (update acc :skipped-fields conj
-                   {:field kw-key
-                    :reason :type-conflict
-                    :existing-type existing-type
-                    :incoming-type (schema/infer-type field-value)})
+      (fn [acc field-key field-value]
+        (let [kw-key (keyword field-key)
+              existing-meta (get known-fields kw-key)
+              existing-type (:type existing-meta)
+              is-new-field? (nil? existing-meta)
+              has-type-conflict? (-field-type-conflict? existing-type field-value)
+              exceeds-limit? (and is-new-field?
+                                  (> field-count max-fields-per-event))]
+          (cond
+            ;; Type conflict - skip field
+            has-type-conflict?
+            (update acc :skipped-fields conj
+                    {:field kw-key
+                     :reason :type-conflict
+                     :existing-type existing-type
+                     :incoming-type (schema/infer-type field-value)})
 
-           ;; New field but over limit - skip field
-           exceeds-limit?
-           (update acc :skipped-fields conj
-                   {:field kw-key
-                    :reason :field-limit-exceeded})
+            ;; New field but over limit - skip field
+            exceeds-limit?
+            (update acc :skipped-fields conj
+                    {:field kw-key
+                     :reason :field-limit-exceeded})
 
-           ;; OK - keep field
-           :else
-           (update acc :event assoc kw-key field-value))))
-     {:event {} :skipped-fields []}
-     event)))
+            ;; OK - keep field
+            :else
+            (update acc :event assoc kw-key field-value))))
+      {:event {} :skipped-fields []}
+      event)))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -101,19 +101,19 @@
   [event-metadata events]
   (let [known-fields (event-metadata/get-fields event-metadata)]
     (reduce
-     (fn [acc event]
-       (let [{:keys [event skipped-fields]} (-cleanse-event known-fields event)]
-         ;; Log skipped fields if any
-         (when (seq skipped-fields)
-           (mulog/log ::fields-skipped
-                      :skipped-count (count skipped-fields)
-                      :fields (mapv :field skipped-fields)
-                      :reasons (mapv :reason skipped-fields)))
-         (-> acc
-             (update :events conj event)
-             (update :skipped-field-count + (count skipped-fields)))))
-     {:events [] :skipped-field-count 0}
-     events)))
+      (fn [acc event]
+        (let [{:keys [event skipped-fields]} (-cleanse-event known-fields event)]
+          ;; Log skipped fields if any
+          (when (seq skipped-fields)
+            (mulog/log ::fields-skipped
+                       :skipped-count (count skipped-fields)
+                       :fields (mapv :field skipped-fields)
+                       :reasons (mapv :reason skipped-fields)))
+          (-> acc
+              (update :events conj event)
+              (update :skipped-field-count + (count skipped-fields)))))
+      {:events [] :skipped-field-count 0}
+      events)))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

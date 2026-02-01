@@ -7,8 +7,8 @@
 
 (ns o11ylite.store.batcher
   (:require
-   [clojure.core.async :as a]
-   [steffan-westcott.clj-otel.api.trace.span :as span]))
+    [clojure.core.async :as a]
+    [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Public API

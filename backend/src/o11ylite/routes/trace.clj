@@ -6,7 +6,7 @@
 
 (ns o11ylite.routes.trace
   (:require
-   [o11ylite.util.response :as response]))
+    [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
 ;; Handlers

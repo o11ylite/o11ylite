@@ -6,9 +6,9 @@
 
 (ns o11ylite.integration.components.service-discovery-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [o11ylite.store.services :as services]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.store.services :as services]
+    [o11ylite.test-helpers :as h]))
 
 ;; Only start components needed for service discovery
 (use-fixtures :each (h/with-partial-system
@@ -17,7 +17,9 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
 
 ;; ---------------------------------------------------------
 ;; Tests

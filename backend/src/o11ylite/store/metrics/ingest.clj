@@ -33,20 +33,20 @@
 
 (ns o11ylite.store.metrics.ingest
   (:require
-   [clojure.set :as set]
-   [clojure.string :as str]
-   [com.brunobonacci.mulog :as mulog]
-   [next.jdbc.sql :as sql]
-   [next.jdbc.quoted]
-   [o11ylite.components.metric-temporality-normalizer :as normalizer]
-   [o11ylite.store.batcher :as batcher]
-   [o11ylite.store.metrics.dedupe :as dedupe]
-   [o11ylite.store.metrics.metadata :as metadata]
-   [o11ylite.store.metrics.temporality :as temporality]
-   [o11ylite.store.schema :as schema]
-   [steffan-westcott.clj-otel.api.trace.span :as span])
+    [clojure.set :as set]
+    [clojure.string :as str]
+    [com.brunobonacci.mulog :as mulog]
+    [next.jdbc.sql :as sql]
+    [next.jdbc.quoted]
+    [o11ylite.components.metric-temporality-normalizer :as normalizer]
+    [o11ylite.store.batcher :as batcher]
+    [o11ylite.store.metrics.dedupe :as dedupe]
+    [o11ylite.store.metrics.metadata :as metadata]
+    [o11ylite.store.metrics.temporality :as temporality]
+    [o11ylite.store.schema :as schema]
+    [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
-   [java.time Instant LocalDateTime ZoneOffset]))
+    [java.time Instant LocalDateTime ZoneOffset]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - Field Extraction
@@ -98,21 +98,21 @@
    Returns {:changed-metadata {...} :invalid-metrics #{...} :errors [...]}."
   [sqlite metrics-metadata]
   (reduce-kv
-   (fn [acc metric-name meta-entry]
-     (let [existing (metadata/get-metric sqlite metric-name)]
-       (if-let [conflict (-immutable-fields-conflict? existing meta-entry)]
-         ;; Immutable field conflict - mark metric as invalid
-         (-> acc
-             (update :invalid-metrics conj metric-name)
-             (update :errors conj (format "'%s': %s" metric-name conflict)))
-         ;; Check if metadata actually changed (for new metrics or mutable field changes)
-         (if (or (nil? existing)
-                 (not= (:description meta-entry) (:description existing))
-                 (not= (:attributes meta-entry) (:attributes existing)))
-           (update acc :changed-metadata assoc metric-name meta-entry)
-           acc))))
-   {:changed-metadata {} :invalid-metrics #{} :errors []}
-   metrics-metadata))
+    (fn [acc metric-name meta-entry]
+      (let [existing (metadata/get-metric sqlite metric-name)]
+        (if-let [conflict (-immutable-fields-conflict? existing meta-entry)]
+          ;; Immutable field conflict - mark metric as invalid
+          (-> acc
+              (update :invalid-metrics conj metric-name)
+              (update :errors conj (format "'%s': %s" metric-name conflict)))
+          ;; Check if metadata actually changed (for new metrics or mutable field changes)
+          (if (or (nil? existing)
+                  (not= (:description meta-entry) (:description existing))
+                  (not= (:attributes meta-entry) (:attributes existing)))
+            (update acc :changed-metadata assoc metric-name meta-entry)
+            acc))))
+    {:changed-metadata {} :invalid-metrics #{} :errors []}
+    metrics-metadata))
 
 (defn- -reject-invalid-data-points
   "Remove data points belonging to metrics with immutable field conflicts.
@@ -235,9 +235,10 @@
    Throws:
      Exception on failure (batcher will catch and notify callers)."
   [duckdb sqlite norm data-points fields metrics-metadata cumulative-to-commit]
-  (span/with-span! [::persist-batch {:data-point-count (count data-points)
-                                     :field-count (count fields)
-                                     :metadata-count (count metrics-metadata)}]
+  (span/with-span!
+    [::persist-batch {:data-point-count (count data-points)
+                      :field-count (count fields)
+                      :metadata-count (count metrics-metadata)}]
     ;; Step 1: Schema evolution - add new attr.* columns if needed
     (let [existing-columns (schema/fetch-metrics-field-names duckdb)
           batch-attr-fields (-attr-fields fields)

@@ -7,15 +7,15 @@
 
 (ns o11ylite.test-helpers
   (:require
-   [integrant.core :as ig]
-   [jsonista.core :as json]
-   [o11ylite.system :as system]
-   [o11ylite.test-helpers.event-ingest :as event-ingest]
-   [o11ylite.test-helpers.http :as http]
-   [o11ylite.test-helpers.metric-ingest :as metric-ingest]
-   [o11ylite.test-helpers.otlp :as otlp])
+    [integrant.core :as ig]
+    [jsonista.core :as json]
+    [o11ylite.system :as system]
+    [o11ylite.test-helpers.event-ingest :as event-ingest]
+    [o11ylite.test-helpers.http :as http]
+    [o11ylite.test-helpers.metric-ingest :as metric-ingest]
+    [o11ylite.test-helpers.otlp :as otlp])
   (:import
-   [java.io File]))
+    [java.io File]))
 
 ;; ---------------------------------------------------------
 ;; Test Configuration
@@ -192,11 +192,11 @@
   ([n] (ingest-sample-events! n {}))
   ([n overrides]
    (event-ingest/ingest-sample-events!
-    (:cache/event-metadata *system*)
-    (:ingest/event-batcher *system*)
-    (:id/generator *system*)
-    n
-    overrides)))
+     (:cache/event-metadata *system*)
+     (:ingest/event-batcher *system*)
+     (:id/generator *system*)
+     n
+     overrides)))
 
 ;; ---------------------------------------------------------
 ;; Re-exports: Metric ingest helpers

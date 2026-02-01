@@ -6,11 +6,11 @@
 
 (ns o11ylite.otel-grpc.metric-proto-test
   (:require
-   [clojure.test :refer [deftest is testing]]
-   [o11ylite.otel-grpc.metric-proto :as metric-proto]
-   [o11ylite.test-helpers.otlp :as otlp])
+    [clojure.test :refer [deftest is testing]]
+    [o11ylite.otel-grpc.metric-proto :as metric-proto]
+    [o11ylite.test-helpers.otlp :as otlp])
   (:import
-   [java.time Instant]))
+    [java.time Instant]))
 
 ;; ---------------------------------------------------------
 ;; Test Data Builders
@@ -23,35 +23,35 @@
   "Build a sample metrics request with gauge metrics."
   []
   (otlp/build-metrics-request
-   {:service-name "test-service"
-    :resource-attrs {"host.name" "localhost"}
-    :meter-name "test-meter"
-    :meter-version "1.0.0"
-    :metrics [(otlp/build-gauge-metric
-               {:name "cpu.utilization"
-                :description "CPU utilization percentage"
-                :unit "%"
-                :data-points [{:value 42.5
-                               :time-ns 1000000000000000000
-                               :attributes {"cpu.core" "0"}}
-                              {:value 38.2
-                               :time-ns 1000000000000000000
-                               :attributes {"cpu.core" "1"}}]})
-              (otlp/build-gauge-metric
-               {:name "memory.used"
-                :description "Memory used"
-                :unit "bytes"
-                :data-points [{:value 1024000.0
-                               :time-ns 1000000000000000000}]})]}))
+    {:service-name "test-service"
+     :resource-attrs {"host.name" "localhost"}
+     :meter-name "test-meter"
+     :meter-version "1.0.0"
+     :metrics [(otlp/build-gauge-metric
+                 {:name "cpu.utilization"
+                  :description "CPU utilization percentage"
+                  :unit "%"
+                  :data-points [{:value 42.5
+                                 :time-ns 1000000000000000000
+                                 :attributes {"cpu.core" "0"}}
+                                {:value 38.2
+                                 :time-ns 1000000000000000000
+                                 :attributes {"cpu.core" "1"}}]})
+               (otlp/build-gauge-metric
+                 {:name "memory.used"
+                  :description "Memory used"
+                  :unit "bytes"
+                  :data-points [{:value 1024000.0
+                                 :time-ns 1000000000000000000}]})]}))
 
 (defn- build-request-without-service
   "Build a request without service.name - should be rejected."
   []
   (otlp/build-metrics-request
-   {:meter-name "test-meter"
-    :metrics [(otlp/build-gauge-metric
-               {:name "orphan.metric"
-                :data-points [{:value 100}]})]}))
+    {:meter-name "test-meter"
+     :metrics [(otlp/build-gauge-metric
+                 {:name "orphan.metric"
+                  :data-points [{:value 100}]})]}))
 
 ;; ---------------------------------------------------------
 ;; Tests
@@ -125,20 +125,20 @@
   (testing "Merges metadata when same metric appears multiple times"
     ;; Build request with same metric name but different attributes
     (let [request (otlp/build-metrics-request
-                   {:service-name "test-service"
-                    :meter-name "test-meter"
-                    :metrics [(otlp/build-gauge-metric
-                               {:name "http.requests"
-                                :description "HTTP request count"
-                                :unit "1"
-                                :data-points [{:value 100
-                                               :attributes {"method" "GET"}}]})
-                              (otlp/build-gauge-metric
-                               {:name "http.requests"
-                                :description "HTTP request count"
-                                :unit "1"
-                                :data-points [{:value 50
-                                               :attributes {"status" "200"}}]})]})
+                    {:service-name "test-service"
+                     :meter-name "test-meter"
+                     :metrics [(otlp/build-gauge-metric
+                                 {:name "http.requests"
+                                  :description "HTTP request count"
+                                  :unit "1"
+                                  :data-points [{:value 100
+                                                 :attributes {"method" "GET"}}]})
+                               (otlp/build-gauge-metric
+                                 {:name "http.requests"
+                                  :description "HTTP request count"
+                                  :unit "1"
+                                  :data-points [{:value 50
+                                                 :attributes {"status" "200"}}]})]})
           {:keys [metrics-metadata]} (metric-proto/parse-metrics-request request)]
 
       (is (= 1 (count metrics-metadata)))

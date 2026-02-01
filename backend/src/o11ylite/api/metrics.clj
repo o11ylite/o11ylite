@@ -11,8 +11,8 @@
 
 (ns o11ylite.api.metrics
   (:require
-   [o11ylite.store.metrics.metadata :as metadata]
-   [o11ylite.util.response :as response]))
+    [o11ylite.store.metrics.metadata :as metadata]
+    [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
 ;; Handlers

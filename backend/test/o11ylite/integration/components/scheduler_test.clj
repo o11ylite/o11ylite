@@ -8,10 +8,10 @@
 
 (ns o11ylite.integration.components.scheduler-test
   (:require
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [integrant.core :as ig]
-   [o11ylite.components.scheduler :as scheduler]
-   [o11ylite.test-helpers :as h]))
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [integrant.core :as ig]
+    [o11ylite.components.scheduler :as scheduler]
+    [o11ylite.test-helpers :as h]))
 
 ;; ---------------------------------------------------------
 ;; Test State
@@ -19,7 +19,8 @@
 (def ^:private test-job-calls (atom []))
 (def ^:private test-job-should-fail (atom false))
 
-(defn- reset-test-state! []
+(defn- reset-test-state!
+  []
   (reset! test-job-calls [])
   (reset! test-job-should-fail false))
 
@@ -29,7 +30,8 @@
 ;; Creates a test registry with mock jobs. No with-redefs needed
 ;; since we pass the registry directly to the scheduler.
 
-(defn- make-test-registry []
+(defn- make-test-registry
+  []
   {:test-job
    {:interval-ms 100
     :description "Test job for scheduler testing"
@@ -43,7 +45,8 @@
 
 (def ^:dynamic *scheduler* nil)
 
-(defn with-test-scheduler [f]
+(defn with-test-scheduler
+  [f]
   (let [sys (h/start-partial-system! [:storage/init])
         sqlite (:db/sqlite sys)
         test-registry (make-test-registry)
@@ -65,9 +68,12 @@
 ;; ---------------------------------------------------------
 ;; Helpers
 
-(defn- sqlite [] (:db/sqlite h/*system*))
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
 
-(defn- get-test-job-status []
+(defn- get-test-job-status
+  []
   (->> (scheduler/get-job-status (sqlite))
        (filter #(= "test-job" (:job_name %)))
        first))

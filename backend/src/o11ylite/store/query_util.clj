@@ -7,7 +7,7 @@
 
 (ns o11ylite.store.query-util
   (:require
-   [clojure.string :as str]))
+    [clojure.string :as str]))
 
 ;; ---------------------------------------------------------
 ;; Time Bucket Selection
