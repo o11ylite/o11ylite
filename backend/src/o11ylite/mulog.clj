@@ -18,7 +18,7 @@
   "Build the OTLP HTTP endpoint URL for logs.
    Uses PORT env var (defaults to 3000)."
   []
-  (let [port (or (System/getenv "PORT") "3000")]
+  (let [port (or (System/getenv "O11YLITE_WEB_PORT") "3000")]
     (str "http://localhost:" port "/")))
 
 (defn- -dev-publisher
