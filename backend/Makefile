@@ -9,7 +9,6 @@
 # Requirements
 # - Java (see .tool-versions for pinned version)
 # - Clojure CLI (see .tool-versions for pinned version)
-# - protoc (system-installed, NOT vendored - must match protobuf-java version)
 # -------------------------------------- #
 
 # -- Makefile task config -------------- #
@@ -96,9 +95,8 @@ build-clean: ## Clean build assets or given directory
 # -------------------------------------- #
 
 # -- Protobuf Generation --------------- #
-# REQUIRES SYSTEM INSTALL: protoc (brew install protobuf / apt install protobuf-compiler)
-#   NOTE: protoc is NOT vendored - must be installed separately to match protobuf-java version
-# VENDORED: grpc-java plugin (downloaded automatically to .bin/)
+# VENDORED: protoc and grpc-java plugin (downloaded automatically to .bin/)
+# Version must match protobuf-java dependency in deps.edn
 
 PROTO_SRC_DIR := proto
 JAVA_OUT_DIR := java-src
@@ -110,20 +108,44 @@ OTEL_PROTO_VERSION := 1.9.0
 OTEL_PROTO_MODULES := common logs metrics resource trace
 OTEL_PROTO_BASE_URL := https://raw.githubusercontent.com/open-telemetry/opentelemetry-proto/v$(OTEL_PROTO_VERSION)
 
-# grpc-java plugin version and platform detection
-GRPC_JAVA_VERSION := 1.72.0
+# Platform detection for protoc and grpc-java
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
 	ifeq ($(UNAME_M),arm64)
+		PROTOC_PLATFORM := osx-aarch_64
 		GRPC_JAVA_PLATFORM := osx-aarch_64
 	else
+		PROTOC_PLATFORM := osx-x86_64
 		GRPC_JAVA_PLATFORM := osx-x86_64
 	endif
+else ifeq ($(UNAME_M),aarch64)
+	PROTOC_PLATFORM := linux-aarch_64
+	GRPC_JAVA_PLATFORM := linux-aarch_64
 else
+	PROTOC_PLATFORM := linux-x86_64
 	GRPC_JAVA_PLATFORM := linux-x86_64
 endif
+
+# Protoc version - must match protobuf-java version in deps.edn
+# protobuf-java 4.33.1 requires protoc 33.1
+PROTOC_VERSION := 33.1
+PROTOC_BIN := .bin/protoc
+
+# grpc-java plugin
+GRPC_JAVA_VERSION := 1.72.0
 GRPC_JAVA_PLUGIN := .bin/protoc-gen-grpc-java
+
+# Download protoc compiler
+$(PROTOC_BIN):
+	$(info -- Downloading protoc v$(PROTOC_VERSION) ---)
+	@mkdir -p .bin
+	@curl -sSL -o /tmp/protoc-$(PROTOC_VERSION).zip \
+		"https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_VERSION)-$(PROTOC_PLATFORM).zip"
+	@unzip -q -o /tmp/protoc-$(PROTOC_VERSION).zip -d /tmp/protoc-$(PROTOC_VERSION)
+	@cp /tmp/protoc-$(PROTOC_VERSION)/bin/protoc $(PROTOC_BIN)
+	@chmod +x $(PROTOC_BIN)
+	@rm -rf /tmp/protoc-$(PROTOC_VERSION) /tmp/protoc-$(PROTOC_VERSION).zip
 
 # Download grpc-java protoc plugin
 # Note: Maven artifact uses .exe extension for all platforms (it's a native binary, not Windows-specific)
@@ -138,10 +160,10 @@ proto-clean: ## Clean generated protobuf Java files
 	$(info -- Clean generated protobuf files ---------)
 	rm -rf $(JAVA_OUT_DIR)/* $(JAVA_CLASSES_DIR)/*
 
-proto-gen: $(GRPC_JAVA_PLUGIN) ## Generate Java classes from .proto files
+proto-gen: $(PROTOC_BIN) $(GRPC_JAVA_PLUGIN) ## Generate Java classes from .proto files
 	$(info -- Generate Java from protobuf ------------)
 	@mkdir -p $(JAVA_OUT_DIR)
-	protoc \
+	$(PROTOC_BIN) \
 		--proto_path=$(PROTO_SRC_DIR) \
 		--java_out=$(JAVA_OUT_DIR) \
 		--grpc-java_out=$(JAVA_OUT_DIR) \
