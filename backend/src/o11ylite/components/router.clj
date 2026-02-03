@@ -23,7 +23,7 @@
     [o11ylite.routes.explore :as explore]
     [o11ylite.routes.trace :as trace]
     [o11ylite.routes.dashboards :as dashboards]
-    [o11ylite.routes.monitors :as monitors]))
+    [o11ylite.routes.alert-rules :as alert-rules]))
 
 ;; ---------------------------------------------------------
 ;; Middleware Factories
@@ -95,7 +95,7 @@
    (explore/routes {:sqlite sqlite :event-metadata event-metadata})
    (trace/routes {})
    (dashboards/routes {})
-   (monitors/routes {})])
+   (alert-rules/routes {})])
 
 ;; ---------------------------------------------------------
 ;; Exception Handling
