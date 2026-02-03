@@ -203,11 +203,38 @@ Access at `https://o11ylite-feature-a.localhost:8443`
 
 ### Building for Production
 
-```bash
-# Build frontend assets
-cd frontend && npm run build
+Build the production Docker image using Docker Buildx Bake:
 
-# Copy manifest to backend resources for prod deployment
-cp -r frontend/dist/.vite backend/resources/
+```bash
+# Build for local testing (single platform, loads to docker daemon)
+docker buildx bake dev --load
+
+# Build multi-platform image (amd64 + arm64)
+docker buildx bake
+
+# Build with custom version tag
+docker buildx bake --set "*.tags=myrepo/o11ylite:v1.0.0"
 ```
 
+Run the container:
+
+```bash
+# Local dev build
+docker run -d \
+  -p 80:80 \
+  -v o11ylite-data:/data \
+  o11ylite:dev
+
+# Production image
+docker run -d \
+  -p 80:80 \
+  -v o11ylite-data:/data \
+  ghcr.io/zhming0/o11ylite:latest
+```
+
+The image includes:
+- **Caddy** - Reverse proxy serving frontend static assets and proxying to backend
+- **Backend** - Clojure uberjar running on Java 21 with virtual threads
+- **s6-overlay** - Process supervisor managing both services
+
+**Note:** The container is configured to exit on backend crash (rather than silently restarting), allowing container orchestrators (Docker, Kubernetes) to handle failures appropriately.

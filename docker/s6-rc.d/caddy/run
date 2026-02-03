@@ -1,0 +1,9 @@
+#!/command/execlineb -P
+# Caddy Reverse Proxy Service
+#
+# Serves frontend static assets and proxies to backend
+
+with-contenv
+
+# Run Caddy (as root for port 80, drops privileges internally)
+exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile

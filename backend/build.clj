@@ -65,7 +65,7 @@
 
     (clean "target")
 
-    (build-api/copy-dir {:src-dirs   ["src" "resources"]
+    (build-api/copy-dir {:src-dirs   ["src" "resources" "classes"]
                          :target-dir class-directory})
 
     (build-api/compile-clj {:basis     project-basis
