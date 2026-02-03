@@ -1,0 +1,19 @@
+#!/command/execlineb -S0
+# Finish script for backend service
+# Runs when the service stops - exit code in $1, signal in $2
+#
+# If backend crashes (non-zero exit), bring down the entire container.
+# This ensures container orchestrators (Docker, Kubernetes) can detect
+# the failure and take appropriate action (restart, alert, etc.)
+
+foreground { echo "Backend service stopped with exit code $1, signal $2" }
+
+# Exit code 0 = graceful shutdown (e.g., docker stop), let container exit cleanly
+# Exit code 256 = killed by signal during shutdown, also clean
+# Any other exit code = crash, bring down the container
+ifelse { test $1 -eq 0 } { exit 0 }
+ifelse { test $1 -eq 256 } { exit 0 }
+
+# Backend crashed - terminate the entire s6 supervision tree
+foreground { echo "Backend crashed, terminating container..." }
+s6-svscanctl -t /run/service

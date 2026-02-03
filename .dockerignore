@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.jj
+.claude
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Development files
+dev/
+.envrc
+.tool-versions
+
+# Backend development artifacts
+backend/.cpcache
+backend/.clj-kondo
+backend/.lsp
+backend/.tmp
+backend/.bin
+backend/target
+backend/.nrepl-port
+
+# Backend test files (not needed in prod)
+backend/test
+
+# Frontend development artifacts
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/coverage
+
+# Docker build artifacts (avoid recursive copy)
+docker-bake.hcl
+
+# Local data
+.tmp
+*.log

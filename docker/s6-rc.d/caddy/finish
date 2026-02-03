@@ -1,0 +1,10 @@
+#!/command/execlineb -S0
+# Finish script for caddy service
+# Runs when the service stops - exit code in $1, signal in $2
+
+# Log shutdown
+foreground { echo "Caddy service stopped with exit code $1, signal $2" }
+
+# If killed by signal, convert to exit code
+ifelse { test $1 -eq 256 } { exit 0 }
+exit $1

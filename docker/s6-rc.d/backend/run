@@ -1,0 +1,10 @@
+#!/command/execlineb -P
+# O11yLite Backend Service
+#
+# Runs the Clojure backend with Java virtual threads
+
+with-contenv
+s6-env HOME=/data
+s6-setuidgid o11ylite
+
+exec java -jar /app/o11ylite.jar
