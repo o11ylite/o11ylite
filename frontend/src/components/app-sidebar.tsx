@@ -3,8 +3,6 @@ import { Link, usePage } from "@inertiajs/react"
 import {
   Search,
   LayoutDashboard,
-  Activity,
-  Bell,
   ShieldAlert,
   ChevronRight,
   Clock,
@@ -52,14 +50,7 @@ const navigation: NavGroup[] = [
     items: [
       { title: "Explore", url: "/explore", icon: Search },
       { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard },
-    ],
-  },
-  {
-    label: "Monitors",
-    icon: Activity,
-    items: [
-      { title: "Rules", url: "/monitors/rules", icon: ShieldAlert },
-      { title: "Notifications", url: "/monitors/notifications", icon: Bell },
+      { title: "Alert Rules", url: "/alert-rules", icon: ShieldAlert },
     ],
   },
 ]
