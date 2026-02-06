@@ -10,8 +10,8 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react"
+import logo from "@/assets/logo.svg"
 
-import { SearchForm } from "@/components/search-form"
 import {
   Sidebar,
   SidebarContent,
@@ -67,7 +67,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar {...props}>
       <SidebarHeader>
-        <SearchForm />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              className="data-[slot=sidebar-menu-button]:!p-1.5"
+            >
+              <Link href="/">
+                <img src={logo} alt="" className="!size-5" />
+                <span className="text-base font-semibold">O11yLite</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         {navigation.map((group, index) => (
