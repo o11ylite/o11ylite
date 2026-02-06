@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link, usePage } from "@inertiajs/react"
 import {
   Search,
-  LayoutDashboard,
+  BookText,
   ShieldAlert,
   ChevronRight,
   Clock,
@@ -49,7 +49,7 @@ const navigation: NavGroup[] = [
   {
     items: [
       { title: "Explore", url: "/explore", icon: Search },
-      { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard },
+      { title: "Notebooks", url: "/notebooks", icon: BookText },
       { title: "Alert Rules", url: "/alert-rules", icon: ShieldAlert },
     ],
   },

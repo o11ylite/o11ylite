@@ -22,7 +22,7 @@
     [o11ylite.routes.home :as home]
     [o11ylite.routes.explore :as explore]
     [o11ylite.routes.trace :as trace]
-    [o11ylite.routes.dashboards :as dashboards]
+    [o11ylite.routes.notebooks :as notebooks]
     [o11ylite.routes.alert-rules :as alert-rules]))
 
 ;; ---------------------------------------------------------
@@ -94,7 +94,7 @@
    (home/routes {})
    (explore/routes {:sqlite sqlite :event-metadata event-metadata})
    (trace/routes {})
-   (dashboards/routes {})
+   (notebooks/routes {})
    (alert-rules/routes {})])
 
 ;; ---------------------------------------------------------
