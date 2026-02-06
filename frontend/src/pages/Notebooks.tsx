@@ -1,12 +1,12 @@
 import ApplicationLayout from "@/components/layouts/application-layout"
 
-export default function Dashboards() {
+export default function Notebooks() {
   return (
-    <ApplicationLayout title="Dashboards">
+    <ApplicationLayout title="Notebooks">
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold">Dashboards</h1>
+        <h1 className="text-2xl font-bold">Notebooks</h1>
         <p className="text-muted-foreground">
-          View and manage your saved visualizations.
+          Multi-query documentation for saved investigations.
         </p>
       </div>
     </ApplicationLayout>
