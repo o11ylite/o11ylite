@@ -13,6 +13,7 @@ Read the following file as it's relevant to all workflows: @README.md.
   - Use REPL to start/stop individual components for ad-hoc testing.
   - Use REPL to run tests: `(require '[clojure.test :refer [run-tests]]) (run-tests 'ns-name)`
   - Use REPL to validate code changes compile correctly.
+  - If REPL is not running, use `make repl` to start repl.
 
 - **Without `clojure-eval` skill (fallback only):**
   - `make test` - Run all tests (fail-fast)

@@ -46,7 +46,14 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-(def data-inlining-row-limit 100000)
+;; DuckLake's DATA_INLINING_ROW_LIMIT controls whether row data is stored inline
+;; in the metadata catalog (SQLite) or written directly to Parquet files.
+;; Lowered from the default 100000 to 1000 because our ingestion pipeline does
+;; bulk INSERT INTO ... SELECT from a staging table, pushing 1K-50K rows per
+;; statement. With the default, those batches would be inlined in DuckDB, causing
+;; overhead and cap throughput at ~1k rows/s somehow.
+;; we keep use data-inlining so small trickle inserts still inline to avoid tiny Parquet files.
+(def data-inlining-row-limit 1000)
 
 (defn- ensure-data-dir!
   "Ensure the data directory exists, creating it if necessary."
