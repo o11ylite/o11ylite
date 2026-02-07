@@ -1,4 +1,4 @@
-import type { MetricDefinition, MetricAggregation, MetricType } from "@/types"
+import type { MetricDefinition, MetricAggregation, MetricType, HavingExpr, SimpleHaving } from "@/types"
 
 export const AGGREGATIONS_BY_TYPE: Record<MetricType, MetricAggregation[]> = {
   gauge: ["sum", "avg", "min", "max", "last"],
@@ -31,4 +31,11 @@ export function getNextMetricId(metrics: MetricDefinition[]): string {
     }
   }
   return "Z"
+}
+
+// Metrics only support simple having (no and/or composition)
+export function extractSimpleHaving(having: HavingExpr | undefined): SimpleHaving | undefined {
+  if (!having) return undefined
+  if ("and" in having || "or" in having) return undefined
+  return having
 }

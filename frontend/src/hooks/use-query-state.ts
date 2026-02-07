@@ -54,7 +54,7 @@ function computeResultColumnFingerprint(state: QueryBuilderState): string {
 
   // Events mode
   const aggKey = state.aggregations
-    .map((a: Aggregation) => `${a.function}:${a.field ?? "*"}`)
+    .map((a: Aggregation) => `${a.id}:${a.function}:${a.field ?? "*"}`)
     .sort()
     .join(",")
   const groupKey = [...state.groupBy].sort().join(",")

@@ -67,10 +67,10 @@
                    :aggregations []
                    :visualization {:type "time_series"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "*" :function "count"}]
+                 :aggregations [{:id "A" :field "*" :function "count"}]
                  :visualization {:type "time_series"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "*" :function "count"}]
+                 :aggregations [{:id "A" :field "*" :function "count"}]
                  :visualization {:type "time_series" :bucket_ms 60000}})))
 
   ;; DEFERRED: Heatmap visualization is deferred to post-v1.
@@ -149,13 +149,13 @@
 (deftest group-by-validation-test
   (testing "valid group_by"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "*" :function "count"}]
+                 :aggregations [{:id "A" :field "*" :function "count"}]
                  :group_by ["service"]
                  :visualization {:type "time_series"}})))
 
   (testing "multiple group_by fields"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "*" :function "count"}]
+                 :aggregations [{:id "A" :field "*" :function "count"}]
                  :group_by ["service" "environment"]
                  :visualization {:type "time_series"}}))))
 
@@ -163,26 +163,45 @@
 ;; Aggregation Validation
 
 (deftest aggregation-validation-test
-  (testing "valid aggregation"
+  (testing "valid aggregation with id"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "*" :function "count"}]
+                 :aggregations [{:id "A" :field "*" :function "count"}]
                  :visualization {:type "time_series"}})))
+
+  (testing "aggregation requires id"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:field "*" :function "count"}]
+                   :visualization {:type "time_series"}})))
+
+  (testing "aggregation id must be single uppercase letter"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "a" :field "*" :function "count"}]
+                   :visualization {:type "time_series"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "AB" :field "*" :function "count"}]
+                   :visualization {:type "time_series"}})))
+
+  (testing "duplicate aggregation IDs not allowed"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}
+                                  {:id "A" :field "duration_ms" :function "avg"}]
+                   :visualization {:type "time_series"}})))
 
   (testing "aggregation with numeric field"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "duration_ms" :function "p99"}]
+                 :aggregations [{:id "A" :field "duration_ms" :function "p99"}]
                  :visualization {:type "time_series"}})))
 
   (testing "invalid aggregation function"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
-                   :aggregations [{:field "*" :function "median"}]
+                   :aggregations [{:id "A" :field "*" :function "median"}]
                    :visualization {:type "time_series"}})))
 
-  (testing "multiple aggregations"
+  (testing "multiple aggregations with unique IDs"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
-                 :aggregations [{:field "*" :function "count"}
-                                {:field "duration_ms" :function "avg"}
-                                {:field "duration_ms" :function "p99"}]
+                 :aggregations [{:id "A" :field "*" :function "count"}
+                                {:id "B" :field "duration_ms" :function "avg"}
+                                {:id "C" :field "duration_ms" :function "p99"}]
                  :visualization {:type "time_series"}}))))
 
 ;; ---------------------------------------------------------
@@ -219,13 +238,13 @@
 
   (testing "rejects SQL injection in group_by"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
-                   :aggregations [{:field "*" :function "count"}]
+                   :aggregations [{:id "A" :field "*" :function "count"}]
                    :group_by ["service; DROP TABLE events;"]
                    :visualization {:type "table"}})))
 
   (testing "rejects SQL injection in aggregation field"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
-                   :aggregations [{:field "duration); DROP TABLE events; --" :function "avg"}]
+                   :aggregations [{:id "A" :field "duration); DROP TABLE events; --" :function "avg"}]
                    :visualization {:type "table"}})))
 
   (testing "field name must start with letter or underscore"
@@ -247,13 +266,13 @@
 
   (testing "cursor is invalid with time_series visualization"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
-                   :aggregations [{:field "*" :function "count"}]
+                   :aggregations [{:id "A" :field "*" :function "count"}]
                    :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
                    :visualization {:type "time_series"}})))
 
   (testing "cursor is invalid with table + aggregations"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
-                   :aggregations [{:field "*" :function "count"}]
+                   :aggregations [{:id "A" :field "*" :function "count"}]
                    :group_by ["service"]
                    :cursor "eyJ0cyI6MTcwMjAwMDAwMDAwMCwiaWQiOjEyMzQ1fQ=="
                    :visualization {:type "table"}})))
@@ -372,12 +391,6 @@
                                              {:field "is_error" :op "=" :value true}]}]}})
         "invalid op in deeply nested filter should fail"))
 
-  (testing "having clause validates operators too"
-    (is (type-valid? {:having {:field "status" :op ">=" :value 500}})
-        "valid having clause should pass")
-    (is (type-invalid? {:having {:field "service" :op ">" :value "api"}})
-        "invalid op in having clause should fail"))
-
   (testing "error message includes field info"
     (let [result (schema/validate-filter-ops-with-metadata
                    test-event-metadata
@@ -387,3 +400,122 @@
       (is (.contains (:error result) "service") "error should mention field name")
       (is (.contains (:error result) ">") "error should mention invalid operator")
       (is (.contains (:error result) ":string") "error should mention field type"))))
+
+;; ---------------------------------------------------------
+;; Sort Config Validation (ref-based sort)
+
+(deftest sort-config-validation-test
+  (testing "sort by raw field is valid for non-aggregated queries"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :visualization {:type "table" :sort {:field "service" :order "asc"}}})))
+
+  (testing "sort by ref is valid when aggregation with matching ID exists"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}]
+                 :group_by ["service"]
+                 :visualization {:type "table" :sort {:ref "A" :order "desc"}}})))
+
+  (testing "sort by ref is invalid when ref doesn't match any aggregation"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :group_by ["service"]
+                   :visualization {:type "table" :sort {:ref "B" :order "desc"}}})))
+
+  (testing "sort by ref is invalid without aggregations"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :visualization {:type "table" :sort {:ref "A" :order "desc"}}})))
+
+  (testing "sort by ref with multiple aggregations"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}
+                                {:id "B" :field "duration_ms" :function "avg"}]
+                 :group_by ["service"]
+                 :visualization {:type "table" :sort {:ref "B" :order "asc"}}}))))
+
+;; ---------------------------------------------------------
+;; Having Validation
+
+(deftest having-validation-test
+  (testing "having is valid with aggregations and matching ref"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}]
+                 :group_by ["service"]
+                 :having {:ref "A" :op ">" :value 100}
+                 :visualization {:type "table"}})))
+
+  (testing "having requires aggregations"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :having {:ref "A" :op ">" :value 100}
+                   :visualization {:type "table"}})))
+
+  (testing "having ref must match an aggregation ID"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :group_by ["service"]
+                   :having {:ref "B" :op ">" :value 100}
+                   :visualization {:type "table"}})))
+
+  (testing "having supports all numeric operators"
+    (doseq [op [">" "<" ">=" "<=" "=" "!="]]
+      (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :group_by ["service"]
+                   :having {:ref "A" :op op :value 100}
+                   :visualization {:type "table"}})
+          (str "having should accept operator: " op))))
+
+  (testing "having value must be numeric"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :group_by ["service"]
+                   :having {:ref "A" :op ">" :value "not-a-number"}
+                   :visualization {:type "table"}})))
+
+  (testing "having works with time_series visualization"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}]
+                 :having {:ref "A" :op ">" :value 10}
+                 :visualization {:type "time_series"}})))
+
+  (testing "having supports AND composition"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}
+                                {:id "B" :field "duration_ms" :function "avg"}]
+                 :group_by ["service"]
+                 :having {:and [{:ref "A" :op ">" :value 10}
+                                {:ref "B" :op "<" :value 500}]}
+                 :visualization {:type "table"}})))
+
+  (testing "having supports OR composition"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}
+                                {:id "B" :field "duration_ms" :function "avg"}]
+                 :group_by ["service"]
+                 :having {:or [{:ref "A" :op ">" :value 100}
+                               {:ref "B" :op ">=" :value 1000}]}
+                 :visualization {:type "table"}})))
+
+  (testing "having supports nested AND/OR composition"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}
+                                {:id "B" :field "duration_ms" :function "avg"}]
+                 :group_by ["service"]
+                 :having {:or [{:and [{:ref "A" :op ">" :value 10}
+                                      {:ref "B" :op "<" :value 500}]}
+                               {:ref "A" :op ">" :value 1000}]}
+                 :visualization {:type "table"}})))
+
+  (testing "composed having rejects invalid ref"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :group_by ["service"]
+                   :having {:and [{:ref "A" :op ">" :value 10}
+                                  {:ref "Z" :op "<" :value 500}]}
+                   :visualization {:type "table"}})))
+
+  (testing "composed having rejects non-numeric value"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :group_by ["service"]
+                   :having {:and [{:ref "A" :op ">" :value "bad"}]}
+                   :visualization {:type "table"}}))))

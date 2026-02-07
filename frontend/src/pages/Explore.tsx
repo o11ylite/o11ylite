@@ -10,7 +10,6 @@ import {
   ResultsPlaceholder,
   ResultsLoading,
   ResultsError,
-  type SortConfig,
 } from "@/components/results"
 import { EventsSidePanel } from "@/components/events-side-panel"
 import { MetricSidePanel } from "@/components/metric-side-panel"
@@ -30,7 +29,9 @@ import type {
   SimpleFilter,
   FilterExpr,
   TableVisualization,
+  SortConfig,
 } from "@/types"
+import { extractSimpleHaving } from "@/lib/metric-query-helpers"
 
 // ============================================================================
 // API
@@ -99,6 +100,7 @@ export default function Explore() {
       aggregations:
         state.aggregations.length > 0 ? state.aggregations : undefined,
       group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
+      having: state.having,
       limit: state.limit,
       visualization: state.visualization,
     }
@@ -144,6 +146,7 @@ export default function Explore() {
     ? {
       filter: buildFilterExpr(state.filters),
       group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
+      having: extractSimpleHaving(state.having),
       metrics: validMetrics,
     }
     : null

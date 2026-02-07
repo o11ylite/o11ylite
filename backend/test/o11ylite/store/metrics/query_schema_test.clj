@@ -267,3 +267,34 @@
                             :name "http.server.duration"
                             :agg "avg"}]
                  :group_by ["attr.service" "attr.method"]}))))
+
+;; ---------------------------------------------------------
+;; Having Validation
+
+(deftest having-validation-test
+  (testing "having is optional"
+    (is (valid? (query-base))))
+
+  (testing "valid having with matching metric ID"
+    (is (valid? (assoc (query-base) :having {:ref "A" :op ">" :value 80}))))
+
+  (testing "having ref must match a metric ID"
+    (is (invalid? (assoc (query-base) :having {:ref "B" :op ">" :value 80}))))
+
+  (testing "having with valid metric ID from multi-metric query"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}
+                           {:id "B" :name "memory.usage" :agg "avg"}]
+                 :having {:ref "B" :op "<" :value 50}})))
+
+  (testing "having supports all numeric operators"
+    (doseq [op [">" "<" ">=" "<=" "=" "!="]]
+      (is (valid? (assoc (query-base) :having {:ref "A" :op op :value 80}))
+          (str "having should accept operator: " op))))
+
+  (testing "having value must be numeric"
+    (is (invalid? (assoc (query-base) :having {:ref "A" :op ">" :value "not-a-number"}))))
+
+  (testing "having ref must be valid format"
+    (is (invalid? (assoc (query-base) :having {:ref "a" :op ">" :value 80})))
+    (is (invalid? (assoc (query-base) :having {:ref "AB" :op ">" :value 80})))))

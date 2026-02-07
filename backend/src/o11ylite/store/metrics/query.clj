@@ -104,10 +104,16 @@
    Returns a query that produces time-bucketed, aggregated results.
    
    Group by columns use numbered aliases (g0, g1, ...) to avoid DuckDB's
-   alias resolution issues with dotted column names that don't exist yet."
-  [{:keys [time_range filter group_by]} metric metric-type bucket-ms]
-  (let [{metric-name :name agg :agg metric-filter :filter} metric
+   alias resolution issues with dotted column names that don't exist yet.
+   
+   Supports HAVING for post-aggregation filtering (applied only when the
+   having clause references this metric's ID)."
+  [{:keys [time_range filter group_by having]} metric metric-type bucket-ms]
+  (let [{metric-name :name metric-id :id agg :agg metric-filter :filter} metric
         merged-filter (-merge-filters filter metric-filter)
+        ;; Apply HAVING only if it references this metric's ID
+        metric-having (when (and having (= metric-id (:ref having)))
+                        having)
         bucket-interval (query-util/bucket-ms->interval bucket-ms)
         time-bucket-expr [:time_bucket bucket-interval :timestamp]
         bucket-epoch-expr [:epoch_ms time-bucket-expr]
@@ -132,10 +138,11 @@
                             [:< :timestamp (query-util/epoch-ms->timestamp (:end time_range))]]
                     :group-by group-by-clause
                     :order-by [[:bucket :asc]]}]
-    ;; Add filter if present
-    (if merged-filter
-      (update base-query :where conj (query-util/build-filter-clause merged-filter))
-      base-query)))
+    (cond-> base-query
+      merged-filter (update :where conj (query-util/build-filter-clause merged-filter))
+      metric-having (assoc :having [(keyword (:op metric-having))
+                                    :value
+                                    (:value metric-having)]))))
 
 (defn- -format-series-name
   "Format series name as agg(metric), e.g., avg(cpu.utilization).

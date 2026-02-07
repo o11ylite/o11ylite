@@ -5,7 +5,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 
-import type { QueryResponse, TableQueryResult } from "@/types"
+import type { QueryResponse, TableQueryResult, SortConfig, ColumnMetadata } from "@/types"
 import { useDisplayedFields } from "@/hooks/use-displayed-fields"
 
 import { buildColumns, isErrorRow, type RowData } from "./columns"
@@ -13,11 +13,20 @@ import { DisplayedFieldsSelector } from "./displayed-fields-selector"
 import { HeaderCell } from "./header-cell"
 import { RowDetailDrawer } from "./row-detail-drawer"
 
-export type SortConfig = { field: string; order: "asc" | "desc" }
-
 function getRowKey(row: RowData): string {
   const ts = row.timestamp
   return String(ts)
+}
+
+function matchSortOrder(
+  sort: SortConfig | undefined,
+  fieldName: string,
+  columnMeta: ColumnMetadata | undefined,
+): "asc" | "desc" | null {
+  if (!sort) return null
+  if (columnMeta && "ref" in sort && sort.ref === columnMeta.ref) return sort.order
+  if ("field" in sort && sort.field === fieldName) return sort.order
+  return null
 }
 
 // Light green that works in both light and dark modes
@@ -42,7 +51,7 @@ export function ResultsTable({
   sort?: SortConfig
   onSortChange?: (sort: SortConfig) => void
 }) {
-  const { rows, total_count, has_more, next_cursor } = data.data as TableQueryResult
+  const { rows, total_count, has_more, next_cursor, columns: responseColumns } = data.data as TableQueryResult
 
   const [detailRow, setDetailRow] = useState<RowData | null>(null)
 
@@ -127,12 +136,17 @@ export function ResultsTable({
                 {headerGroup.headers.map((header) => {
                   const fieldName = header.column.id
                   const isSortable = sortable && fieldName !== "_actions"
-                  const currentOrder = sort?.field === fieldName ? sort.order : null
+                  const columnMeta = responseColumns?.find((c: ColumnMetadata) => c.key === fieldName)
+                  const currentOrder = matchSortOrder(sort, fieldName, columnMeta)
 
                   const handleSort = () => {
                     if (!onSortChange) return
                     const nextOrder = currentOrder === "desc" ? "asc" : "desc"
-                    onSortChange({ field: fieldName, order: nextOrder })
+                    // Emit ref-based sort for aggregation columns, field-based for raw columns
+                    const newSort: SortConfig = columnMeta
+                      ? { ref: columnMeta.ref, order: nextOrder }
+                      : { field: fieldName, order: nextOrder }
+                    onSortChange(newSort)
                   }
 
                   return (

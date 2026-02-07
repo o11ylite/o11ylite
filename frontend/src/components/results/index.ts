@@ -1,4 +1,4 @@
-export { ResultsTable, type SortConfig } from "./table"
+export { ResultsTable } from "./table"
 export { ResultsTimeSeries } from "./time-series"
 export { ResultsPlaceholder } from "./results-placeholder"
 export { ResultsLoading } from "./results-loading"
