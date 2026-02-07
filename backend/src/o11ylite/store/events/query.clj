@@ -106,15 +106,58 @@
   "Default limit for query results when not specified."
   100)
 
-(defn- -sort-field->col
-  "Convert sort field to column reference.
-   Handles both regular fields and aggregation aliases like count(*), avg(duration_ms)."
-  [field]
-  (if (re-matches #"^(count|sum|avg|min|max|p50|p90|p99)\(.+\)$" field)
-    ;; Aggregation alias - use as keyword directly (matches select alias)
-    (keyword field)
-    ;; Regular field
-    (-field->col field)))
+(defn- -resolve-ref
+  "Resolve an aggregation ref ID to a HoneySQL column reference.
+   Looks up the aggregation by :id and returns the alias.
+   Uses [:raw ...] for aliases containing dots to prevent HoneySQL
+   from splitting on dots as namespace separators."
+  [aggregations ref-id]
+  (when-let [agg (first (filter #(= ref-id (:id %)) aggregations))]
+    (let [alias (-format-agg-alias (:function agg) (:field agg))]
+      (if (.contains alias ".")
+        [:raw (str "\"" alias "\"")]
+        (keyword alias)))))
+
+(defn- -resolve-sort-col
+  "Resolve sort config to a HoneySQL column reference.
+   Handles both raw field sort {:field f} and ref-based sort {:ref r}."
+  [sort-config aggregations]
+  (if (:ref sort-config)
+    (-resolve-ref aggregations (:ref sort-config))
+    (-field->col (:field sort-config))))
+
+(defn- -build-columns-metadata
+  "Build columns metadata mapping aggregation refs to row keys.
+   Returns vector of {:ref id :key alias-string}."
+  [aggregations]
+  (mapv (fn [{:keys [id field function]}]
+          {:ref id
+           :key (-format-agg-alias function field)})
+        aggregations))
+
+(defn- -build-having-clause
+  "Recursively build a HoneySQL HAVING clause from a having expression.
+   Handles simple comparisons and compound AND/OR expressions."
+  [aggregations having]
+  (cond
+    (:and having)
+    (into [:and] (map #(-build-having-clause aggregations %) (:and having)))
+
+    (:or having)
+    (into [:or] (map #(-build-having-clause aggregations %) (:or having)))
+
+    :else
+    (let [agg-col (-resolve-ref aggregations (:ref having))
+          sql-op (keyword (:op having))]
+      [sql-op agg-col (:value having)])))
+
+(defn- -add-having
+  "Add HAVING clause to query if present.
+   Resolves refs to aggregation SQL aliases. Supports AND/OR composition."
+  [hsql-query {:keys [having aggregations]}]
+  (if having
+    (assoc hsql-query :having (-build-having-clause aggregations having))
+    hsql-query))
 
 (defn- -add-order-and-limit
   "Add ORDER BY and LIMIT to query.
@@ -126,7 +169,7 @@
         order-by (cond
                    ;; Explicit sort provided
                    sort-config
-                   [[(-sort-field->col (:field sort-config))
+                   [[(-resolve-sort-col sort-config aggregations)
                      (keyword (:order sort-config))]]
                    ;; No aggregations: stable pagination order
                    (not has-aggregations?)
@@ -162,13 +205,23 @@
 ;; ---------------------------------------------------------
 ;; Query Execution
 
+(defn- -resolve-sort-field-name
+  "Resolve the sort field name string for cursor encoding.
+   For ref-based sort, returns the aggregation alias string.
+   For field-based sort, returns the field name directly."
+  [sort-config aggregations]
+  (if-let [ref (:ref sort-config)]
+    (when-let [agg (first (filter #(= ref (:id %)) aggregations))]
+      (-format-agg-alias (:function agg) (:field agg)))
+    (:field sort-config)))
+
 (defn- -execute-table
   "Execute a table visualization query.
    Supports cursor-based pagination for non-aggregated queries."
-  [duckdb {:keys [cursor limit visualization] :as query}]
+  [duckdb {:keys [cursor limit visualization aggregations] :as query}]
   (let [limit (or limit default-limit)
         sort-config (:sort visualization)
-        sort-field (or (:field sort-config) "timestamp")
+        sort-field (or (-resolve-sort-field-name sort-config aggregations) "timestamp")
         sort-order (or (:order sort-config) "desc")
         ;; Fetch one extra row to detect if there are more results
         fetch-limit (inc limit)
@@ -176,11 +229,14 @@
                        (-add-filter (:filter query))
                        (-add-cursor-filter cursor sort-order)
                        (-add-aggregations query)
+                       (-add-having query)
                        (-add-order-and-limit (assoc query :limit fetch-limit)))
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         all-rows (jdbc/execute! duckdb (into [sql-str] params))
         has-more? (> (count all-rows) limit)
         rows (if has-more? (take limit all-rows) all-rows)
+        columns (when (seq aggregations)
+                  (-build-columns-metadata aggregations))
         ;; Build next cursor from last row if there are more results
         next-cursor (when (and has-more? (seq rows))
                       (let [last-row (last rows)
@@ -193,17 +249,19 @@
                                          sort-value)]
                         (when (and sort-value id)
                           (query-cursor/encode {:f sort-field :v sort-value :id id}))))]
-    {:rows (vec rows)
-     :total_count (count rows)
-     :has_more has-more?
-     :next_cursor next-cursor}))
+    (cond-> {:rows (vec rows)
+             :total_count (count rows)
+             :has_more has-more?
+             :next_cursor next-cursor}
+      columns (assoc :columns columns))))
 
 (def ^:private -bucket-ms->interval query-util/bucket-ms->interval)
 
 (defn- -build-time-series-query
   "Build HoneySQL query for time series visualization.
-   Auto-injects time bucketing; user's group_by fields become series labels."
-  [{:keys [time_range filter aggregations group_by visualization bucket-ms]}]
+   Auto-injects time bucketing; user's group_by fields become series labels.
+   Supports HAVING for post-aggregation filtering (used by alert rules)."
+  [{:keys [time_range filter aggregations group_by having bucket-ms]}]
   (let [bucket-interval (-bucket-ms->interval bucket-ms)
         ;; Time bucket expression wrapped with epoch_ms to get correct UTC milliseconds
         ;; (avoids JDBC timezone conversion issues when reading TIMESTAMP values)
@@ -225,7 +283,8 @@
                  [:< :timestamp (-epoch-ms->timestamp (:end time_range))]]
          :group-by group-by-clause
          :order-by [[:bucket :asc]]}
-        (-add-filter filter))))
+        (-add-filter filter)
+        (-add-having {:having having :aggregations aggregations}))))
 
 (defn- -rows->series
   "Transform query result rows into series format.
@@ -401,21 +460,44 @@
   ;;            :next_cursor "eyJmIjoic2VydmljZSIsInYiOiJ3ZWIiLCJpZCI6Njc4OTB9"}
   ;;     :metadata {:query_time_ms N :has_more true}}
 
-  ;; Table query with aggregation sorted by count
+  ;; Table query with aggregation sorted by ref
   (execute ds
            {:time_range {:start 1702000000000 :end 1702003600000}
-            :aggregations [{:field "*" :function "count"}]
+            :aggregations [{:id "A" :field "*" :function "count"}]
             :group_by ["service"]
-            :visualization {:type "table" :sort {:field "count(*)" :order "desc"}}})
-  ;; => {:data {:rows [{:service "api" :count(*) 500}
+            :visualization {:type "table" :sort {:ref "A" :order "desc"}}})
+  ;; => {:data {:columns [{:ref "A" :key "count(*)"}]
+  ;;            :rows [{:service "api" :count(*) 500}
   ;;                   {:service "web" :count(*) 300} ...]
   ;;            :total_count N :has_more false :next_cursor nil}
   ;;     :metadata {:query_time_ms N :has_more false}}
 
+  ;; Table query with having (for alerting)
+  (execute ds
+           {:time_range {:start 1702000000000 :end 1702003600000}
+            :aggregations [{:id "A" :field "*" :function "count"}]
+            :group_by ["service"]
+            :having {:ref "A" :op ">" :value 100}
+            :visualization {:type "table"}})
+  ;; => {:data {:columns [{:ref "A" :key "count(*)"}]
+  ;;            :rows [{:service "api" :count(*) 500}]  ;; only groups with count > 100
+  ;;            :total_count 1 :has_more false :next_cursor nil}
+  ;;     :metadata {:query_time_ms N :has_more false}}
+
+  ;; Having with AND composition (count > 10 AND avg(duration) < 500)
+  (execute ds
+           {:time_range {:start 1702000000000 :end 1702003600000}
+            :aggregations [{:id "A" :field "*" :function "count"}
+                           {:id "B" :field "duration_ms" :function "avg"}]
+            :group_by ["service"]
+            :having {:and [{:ref "A" :op ">" :value 10}
+                           {:ref "B" :op "<" :value 500}]}
+            :visualization {:type "table"}})
+
   ;; Time series query - count events per minute
   (execute ds
            {:time_range {:start 1702000000000 :end 1702003600000}
-            :aggregations [{:field "*" :function "count"}]
+            :aggregations [{:id "A" :field "*" :function "count"}]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000
   ;;            :series [{:labels {} :name "count(*)"
@@ -425,7 +507,7 @@
   ;; Time series with group_by - count per service per minute
   (execute ds
            {:time_range {:start 1702000000000 :end 1702003600000}
-            :aggregations [{:field "*" :function "count"}]
+            :aggregations [{:id "A" :field "*" :function "count"}]
             :group_by ["service"]
             :visualization {:type "time_series" :bucket_ms 60000}})
   ;; => {:data {:bucket_ms 60000

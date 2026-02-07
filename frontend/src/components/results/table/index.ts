@@ -1,1 +1,1 @@
-export { ResultsTable, type SortConfig } from "./results-table"
+export { ResultsTable } from "./results-table"

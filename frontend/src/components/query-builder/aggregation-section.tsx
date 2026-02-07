@@ -18,10 +18,12 @@ export function AggregationSection({
   onAggregationsChange: (aggregations: Aggregation[]) => void
   onGroupByChange: (groupBy: string[]) => void
 }) {
+  const nextId = () => String.fromCharCode(65 + aggregations.length) // A=65, B=66, ...
+
   const addAggregation = () => {
     onAggregationsChange([
       ...aggregations,
-      { field: "*", function: "count" },
+      { id: nextId(), field: "*", function: "count" },
     ])
   }
 
@@ -31,8 +33,12 @@ export function AggregationSection({
     onAggregationsChange(newAggregations)
   }
 
+  // Reassign IDs to maintain A, B, C order after removal
+  const reassignIds = (aggs: Aggregation[]) =>
+    aggs.map((agg, i) => ({ ...agg, id: String.fromCharCode(65 + i) }))
+
   const removeAggregation = (index: number) => {
-    onAggregationsChange(aggregations.filter((_, i) => i !== index))
+    onAggregationsChange(reassignIds(aggregations.filter((_, i) => i !== index)))
   }
 
   const hasAggregations = aggregations.length > 0

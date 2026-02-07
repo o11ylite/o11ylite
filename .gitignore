@@ -18,3 +18,5 @@ pom.xml.asc
 /.tmp/
 
 .envrc
+
+.opencode/plans/

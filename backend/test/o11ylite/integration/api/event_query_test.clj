@@ -114,7 +114,7 @@
             "microsecond precision should be preserved in fractional milliseconds")))))
 
 (deftest events-query-table-with-aggregation-test
-  (testing "POST /api/query/events with aggregation returns grouped results"
+  (testing "POST /api/query/events with aggregation returns grouped results with columns metadata"
     (let [now-ms (current-epoch-ms)]
 
       ;; Ingest events from two services
@@ -125,19 +125,24 @@
       (let [response (h/post-json "/api/query/events"
                                   {:time_range {:start (- now-ms 3600000)
                                                 :end (+ now-ms 60000)}
-                                   :aggregations [{:field "*"
+                                   :aggregations [{:id "A"
+                                                   :field "*"
                                                    :function "count"}]
                                    :group_by ["service"]
                                    :visualization {:type "table"}})]
         (is (= 200 (h/status response)))
         (is (h/json-response? response))
 
+        ;; Verify columns metadata maps ref to row key
+        (let [columns (get-in response [:body :data :columns])]
+          (is (= [{:ref "A" :key "count(*)"}] columns)))
+
         (let [rows (get-in response [:body :data :rows])]
           ;; Should have 2 groups (service-a and service-b)
           (is (= 2 (count rows)))
 
           ;; Find each service's row and verify count
-          ;; Alias is auto-generated as "count(*)"
+          ;; Row keys still use descriptive aliases like "count(*)"
           (let [service-a-row (first (filter #(= "service-a" (:service %)) rows))
                 service-b-row (first (filter #(= "service-b" (:service %)) rows))]
             (is (= 2 (get service-a-row (keyword "count(*)"))))
@@ -267,7 +272,7 @@
     (let [query-bucket (fn [start end]
                          (get-in (h/post-json "/api/query/events"
                                               {:time_range {:start start :end end}
-                                               :aggregations [{:field "*" :function "count"}]
+                                               :aggregations [{:id "A" :field "*" :function "count"}]
                                                :visualization {:type "time_series"}})
                                  [:body :data :bucket_ms]))]
       ;; 1 hour (3600000ms) -> ideal 36000ms -> rounds to 1 minute (60,000 ms)
@@ -306,8 +311,8 @@
                                                 :end end-ms}
                                    :filter {:or [{:field "service" :op "=" :value "ts-service-a"}
                                                  {:field "service" :op "=" :value "ts-service-b"}]}
-                                   :aggregations [{:field "*" :function "count"}
-                                                  {:field "span.duration_ms" :function "avg"}]
+                                   :aggregations [{:id "A" :field "*" :function "count"}
+                                                  {:id "B" :field "span.duration_ms" :function "avg"}]
                                    :group_by ["service"]
                                    :visualization {:type "time_series"
                                                    :bucket_ms 60000}})
@@ -473,3 +478,63 @@
 
         (is (number? (:timestamp (first actual-spans))))
         (is (< (:timestamp (first actual-spans)) (:timestamp (second actual-spans))))))))
+
+;; ---------------------------------------------------------
+;; Having (Post-Aggregation Filtering)
+
+(deftest events-query-table-with-having-test
+  (testing "POST /api/query/events with having filters aggregated results"
+    (let [now-ms (current-epoch-ms)]
+
+      ;; Ingest 5 events for service-a, 1 for service-b
+      (h/ingest-sample-events! 5 {:service "having-service-a"})
+      (h/ingest-sample-events! 1 {:service "having-service-b"})
+
+      ;; Query with count > 2 having filter
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start (- now-ms 3600000)
+                                                :end (+ now-ms 60000)}
+                                   :aggregations [{:id "A"
+                                                   :field "*"
+                                                   :function "count"}]
+                                   :group_by ["service"]
+                                   :having {:ref "A" :op ">" :value 2}
+                                   :visualization {:type "table"}})]
+        (is (= 200 (h/status response)))
+
+        (let [rows (get-in response [:body :data :rows])]
+          ;; Only service-a should pass (count=5 > 2), service-b filtered out (count=1)
+          (is (= 1 (count rows)))
+          (is (= "having-service-a" (:service (first rows))))
+          (is (= 5 (get (first rows) (keyword "count(*)")))))))))
+
+(deftest events-query-table-with-composed-having-test
+  (testing "POST /api/query/events with AND-composed having"
+    (let [now-ms (current-epoch-ms)]
+
+      ;; Ingest events: 10 fast for svc-x, 3 fast for svc-y, 8 slow for svc-z
+      (h/ingest-sample-events! 10 {:service "having-and-svc-x"
+                                   (keyword "span.duration_ms") 50.0})
+      (h/ingest-sample-events! 3 {:service "having-and-svc-y"
+                                  (keyword "span.duration_ms") 50.0})
+      (h/ingest-sample-events! 8 {:service "having-and-svc-z"
+                                  (keyword "span.duration_ms") 900.0})
+
+      ;; Having: count > 5 AND avg(duration) < 500
+      ;; svc-x passes (count=10 > 5, avg=50 < 500)
+      ;; svc-y fails (count=3, not > 5)
+      ;; svc-z fails (avg=900, not < 500)
+      (let [response (h/post-json "/api/query/events"
+                                  {:time_range {:start (- now-ms 3600000)
+                                                :end (+ now-ms 60000)}
+                                   :aggregations [{:id "A" :field "*" :function "count"}
+                                                  {:id "B" :field "span.duration_ms" :function "avg"}]
+                                   :group_by ["service"]
+                                   :having {:and [{:ref "A" :op ">" :value 5}
+                                                  {:ref "B" :op "<" :value 500}]}
+                                   :visualization {:type "table"}})]
+        (is (= 200 (h/status response)))
+
+        (let [rows (get-in response [:body :data :rows])]
+          (is (= 1 (count rows)))
+          (is (= "having-and-svc-x" (:service (first rows)))))))))

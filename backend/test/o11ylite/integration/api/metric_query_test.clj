@@ -708,3 +708,67 @@
                                             :agg "rate"}]})]
       (is (= 400 (h/status response)))
       (is (re-find #"not valid for histogram" (get-in response [:body :error]))))))
+
+;; ---------------------------------------------------------
+;; Having (Post-Aggregation Filtering)
+
+(deftest metrics-query-having-validation-test
+  (testing "POST /api/query/metrics returns 400 when having ref doesn't match any metric"
+    (let [response (h/post-json "/api/query/metrics"
+                                {:time_range {:start 1702000000000
+                                              :end 1702003600000}
+                                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                                 :having {:ref "B" :op ">" :value 80}})]
+      (is (= 400 (h/status response)))))
+
+  (testing "POST /api/query/metrics accepts valid having clause"
+    (let [response (h/post-json "/api/query/metrics"
+                                {:time_range {:start 1702000000000
+                                              :end 1702003600000}
+                                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                                 :having {:ref "A" :op ">" :value 80}})]
+      ;; Should return 200 (query succeeds, though with empty data since metric doesn't exist)
+      (is (= 200 (h/status response)))))
+
+  (testing "POST /api/query/metrics having filters time buckets"
+    (let [bucket-1-time (-> (t/instant) (t/truncate :minutes))
+          bucket-2-time (t/>> bucket-1-time (t/of-minutes 1))
+          bucket-1-ms (.toEpochMilli bucket-1-time)
+          time-ns-1 (instant->time-ns bucket-1-time)
+          time-ns-2 (instant->time-ns bucket-2-time)
+          end-ms (+ (.toEpochMilli bucket-2-time) 60000)]
+
+      ;; Bucket 1: value 90 (should pass having > 80)
+      (h/export-metrics!
+        {:service-name "having-test-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "cpu.having.test"
+                      :unit "%"
+                      :data-points [{:value 90.0 :time-ns time-ns-1}]})]})
+
+      ;; Bucket 2: value 50 (should NOT pass having > 80)
+      (h/export-metrics!
+        {:service-name "having-test-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "cpu.having.test"
+                      :unit "%"
+                      :data-points [{:value 50.0 :time-ns time-ns-2}]})]})
+
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-1-ms :end end-ms}
+                                   :metrics [{:id "A"
+                                              :name "cpu.having.test"
+                                              :agg "avg"}]
+                                   :having {:ref "A" :op ">" :value 80}
+                                   :bucket_ms 60000})
+            data (get-in response [:body :data])
+            series (:series data)]
+        (is (= 200 (h/status response)))
+        ;; Should have one series for metric A
+        (is (= 1 (count series)))
+        ;; Only the bucket with value > 80 should be present
+        (let [data-points (:data (first series))]
+          (is (= 1 (count data-points)))
+          (is (= 90.0 (:value (first data-points)))))))))

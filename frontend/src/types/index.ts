@@ -62,6 +62,7 @@ export type AggregationFunction =
   | "p99"
 
 export interface Aggregation {
+  id: string // "A", "B", "C"... (single uppercase letter, auto-generated)
   field: string
   function: AggregationFunction
 }
@@ -74,12 +75,21 @@ export interface Aggregation {
 
 export type VisualizationType = "table" | "time_series"
 
+export interface SortByField {
+  field: string
+  order: "asc" | "desc"
+}
+
+export interface SortByRef {
+  ref: string
+  order: "asc" | "desc"
+}
+
+export type SortConfig = SortByField | SortByRef
+
 export interface TableVisualization {
   type: "table"
-  sort?: {
-    field: string
-    order: "asc" | "desc"
-  }
+  sort?: SortConfig
 }
 
 export interface TimeSeriesVisualization {
@@ -104,12 +114,36 @@ export interface TimeRange {
   end: number   // Unix epoch milliseconds
 }
 
+// ============================================================================
+// Having Types
+// ============================================================================
+// Post-aggregation filter on an aggregation ref.
+// Maps to backend: query_schema.clj#having-expr
+
+export type HavingOp = ">" | "<" | ">=" | "<=" | "=" | "!="
+
+export interface SimpleHaving {
+  ref: string
+  op: HavingOp
+  value: number
+}
+
+export interface AndHaving {
+  and: HavingExpr[]
+}
+
+export interface OrHaving {
+  or: HavingExpr[]
+}
+
+export type HavingExpr = SimpleHaving | AndHaving | OrHaving
+
 export interface EventsQuery {
   time_range: TimeRange
   filter?: FilterExpr
   aggregations?: Aggregation[]
   group_by?: string[]
-  having?: FilterExpr
+  having?: HavingExpr
   limit?: number
   visualization: Visualization
 }
@@ -162,6 +196,7 @@ export interface MetricsQuery {
   bucket_ms?: number
   filter?: FilterExpr
   group_by?: string[]
+  having?: SimpleHaving
   metrics: MetricDefinition[]
 }
 
@@ -180,6 +215,7 @@ export interface QueryBuilderState {
   filters: SimpleFilter[]
   aggregations: Aggregation[]
   groupBy: string[]
+  having?: HavingExpr
   limit?: number
   visualization: Visualization
   // Metrics mode fields
@@ -191,7 +227,13 @@ export interface QueryBuilderState {
 // ============================================================================
 // Response from POST /api/query/events
 
+export interface ColumnMetadata {
+  ref: string
+  key: string
+}
+
 export interface TableQueryResult {
+  columns?: ColumnMetadata[] // Present when aggregations used
   rows: Record<string, unknown>[]
   total_count: number
   has_more: boolean

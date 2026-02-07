@@ -98,6 +98,21 @@
    [:filter {:optional true} filter-expr]])
 
 ;; ---------------------------------------------------------
+;; Having Schema
+
+(def having-op
+  "Numeric comparison operators for post-aggregation filtering."
+  [:enum ">" "<" ">=" "<=" "=" "!="])
+
+(def having-expr
+  "Post-aggregation filter on a metric ref.
+   Only supports numeric comparisons."
+  [:map
+   [:ref metric-ref]
+   [:op having-op]
+   [:value number?]])
+
+;; ---------------------------------------------------------
 ;; Main Query Schema
 
 (def ^:private base-query
@@ -107,6 +122,7 @@
    [:bucket_ms {:optional true} [:int {:min 1}]]
    [:filter {:optional true} filter-expr]
    [:group_by {:optional true} [:vector field-name]]
+   [:having {:optional true} having-expr]
    [:metrics [:vector {:min 1} metric-definition]]])
 
 (defn- -unique-metric-ids?
@@ -115,12 +131,22 @@
   (let [ids (map :id metrics)]
     (= (count ids) (count (set ids)))))
 
+(defn- -valid-having-ref?
+  "Having ref must reference an existing metric ID."
+  [{:keys [having metrics]}]
+  (if having
+    (let [metric-ids (set (map :id metrics))]
+      (contains? metric-ids (:ref having)))
+    true))
+
 (def metrics-query
   "Schema for metrics query requests."
   [:and
    base-query
    [:fn {:error/message "metric IDs must be unique"}
-    -unique-metric-ids?]])
+    -unique-metric-ids?]
+   [:fn {:error/message "having ref must reference an existing metric ID"}
+    -valid-having-ref?]])
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -234,6 +260,20 @@
                         :name "http.server.requests"
                         :agg "sum"}]})
   ;; => nil
+
+  ;; Having on metric query (for alerting: empty result = no alert)
+  (validate metrics-query
+            {:time_range {:start 1702000000000 :end 1702003600000}
+             :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+             :having {:ref "A" :op ">" :value 80}})
+  ;; => nil
+
+  ;; Having with invalid ref
+  (validate metrics-query
+            {:time_range {:start 1702000000000 :end 1702003600000}
+             :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+             :having {:ref "B" :op ">" :value 80}})
+  ;; => {:error ["having ref must reference an existing metric ID"]}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
