@@ -215,7 +215,7 @@ export interface QueryBuilderState {
   filters: SimpleFilter[]
   aggregations: Aggregation[]
   groupBy: string[]
-  having?: HavingExpr
+  having?: SimpleHaving
   limit?: number
   visualization: Visualization
   // Metrics mode fields

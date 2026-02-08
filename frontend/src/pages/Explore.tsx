@@ -100,7 +100,7 @@ export default function Explore() {
       aggregations:
         state.aggregations.length > 0 ? state.aggregations : undefined,
       group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
-      having: state.having,
+      ...(state.having ? { having: state.having } : {}),
       limit: state.limit,
       visualization: state.visualization,
     }
@@ -146,7 +146,7 @@ export default function Explore() {
     ? {
       filter: buildFilterExpr(state.filters),
       group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
-      having: extractSimpleHaving(state.having),
+      ...(state.having ? { having: extractSimpleHaving(state.having) } : {}),
       metrics: validMetrics,
     }
     : null
