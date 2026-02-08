@@ -26,6 +26,7 @@ import { MetricsSection } from "./metrics-section"
 import { MetricGroupBySection } from "./metric-group-by-section"
 import { MetricFiltersSection } from "./metric-filters-section"
 import { LimitSelector } from "./limit-selector"
+import { HavingSection } from "./having-section"
 
 const isFilterComplete = (f: SimpleFilter) => f.field !== "" && f.value !== ""
 
@@ -42,12 +43,14 @@ export function QueryBuilder({
   initialState,
   onSubmit,
   autoSubmit = true,
+  alertRuleMode = false,
 }: {
   fields: Field[]
   services: Service[]
   initialState: QueryBuilderState
   onSubmit: (state: QueryBuilderState) => void,
   autoSubmit?: boolean,
+  alertRuleMode?: boolean,
 }) {
   const [state, setState] = useState(initialState)
 
@@ -66,6 +69,18 @@ export function QueryBuilder({
   const mode = state.mode ?? "events"
   const vizType = state.visualization.type
 
+  // Compute available refs for having (aggregations or metrics)
+  const availableRefs =
+    mode === "events"
+      ? state.aggregations.map((a) => ({
+          id: a.id,
+          label: `${a.function}(${a.field})`,
+        }))
+      : state.metrics.map((m) => ({
+          id: m.id,
+          label: `${m.agg}(${m.name})`,
+        }))
+
   const handleModeChange = (newMode: QueryMode) => {
     updateState({
       ...state,
@@ -74,6 +89,7 @@ export function QueryBuilder({
       aggregations: [],
       groupBy: [],
       metrics: [],
+      having: undefined,
     })
   }
 
@@ -165,10 +181,19 @@ export function QueryBuilder({
             groupBy={state.groupBy}
             fields={fields}
             onAggregationsChange={(aggregations) =>
-              updateState({ ...state, aggregations })
+              updateState({ ...state, aggregations, having: undefined })
             }
             onGroupByChange={(groupBy) => updateState({ ...state, groupBy })}
           />
+
+          {/* Having - only when aggregations exist */}
+          {state.aggregations.length > 0 && (
+            <HavingSection
+              having={state.having}
+              refs={availableRefs}
+              onChange={(having) => updateState({ ...state, having })}
+            />
+          )}
         </>
       )}
 
@@ -178,7 +203,9 @@ export function QueryBuilder({
           {/* Metrics */}
           <MetricsSection
             metrics={state.metrics ?? []}
-            onMetricsChange={(metrics) => updateState({ ...state, metrics })}
+            onMetricsChange={(metrics) =>
+              updateState({ ...state, metrics, having: undefined })
+            }
           />
 
           {/* Filters - shows hint when no metric selected, then metric attributes */}
@@ -194,6 +221,15 @@ export function QueryBuilder({
             groupBy={state.groupBy}
             onChange={(groupBy) => updateState({ ...state, groupBy })}
           />
+
+          {/* Having - only in alert rule mode */}
+          {alertRuleMode && state.metrics.length > 0 && (
+            <HavingSection
+              having={state.having}
+              refs={availableRefs}
+              onChange={(having) => updateState({ ...state, having })}
+            />
+          )}
         </>
       )}
     </div>
