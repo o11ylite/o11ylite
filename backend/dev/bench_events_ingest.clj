@@ -1,17 +1,17 @@
 ;; ---------------------------------------------------------
-;; bench-ingest
+;; bench-events-ingest
 ;;
 ;; Benchmark for DuckLake event ingestion performance.
 ;; Measures persist-batch! throughput at various event counts
 ;; using the DuckDB Appender API + staging table approach.
 ;;
 ;; Usage (from REPL, after starting system with (go)):
-;;   (require 'bench-ingest)
-;;   (bench-ingest/run-benchmark)
-;;   (bench-ingest/run-benchmark {:event-counts [100 500 1000]})
+;;   (require 'bench-events-ingest)
+;;   (bench-events-ingest/run-benchmark)
+;;   (bench-events-ingest/run-benchmark {:event-counts [100 500 1000]})
 ;; ---------------------------------------------------------
 
-(ns bench-ingest
+(ns bench-events-ingest
   (:require
     [integrant.repl.state :as state]
     [o11ylite.store.events.enrich :as enrich]

@@ -30,18 +30,16 @@
 
 (ns o11ylite.store.events.ingest
   (:require
-    [clojure.string :as str]
     [com.brunobonacci.mulog :as mulog]
-    [next.jdbc :as jdbc]
     [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.store.batcher :as batcher]
     [o11ylite.store.events.cleanse :as cleanse]
     [o11ylite.store.events.enrich :as enrich]
+    [o11ylite.store.ingest-util :as ingest-util]
     [o11ylite.store.schema :as schema]
     [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
-    [java.time Instant LocalDateTime ZoneOffset]
-    [org.duckdb DuckDBAppender DuckDBConnection]))
+    [java.time Instant LocalDateTime ZoneOffset]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - Field Extraction
@@ -105,96 +103,6 @@
    Returns a vector of value vectors, one per event."
   [events columns]
   (into [] (map #(-event->row % columns)) events))
-
-;; ---------------------------------------------------------
-;; Private Helpers - Staged Insert via Appender API
-;;
-;; Insert strategy: temp staging table + DuckDB Appender + INSERT FROM SELECT.
-;;
-;; 1. Create a temp table (_ingest_staging) with the batch's column schema
-;; 2. Bulk-load rows via the DuckDB Appender API (bypasses SQL parsing entirely)
-;; 3. INSERT INTO o11ylite.events SELECT FROM _ingest_staging (single DuckLake txn)
-;;
-;; This achieves ~100-200x throughput improvement over parameterized INSERT VALUES
-;; because the Appender writes directly to DuckDB's columnar storage, and the
-;; INSERT FROM SELECT pushes data through DuckLake in one bulk operation.
-
-(defn- -create-staging-table!
-  "Create (or replace) the temp staging table with columns matching this batch.
-   The staging table is a plain in-memory DuckDB table (not DuckLake), so the
-   Appender API can write to it directly."
-  [conn columns fields]
-  (let [col-defs (str/join ", "
-                           (map (fn [col]
-                                  (let [app-type (get-in fields [col :type] :string)
-                                        db-type (schema/app-type->duckdb app-type)]
-                                    (str "\"" (name col) "\" " db-type)))
-                                columns))
-        sql (str "CREATE OR REPLACE TEMP TABLE _ingest_staging (" col-defs ")")]
-    (with-open [stmt (.createStatement conn)]
-      (.execute stmt sql))))
-
-(defn- -append-value!
-  "Append a single coerced value to the DuckDB Appender.
-   Dispatches to typed append methods based on the value's Java type.
-   Type hints are required because DuckDBAppender.append() has many overloads
-   and Clojure's reflector cannot disambiguate without them.
-   Nulls use appendNull() — the typed append(Object nil) doesn't work because
-   DuckDB can't infer the target column type from a null Object reference."
-  [^DuckDBAppender appender v]
-  (if (nil? v)
-    (.appendNull appender)
-    (cond
-      (instance? String v)        (.append appender ^String v)
-      (instance? Boolean v)       (.append appender (boolean v))
-      (instance? Long v)          (.append appender (long v))
-      (instance? Double v)        (.append appender (double v))
-      (instance? Float v)         (.append appender (double (float v)))
-      (instance? LocalDateTime v) (.append appender ^LocalDateTime v)
-      (number? v)                 (.append appender (double v))
-      :else                       (.append appender ^String (str v)))))
-
-(defn- -load-staging!
-  "Bulk-load rows into the staging table via the DuckDB Appender API.
-   The Appender bypasses SQL parsing entirely, writing directly to DuckDB's
-   columnar storage. Much faster than INSERT VALUES for large batches."
-  [^DuckDBConnection duck-conn rows ^long num-cols]
-  (with-open [appender (.createAppender duck-conn "temp" "main" "_ingest_staging")]
-    (doseq [row rows]
-      (.beginRow appender)
-      (dotimes [i num-cols]
-        (-append-value! appender (nth row i)))
-      (.endRow appender))))
-
-(defn- -build-insert-from-staging-sql
-  "Build the INSERT INTO ... SELECT FROM staging SQL with explicit column lists.
-   Ensures column ordering matches between the DuckLake table and staging table."
-  [columns]
-  (let [col-list (str/join ", " (map #(str "\"" (name %) "\"") columns))]
-    (str "INSERT INTO o11ylite.events (" col-list ") SELECT " col-list " FROM _ingest_staging")))
-
-(defn- -insert-events-staged!
-  "Insert events via temp staging table + Appender API + INSERT FROM SELECT.
-   All operations use the same connection so the temp table is visible throughout.
-
-   Steps:
-     1. Create temp staging table with batch column schema
-     2. Bulk-load rows via Appender API (no SQL parsing)
-     3. INSERT INTO ducklake SELECT FROM staging (single DuckLake transaction)"
-  [duckdb columns fields rows]
-  (with-open [conn (jdbc/get-connection duckdb)]
-    ;; Unwrap the HikariCP proxy to get the raw DuckDBConnection.
-    ;; The Appender API (.createAppender) is DuckDB-specific and not
-    ;; part of JDBC, so it's only available on the unwrapped connection.
-    (let [duck-conn (.unwrap conn DuckDBConnection)
-          num-cols (count columns)]
-      ;; Step 1: Create staging table matching batch columns
-      (-create-staging-table! conn columns fields)
-      ;; Step 2: Load data into staging via Appender (bypasses SQL entirely)
-      (-load-staging! duck-conn rows num-cols)
-      ;; Step 3: Push from staging into DuckLake in one bulk operation
-      (with-open [stmt (.createStatement conn)]
-        (.execute stmt (-build-insert-from-staging-sql columns))))))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -265,8 +173,13 @@
       (let [columns (vec (keys fields))
             rows (-events->rows events columns)]
 
-        ;; Step 3: Staged INSERT via Appender API + INSERT FROM SELECT
-        (-insert-events-staged! duckdb columns fields rows)
+        ;; Step 3: Insert via staged Appender bulk load
+        (ingest-util/insert-staged! duckdb
+                                    {:target-table "o11ylite.events"
+                                     :columns columns
+                                     :column-type-fn (fn [col]
+                                                       (schema/app-type->duckdb (get-in fields [col :type] :string)))
+                                     :rows rows})
         true))))
 
 ;; ---------------------------------------------------------
