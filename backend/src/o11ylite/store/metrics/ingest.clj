@@ -21,7 +21,7 @@
 ;;   persist-batch! (cold path)
 ;;       1. Schema evolution - ALTER TABLE ADD COLUMN for new attr.* fields
 ;;       2. UPSERT metadata to SQLite (only changed entries)
-;;       3. Bulk INSERT data points into DuckDB
+;;       3. Insert via staged Appender bulk load into DuckDB
 ;;       4. Update normalizer state (commit-batch!)
 ;;
 ;; Immutable metadata fields (rejected if changed):
@@ -36,17 +36,34 @@
     [clojure.set :as set]
     [clojure.string :as str]
     [com.brunobonacci.mulog :as mulog]
-    [next.jdbc.sql :as sql]
-    [next.jdbc.quoted]
     [o11ylite.components.metric-temporality-normalizer :as normalizer]
     [o11ylite.store.batcher :as batcher]
     [o11ylite.store.metrics.dedupe :as dedupe]
+    [o11ylite.store.ingest-util :as ingest-util]
     [o11ylite.store.metrics.metadata :as metadata]
     [o11ylite.store.metrics.temporality :as temporality]
     [o11ylite.store.schema :as schema]
     [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
     [java.time Instant LocalDateTime ZoneOffset]))
+
+;; ---------------------------------------------------------
+;; Private Helpers - Column Types
+
+(def ^:private core-column-types
+  "DuckDB types for core metric columns. Dynamic attr.* columns are all VARCHAR."
+  {:name "VARCHAR"
+   :service "VARCHAR"
+   :timestamp "TIMESTAMP"
+   :value "DOUBLE"
+   :hist.counts "BIGINT[]"
+   :hist.count "BIGINT"
+   :hist.sum "DOUBLE"
+   :hist.min "DOUBLE"
+   :hist.max "DOUBLE"
+   :scope.name "VARCHAR"
+   :scope.version "VARCHAR"
+   :meta.observed_time "TIMESTAMP"})
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - Field Extraction
@@ -138,14 +155,13 @@
   "Coerce a value for JDBC insertion.
    - Keywords are converted to strings
    - Instants are converted to LocalDateTime at UTC
-   - Vectors (for hist.counts) are converted to DuckDB array string format
+   - Vectors (for hist.counts) are converted to native long[] arrays
    - Other values pass through unchanged"
   [v]
   (cond
     (keyword? v) (name v)
     (instance? Instant v) (LocalDateTime/ofInstant v ZoneOffset/UTC)
-    ;; DuckDB JDBC doesn't accept Java arrays directly, but can parse string format
-    (vector? v) (str "[" (str/join ", " v) "]")
+    (vector? v) (long-array v)
     :else v))
 
 (defn- -data-point->row
@@ -217,7 +233,7 @@
      1. Schema diff - DESCRIBE TABLE to find new attr.* columns needed
      2. Schema evolution - ALTER TABLE ADD COLUMN for new attr.* fields
      3. Metadata upsert - UPSERT metric metadata to SQLite
-     4. Bulk INSERT - INSERT all data points into DuckDB metrics table
+     4. Staged insert - temp table + DuckDB Appender + INSERT FROM SELECT
      5. Update normalizer state - commit cumulative values for next delta calc
 
    Arguments:
@@ -250,12 +266,15 @@
     (when (seq metrics-metadata)
       (metadata/upsert-metrics! sqlite metrics-metadata))
 
-    ;; Step 3: Bulk INSERT data points
+    ;; Step 3: Insert via staged Appender bulk load
     (when (seq data-points)
       (let [columns (vec fields)
             rows (-data-points->rows data-points columns)]
-        (sql/insert-multi! duckdb :o11ylite.metrics columns rows
-                           {:column-fn next.jdbc.quoted/ansi})))
+        (ingest-util/insert-staged! duckdb
+                                    {:target-table "o11ylite.metrics"
+                                     :columns columns
+                                     :column-type-fn (fn [col] (get core-column-types col "VARCHAR"))
+                                     :rows rows})))
 
     ;; Step 4: Update normalizer state AFTER successful persistence
     ;; Commit all cumulative data points (original values) for next delta calculation
