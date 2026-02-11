@@ -87,15 +87,20 @@
 
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."
-  [{:keys [inertia sqlite event-metadata]}]
+  [{:keys [inertia sqlite event-metadata id-generator]}]
   ["" {:middleware [wrap-site-defaults
                     inertia/wrap-csrf-cookie
-                    (make-wrap-inertia inertia)]}
+                    (make-wrap-inertia inertia)
+                    ;; Inertia sends POST/PUT/DELETE as JSON; site-defaults
+                    ;; only parses form-encoded bodies, so we need this.
+                    wrap-json-body]}
    (home/routes {})
    (explore/routes {:sqlite sqlite :event-metadata event-metadata})
    (trace/routes {})
    (notebooks/routes {})
-   (alert-rules/routes {})])
+   (alert-rules/routes {:sqlite sqlite
+                        :event-metadata event-metadata
+                        :id-generator id-generator})])
 
 ;; ---------------------------------------------------------
 ;; Exception Handling
@@ -124,7 +129,12 @@
       [(api-routes opts)
        (otlp-routes opts)
        (page-routes opts)]
-      {:data {:middleware [-exception-middleware]}})
+      {;; Reitit's default conflict detection treats literal and parameterized
+       ;; sibling paths (e.g. /alert-rules/new vs /alert-rules/:id) as ambiguous.
+       ;; Suppressing the check is safe because reitit still matches literal
+       ;; segments before falling back to parameter capture.
+       :conflicts nil
+       :data {:middleware [-exception-middleware]}})
     (ring/routes
       (ring/create-default-handler
         {:not-found (constantly (response/not-found))}))))

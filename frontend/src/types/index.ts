@@ -289,3 +289,26 @@ export interface QueryResponse {
     has_more: boolean
   }
 }
+
+// ============================================================================
+// Alert Rule Types
+// ============================================================================
+
+export type AlertState = "ok" | "firing" | "no_data"
+
+export interface AlertRule {
+  id: string
+  name: string
+  description: string | null
+  enabled: boolean
+  queryMode: QueryMode
+  query: Record<string, unknown>
+  evalWindowMs: number
+  evalIntervalMs: number
+  state: AlertState
+  stateChangedAt: number | null
+  lastEvalAt: number | null
+  lastEvalError: string | null
+  createdAt: number
+  updatedAt: number
+}

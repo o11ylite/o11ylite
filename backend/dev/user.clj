@@ -1,18 +1,18 @@
 (ns user
   "Tools for REPL Driven Development"
   (:require
-   ;; REPL Workflow
-   [mulog-events]                      ; Event Logging
-   [clojure.tools.namespace.repl :as namespace]
-   [integrant.repl :as ig-repl]
-   [o11ylite.system :as system]))
+    ;; REPL Workflow
+    [mulog-events]                      ; Event Logging
+    [clojure.tools.namespace.repl :as namespace]
+    [integrant.repl :as ig-repl]
+    [o11ylite.system :as system]))
 
 ;; ---------------------------------------------------------
 ;; Avoid reloading `dev` code
 ;; - code in `dev` directory should be evaluated if changed to reload into repl
 (println
- "Set REPL refresh directories to "
- (namespace/set-refresh-dirs "src" "resources" "test"))
+  "Set REPL refresh directories to "
+  (namespace/set-refresh-dirs "src" "resources" "test"))
 ;; ---------------------------------------------------------
 
 ;; ---------------------------------------------------------

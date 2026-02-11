@@ -24,6 +24,7 @@
     [next.jdbc :as jdbc]
     [o11ylite.components.app-config :as app-config]
     [o11ylite.store.scheduler :as store]
+    [o11ylite.alert-rule :as alert-rule]
     [o11ylite.store.ducklake :as ducklake]
     [o11ylite.util.ticker :as ticker]))
 
@@ -127,12 +128,13 @@
   (partial * 60000))
 
 (defmethod ig/init-key :scheduler/registry
-  [_ {:keys [duckdb app-config]}]
+  [_ {:keys [duckdb sqlite event-metadata app-config]}]
   (mulog/log ::registry-initializing)
   (let [inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
         parquet-compaction-interval-minutes (app-config/get-setting-value app-config :parquet-compaction-interval-minutes)
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
-        data-retention-days (app-config/get-setting-value app-config :data-retention-days)]
+        data-retention-days (app-config/get-setting-value app-config :data-retention-days)
+        webhook-url (app-config/get-setting-value app-config :webhook-url)]
     {:inlined-data-flush
      {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
       :description "Flush DuckLake inlined data to Parquet"
@@ -148,7 +150,14 @@
       :description "Daily data retention and DuckLake maintenance"
       :handler (fn []
                  (ducklake/delete-old-data! duckdb data-retention-days)
-                 (ducklake/run-checkpoint! duckdb))}}))
+                 (ducklake/run-checkpoint! duckdb))}
+
+     :alert-evaluation
+     {:interval-ms 30000
+      :description "Evaluate due alert rules and send webhook notifications"
+      :handler (fn []
+                 (alert-rule/run-evaluation-cycle!
+                   duckdb sqlite event-metadata webhook-url))}}))
 
 ;; ---------------------------------------------------------
 ;; Scheduler Component

@@ -1,19 +1,136 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.routes.alert-rules
 ;;
-;; Alert rules routes
+;; Alert rules Inertia page routes.
+;; Handles both page rendering (GET) and form mutations
+;; (POST/PUT/DELETE) following the Inertia.js pattern:
+;; mutations redirect back to the list page with updated props.
 ;; ---------------------------------------------------------
 
 (ns o11ylite.routes.alert-rules
   (:require
-    [o11ylite.util.response :as response]))
+    [jsonista.core :as json]
+    [o11ylite.alert-rule :as alert-rule]
+    [o11ylite.alert-rule.schema :as alert-rule-schema]
+    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.store.services :as services]
+    [o11ylite.util.response :as response]
+    [ring.util.response :as rr])
+  (:import
+    [com.github.f4b6a3.uuid UuidCreator]))
 
-(defn alert-rules-handler
-  "Alert rules page handler - renders Inertia AlertRules component."
-  [_request]
-  (response/inertia "AlertRules" {}))
+;; ---------------------------------------------------------
+;; Private Helpers
+
+(defn- -fields-map->vec
+  "Convert fields map to sorted vector of {:name :type} maps."
+  [fields-map]
+  (->> fields-map
+       (map (fn [[k v]] {:name (name k) :type (:type v)}))
+       (sort-by :name)
+       vec))
+
+(defn- -common-props
+  "Build props shared across alert rule pages: services and fields."
+  [sqlite event-metadata-component]
+  {:services (services/get-services sqlite)
+   :fields (-fields-map->vec (event-metadata/get-fields event-metadata-component))})
+
+(defn- -parse-query-field
+  "Parse query field - may be a map (from JSON body) or a string (JSON-encoded)."
+  [query-val]
+  (if (string? query-val)
+    (json/read-value query-val json/keyword-keys-object-mapper)
+    query-val))
+
+(defn- -parse-form-params
+  "Extract and normalize alert rule form params from an Inertia request body."
+  [body]
+  {:name (:name body)
+   :description (:description body)
+   :enabled (if (false? (:enabled body)) false true)
+   :query_mode (:query_mode body)
+   :query (-parse-query-field (:query body))
+   :eval_window_ms (some-> (:eval_window_ms body) long)
+   :eval_interval_ms (some-> (:eval_interval_ms body) long)})
+
+;; ---------------------------------------------------------
+;; Handlers
+
+(defn- -make-list-handler
+  "GET /alert-rules - List all alert rules."
+  [{:keys [sqlite]}]
+  (fn [_request]
+    (let [rules (alert-rule/list-all sqlite)]
+      (response/inertia "AlertRules"
+                        {:alert_rules rules}))))
+
+(defn- -make-new-handler
+  "GET /alert-rules/new - Render create form."
+  [{:keys [sqlite event-metadata]}]
+  (fn [_request]
+    (response/inertia "AlertRuleEdit"
+                      (merge (-common-props sqlite event-metadata)
+                             {:alert_rule nil}))))
+
+(defn- -make-edit-handler
+  "GET /alert-rules/:id/edit - Render edit form."
+  [{:keys [sqlite event-metadata]}]
+  (fn [request]
+    (let [id (get-in request [:path-params :id])
+          rule (alert-rule/get-by-id sqlite id)]
+      (if rule
+        (response/inertia "AlertRuleEdit"
+                          (merge (-common-props sqlite event-metadata)
+                                 {:alert_rule rule}))
+        (rr/not-found "Alert rule not found")))))
+
+(defn- -make-create-handler
+  "POST /alert-rules - Create a new alert rule."
+  [{:keys [sqlite]}]
+  (fn [request]
+    (let [params (-parse-form-params (:body request))]
+      (if-let [validation-error (alert-rule-schema/validate params)]
+        (-> (rr/response {:error (:error validation-error)})
+            (rr/status 422)
+            (rr/content-type "application/json"))
+        (let [id (str (UuidCreator/getTimeOrderedEpoch))]
+          (alert-rule/create! sqlite id params)
+          (rr/redirect "/alert-rules" :see-other))))))
+
+(defn- -make-update-handler
+  "PUT /alert-rules/:id - Update an existing alert rule."
+  [{:keys [sqlite]}]
+  (fn [request]
+    (let [id (get-in request [:path-params :id])
+          params (-parse-form-params (:body request))]
+      (if-let [validation-error (alert-rule-schema/validate params)]
+        (-> (rr/response {:error (:error validation-error)})
+            (rr/status 422)
+            (rr/content-type "application/json"))
+        (do
+          (alert-rule/update! sqlite id params)
+          (rr/redirect "/alert-rules" :see-other))))))
+
+(defn- -make-delete-handler
+  "DELETE /alert-rules/:id - Delete an alert rule."
+  [{:keys [sqlite]}]
+  (fn [request]
+    (let [id (get-in request [:path-params :id])]
+      (alert-rule/delete! sqlite id)
+      (rr/redirect "/alert-rules" :see-other))))
+
+;; ---------------------------------------------------------
+;; Routes
 
 (defn routes
   "Alert rules routes."
-  [_opts]
-  ["/alert-rules" {:get {:handler alert-rules-handler}}])
+  [opts]
+  ["/alert-rules"
+   ["" {:get {:handler (-make-list-handler opts)}
+        :post {:handler (-make-create-handler opts)}}]
+   ["/new" {:get {:handler (-make-new-handler opts)}}]
+   ["/:id"
+    ["" {:put {:handler (-make-update-handler opts)}
+         :delete {:handler (-make-delete-handler opts)}}]
+    ["/edit" {:get {:handler (-make-edit-handler opts)}}]]])

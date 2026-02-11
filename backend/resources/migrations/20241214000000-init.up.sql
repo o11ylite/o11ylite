@@ -43,4 +43,28 @@ CREATE TABLE IF NOT EXISTS scheduled_jobs (
   created_at INTEGER NOT NULL,         -- epoch ms
   updated_at INTEGER NOT NULL          -- epoch ms
 );
+--;;
+-- Alert rules for threshold-based alerting
+-- Query is stored as a nippy-frozen BLOB (same shape as /api/query/* payloads minus time_range)
+-- State is tracked by the evaluation engine
+CREATE TABLE IF NOT EXISTS alert_rules (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+
+  query_mode TEXT NOT NULL CHECK(query_mode IN ('events', 'metrics')),
+  query BLOB NOT NULL,                   -- nippy: full query payload (filters, aggregations, having, metrics, etc.)
+
+  eval_window_ms INTEGER NOT NULL,       -- how far back to look when evaluating
+  eval_interval_ms INTEGER NOT NULL,     -- how often to evaluate
+
+  state TEXT NOT NULL DEFAULT 'ok' CHECK(state IN ('ok', 'firing', 'no_data')),
+  state_changed_at INTEGER,              -- epoch ms
+  last_eval_at INTEGER,                  -- epoch ms
+  last_eval_error TEXT,
+
+  created_at INTEGER NOT NULL,           -- epoch ms
+  updated_at INTEGER NOT NULL            -- epoch ms
+);
 

@@ -48,6 +48,8 @@
 
  :scheduler/registry
  {:duckdb #ig/ref :db/duckdb
+  :sqlite #ig/ref :db/sqlite
+  :event-metadata #ig/ref :cache/event-metadata
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
 

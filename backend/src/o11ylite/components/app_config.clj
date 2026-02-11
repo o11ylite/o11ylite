@@ -46,7 +46,10 @@
    {:key :daily-maintenance-interval-minutes :env-var "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES" :default 1440 :parser #(Long/parseLong %)}
 
    ;; Data retention period in days
-   {:key :data-retention-days :env-var "O11YLITE_DATA_RETENTION_DAYS" :default 30 :parser #(Long/parseLong %)}])
+   {:key :data-retention-days :env-var "O11YLITE_DATA_RETENTION_DAYS" :default 30 :parser #(Long/parseLong %)}
+
+   ;; Webhook URL for alert notifications (Alertmanager-compatible)
+   {:key :webhook-url :env-var "O11YLITE_WEBHOOK_URL" :default nil :parser identity}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps

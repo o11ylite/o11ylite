@@ -73,6 +73,9 @@
   ;; Utility for time
   tick/tick {:mvn/version "0.7.5"}
 
+  ;; UUID v7 generation
+  com.github.f4b6a3/uuid-creator {:mvn/version "6.0.0"}
+
   ;; OpenTelemetry manual instrumentation
   com.github.steffan-westcott/clj-otel-api {:mvn/version "0.2.10"}}
  ;; ---------------------------------------------------------
