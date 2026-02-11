@@ -231,6 +231,7 @@
                        (-add-aggregations query)
                        (-add-having query)
                        (-add-order-and-limit (assoc query :limit fetch-limit)))
+        _ (def x hsql-query)
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         all-rows (jdbc/execute! duckdb (into [sql-str] params))
         has-more? (> (count all-rows) limit)

@@ -42,6 +42,7 @@ export function QueryBuilder({
   services,
   initialState,
   onSubmit,
+  onChange,
   autoSubmit = true,
   alertRuleMode = false,
 }: {
@@ -49,6 +50,7 @@ export function QueryBuilder({
   services: Service[]
   initialState: QueryBuilderState
   onSubmit: (state: QueryBuilderState) => void,
+  onChange?: (state: QueryBuilderState) => void,
   autoSubmit?: boolean,
   alertRuleMode?: boolean,
 }) {
@@ -61,6 +63,7 @@ export function QueryBuilder({
   // Auto-submit only when state is complete (no incomplete filters/aggregations)
   const updateState = (newState: QueryBuilderState) => {
     setState(newState)
+    onChange?.(newState)
     if (autoSubmit && isStateComplete(newState)) {
       onSubmit(newState)
     }
@@ -137,8 +140,8 @@ export function QueryBuilder({
 
         <div className="flex-1" />
 
-        {/* Visualization toggle - only show for events mode */}
-        {mode === "events" && (
+        {/* Visualization toggle - only show for events mode (not in alert rule mode) */}
+        {mode === "events" && !alertRuleMode && (
           <Tabs value={vizType} onValueChange={(v) => handleVizTypeChange(v as VisualizationType)}>
             <TabsList>
               <TabsTrigger value="table" title="Table">
@@ -159,10 +162,12 @@ export function QueryBuilder({
           />
         )}
 
-        <Button size="sm" className="gap-1.5" onClick={handleRun}>
-          <Play size={12} />
-          Run
-        </Button>
+        {!alertRuleMode && (
+          <Button size="sm" className="gap-1.5" onClick={handleRun}>
+            <Play size={12} />
+            Run
+          </Button>
+        )}
       </div>
 
       {/* Events Mode */}

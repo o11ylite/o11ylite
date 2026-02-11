@@ -7,7 +7,9 @@
 (ns o11ylite.test-helpers.http
   (:require
     [babashka.http-client :as http]
-    [jsonista.core :as json]))
+    [jsonista.core :as json])
+  (:import
+    [java.net URLDecoder]))
 
 ;; ---------------------------------------------------------
 ;; Configuration
@@ -102,6 +104,93 @@
                                      :body (json/write-value-as-string body)}
                                     opts))]
      (assoc response :body (-parse-json-body (:body response))))))
+
+(defn put-json
+  "Make a PUT request with JSON body, expecting JSON response."
+  ([path body] (put-json path body {}))
+  ([path body opts]
+   (let [response (http/put (url path)
+                            (merge {:throw false
+                                    :headers {"Content-Type" "application/json"}
+                                    :body (json/write-value-as-string body)}
+                                   opts))]
+     (assoc response :body (-parse-json-body (:body response))))))
+
+(defn delete-request
+  "Make a DELETE request. Returns response map."
+  ([path] (delete-request path {}))
+  ([path opts]
+   (http/delete (url path)
+                (merge {:throw false} opts))))
+
+;; ---------------------------------------------------------
+;; CSRF Session Helpers
+
+(defn- -extract-csrf-token
+  "Extract XSRF-TOKEN value from Set-Cookie header (URL-decoded)."
+  [response]
+  (let [cookies (get-in response [:headers "set-cookie"])]
+    (when cookies
+      (let [cookie-str (if (coll? cookies) (first (filter #(.contains ^String % "XSRF-TOKEN") cookies)) cookies)]
+        (when (and cookie-str (.contains ^String cookie-str "XSRF-TOKEN"))
+          (URLDecoder/decode (second (re-find #"XSRF-TOKEN=([^;]+)" cookie-str)) "UTF-8"))))))
+
+(defn- -extract-session-cookie
+  "Extract ring-session cookie value from Set-Cookie header (raw, URL-encoded)."
+  [response]
+  (let [cookies (get-in response [:headers "set-cookie"])]
+    (when cookies
+      (let [cookie-str (if (coll? cookies) (first (filter #(.contains ^String % "ring-session") cookies)) cookies)]
+        (when (and cookie-str (.contains ^String cookie-str "ring-session"))
+          (second (re-find #"ring-session=([^;]+)" cookie-str)))))))
+
+(def ^:private no-redirect-client
+  "HTTP client that does not follow redirects."
+  (delay (http/client {:follow-redirects :never})))
+
+(defn csrf-session
+  "Establish a session by hitting a page route and extracting CSRF + session cookies.
+   Returns a map with :csrf-token and :cookie-header."
+  ([] (csrf-session "/alert-rules"))
+  ([path]
+   (let [response (get-request path)
+         csrf (-extract-csrf-token response)
+         session (-extract-session-cookie response)]
+     {:csrf-token csrf
+      :cookie-header (str "ring-session=" session "; XSRF-TOKEN=" csrf)})))
+
+(defn csrf-headers
+  "Build headers map with CSRF token and session cookie from a csrf-session."
+  [session]
+  {"X-XSRF-TOKEN" (:csrf-token session)
+   "Cookie" (:cookie-header session)
+   "Content-Type" "application/json"})
+
+(defn post-mutation
+  "POST with CSRF session, no redirect following. Returns raw 303 response."
+  [path session body-map]
+  (http/post (url path)
+             {:client @no-redirect-client
+              :throw false
+              :headers (csrf-headers session)
+              :body (json/write-value-as-string body-map)}))
+
+(defn put-mutation
+  "PUT with CSRF session, no redirect following. Returns raw 303 response."
+  [path session body-map]
+  (http/put (url path)
+            {:client @no-redirect-client
+             :throw false
+             :headers (csrf-headers session)
+             :body (json/write-value-as-string body-map)}))
+
+(defn delete-mutation
+  "DELETE with CSRF session, no redirect following. Returns raw 303 response."
+  [path session]
+  (http/delete (url path)
+               {:client @no-redirect-client
+                :throw false
+                :headers (csrf-headers session)}))
 
 ;; ---------------------------------------------------------
 ;; Response Helpers

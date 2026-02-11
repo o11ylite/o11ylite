@@ -30,7 +30,7 @@
 
 (def time-range
   "Time range with start/end as Unix epoch milliseconds."
-  [:map
+  [:map {:closed true}
    [:start timestamp]
    [:end timestamp]])
 
@@ -50,7 +50,7 @@
   [:enum "=" "!=" ">" "<" ">=" "<=" "contains" "exists" "starts-with"])
 
 (def simple-filter
-  [:map
+  [:map {:closed true}
    [:field field-name]
    [:op filter-op]
    [:value :any]])
@@ -74,7 +74,7 @@
 
 (def simple-having
   "Single post-aggregation comparison on an aggregation ref."
-  [:map
+  [:map {:closed true}
    [:ref ref-id]
    [:op having-op]
    [:value number?]])
@@ -101,7 +101,7 @@
   [:or [:= "*"] field-name])
 
 (def aggregation
-  [:map
+  [:map {:closed true}
    [:id ref-id]
    [:field aggregation-field]
    [:function aggregation-function]])
@@ -124,12 +124,12 @@
     [:order sort-order]]])
 
 (def table-visualization
-  [:map
+  [:map {:closed true}
    [:type [:= "table"]]
    [:sort {:optional true} sort-config]])
 
 (def time-series-visualization
-  [:map
+  [:map {:closed true}
    [:type [:= "time_series"]]
    [:bucket_ms {:optional true} [:int {:min 1}]]])
 
@@ -141,7 +141,7 @@
 ;; to visualization.field when implemented.
 ;; See: https://github.com/o11ylite/o11ylite/discussions/xxx (architecture decision)
 (def heatmap-visualization
-  [:map
+  [:map {:closed true}
    [:type [:= "heatmap"]]
    [:y_buckets {:optional true} [:int {:min 1 :max 200}]]])
 
@@ -150,7 +150,7 @@
 ;; filter: {field: "trace_id", op: "=", value: "<id>"}.
 ;; Users click trace_id links in table results to navigate to the trace page.
 (def trace-visualization
-  [:map
+  [:map {:closed true}
    [:type [:= "trace"]]])
 
 (def visualization
@@ -229,7 +229,7 @@
 
 (def ^:private base-query
   "Base schema for events query requests (without cross-field constraints)."
-  [:map
+  [:map {:closed true}
    [:time_range time-range]
    [:filter {:optional true} filter-expr]
    [:aggregations {:optional true} [:vector aggregation]]
