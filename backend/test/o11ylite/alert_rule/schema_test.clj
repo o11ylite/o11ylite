@@ -195,7 +195,25 @@
                    :query {:metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
                            :having {:ref "B" :op ">" :value 80}}
                    :eval_window_ms 300000
-                   :eval_interval_ms 60000}))))
+                   :eval_interval_ms 60000})))
+
+  (testing "metrics query with visualization rejected"
+    (is (invalid? {:name "CPU alert"
+                   :enabled true
+                   :query_mode "metrics"
+                   :query {:metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                           :having {:ref "A" :op ">" :value 80}
+                           :visualization {:type "table"}}
+                   :eval_window_ms 300000
+                   :eval_interval_ms 60000})))
+
+  (testing "metrics query without visualization valid"
+    (is (valid? {:name "CPU alert"
+                 :enabled true
+                 :query_mode "metrics"
+                 :query {:metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]}
+                 :eval_window_ms 300000
+                 :eval_interval_ms 60000}))))
 
 ;; ---------------------------------------------------------
 ;; Closed Schema Behavior

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "@inertiajs/react"
-import { Save } from "lucide-react"
+import { Save, AlertCircle } from "lucide-react"
 
 import { QueryBuilder } from "@/components/query-builder"
 import { Button } from "@/components/ui/button"
@@ -18,110 +18,64 @@ import {
   EVAL_WINDOW_PRESETS,
   EVAL_INTERVAL_PRESETS,
 } from "@/components/alert-rules/eval-presets"
-import type {
-  AlertRule,
-  Field,
-  FilterExpr,
-  Service,
-  SimpleFilter,
-  QueryBuilderState,
-} from "@/types"
+import { queryStateToPayload } from "@/components/alert-rules/query-helpers"
+import type { Field, Service, QueryBuilderState } from "@/types"
 
-const DEFAULT_QUERY_STATE: QueryBuilderState = {
-  mode: "events",
-  filters: [],
-  aggregations: [],
-  groupBy: [],
-  metrics: [],
-  visualization: { type: "table" },
+interface AlertRuleFormPayload {
+  name: string
+  description: string | null
+  enabled: boolean
+  query_mode: string
+  query: string
+  eval_window_ms: number
+  eval_interval_ms: number
 }
 
-// The backend stores filters as a single filter expression (:filter),
-// which is either a SimpleFilter or {and: SimpleFilter[]}.
-// The QueryBuilder UI works with a flat SimpleFilter[].
-// These two functions convert between the two representations.
-
-function filtersFromExpr(expr: FilterExpr | undefined): SimpleFilter[] {
-  if (!expr) return []
-  if ("and" in expr) return expr.and as SimpleFilter[]
-  return [expr as SimpleFilter]
-}
-
-function buildFilterExpr(filters: SimpleFilter[]): FilterExpr | undefined {
-  const valid = filters.filter((f) => f.field && f.value !== "")
-  if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
-  return { and: valid }
-}
-
-function queryBuilderStateFromRule(rule: AlertRule): QueryBuilderState {
-  const q = rule.query
-  return {
-    mode: rule.queryMode,
-    filters: filtersFromExpr(q.filter as FilterExpr | undefined),
-    aggregations: (q.aggregations as QueryBuilderState["aggregations"]) ?? [],
-    groupBy: (q.groupBy as string[]) ?? [],
-    having: q.having as QueryBuilderState["having"],
-    limit: q.limit as number | undefined,
-    metrics: (q.metrics as QueryBuilderState["metrics"]) ?? [],
-    visualization: (q.visualization as QueryBuilderState["visualization"]) ?? {
-      type: "table",
-    },
+interface AlertRuleFormProps {
+  fields: Field[]
+  services: Service[]
+  initialValues: {
+    name: string
+    description: string
+    enabled: boolean
+    queryState: QueryBuilderState
+    evalWindowMs: number
+    evalIntervalMs: number
   }
-}
-
-function queryStateToPayload(state: QueryBuilderState): Record<string, unknown> {
-  const payload: Record<string, unknown> = {}
-  const filterExpr = buildFilterExpr(state.filters)
-  if (filterExpr) payload.filter = filterExpr
-  if (state.aggregations.length > 0) payload.aggregations = state.aggregations
-  if (state.groupBy.length > 0) payload.group_by = state.groupBy
-  if (state.having) payload.having = state.having
-  if (state.limit) payload.limit = state.limit
-  if (state.metrics.length > 0) payload.metrics = state.metrics
-  payload.visualization = state.visualization
-  return payload
+  errors?: Partial<Record<string, string>>
+  submitting?: boolean
+  submitLabel: string
+  onSubmit: (data: AlertRuleFormPayload) => void
 }
 
 export function AlertRuleForm({
-  alertRule,
   fields,
   services,
+  initialValues,
+  errors = {},
+  submitting = false,
+  submitLabel,
   onSubmit,
-  submitting,
-}: {
-  alertRule: AlertRule | null
-  fields: Field[]
-  services: Service[]
-  onSubmit: (data: Record<string, string | number | boolean | null>) => void
-  submitting: boolean
-}) {
-  const isEditing = alertRule !== null
+}: AlertRuleFormProps) {
+  const [name, setName] = useState(initialValues.name)
+  const [description, setDescription] = useState(initialValues.description)
+  const [enabled, setEnabled] = useState(initialValues.enabled)
+  const [evalWindowMs, setEvalWindowMs] = useState(initialValues.evalWindowMs)
+  const [evalIntervalMs, setEvalIntervalMs] = useState(initialValues.evalIntervalMs)
+  const [queryState, setQueryState] = useState(initialValues.queryState)
 
-  const [name, setName] = useState(alertRule?.name ?? "")
-  const [description, setDescription] = useState(alertRule?.description ?? "")
-  const [enabled, setEnabled] = useState(alertRule?.enabled ?? true)
-  const [evalWindowMs, setEvalWindowMs] = useState(
-    String(alertRule?.evalWindowMs ?? 300000)
-  )
-  const [evalIntervalMs, setEvalIntervalMs] = useState(
-    String(alertRule?.evalIntervalMs ?? 60000)
-  )
-  const [queryState, setQueryState] = useState<QueryBuilderState>(
-    alertRule ? queryBuilderStateFromRule(alertRule) : DEFAULT_QUERY_STATE
-  )
+  const nameError = errors.name
+  const queryError = errors.query
 
   const handleSubmit = () => {
-    if (!name.trim()) return
-
     onSubmit({
-      name: name.trim(),
-      description: description.trim() || null,
+      name,
+      description: description || null,
       enabled,
       query_mode: queryState.mode,
       query: JSON.stringify(queryStateToPayload(queryState)),
-      eval_window_ms: parseInt(evalWindowMs, 10),
-      eval_interval_ms: parseInt(evalIntervalMs, 10),
+      eval_window_ms: evalWindowMs,
+      eval_interval_ms: evalIntervalMs,
     })
   }
 
@@ -136,7 +90,11 @@ export function AlertRuleForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., High error rate"
+            aria-invalid={!!nameError}
           />
+          {nameError && (
+            <p className="text-xs text-destructive">{nameError}</p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="description">Description</Label>
@@ -153,7 +111,10 @@ export function AlertRuleForm({
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label>Evaluation Window</Label>
-          <Select value={evalWindowMs} onValueChange={setEvalWindowMs}>
+          <Select
+            value={String(evalWindowMs)}
+            onValueChange={(v) => setEvalWindowMs(parseInt(v, 10))}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -171,7 +132,10 @@ export function AlertRuleForm({
         </div>
         <div className="space-y-2">
           <Label>Evaluation Interval</Label>
-          <Select value={evalIntervalMs} onValueChange={setEvalIntervalMs}>
+          <Select
+            value={String(evalIntervalMs)}
+            onValueChange={(v) => setEvalIntervalMs(parseInt(v, 10))}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -204,7 +168,13 @@ export function AlertRuleForm({
           Define the query condition. The alert fires when the query returns
           non-empty results.
         </p>
-        <div className="rounded-lg border p-4">
+        {queryError && (
+          <div className="rounded-md bg-destructive/10 border border-destructive/50 p-3 flex items-start gap-2">
+            <AlertCircle className="text-destructive shrink-0 mt-0.5" size={16} />
+            <p className="text-sm text-destructive">{queryError}</p>
+          </div>
+        )}
+        <div className={`rounded-lg border p-4 ${queryError ? "border-destructive" : ""}`}>
           <QueryBuilder
             fields={fields}
             services={services}
@@ -221,7 +191,7 @@ export function AlertRuleForm({
       <div className="flex items-center gap-3">
         <Button onClick={handleSubmit} disabled={submitting || !name.trim()}>
           <Save className="mr-2" size={16} />
-          {isEditing ? "Update Rule" : "Create Rule"}
+          {submitLabel}
         </Button>
         <Button variant="outline" asChild>
           <Link href="/alert-rules">Cancel</Link>
