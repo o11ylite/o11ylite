@@ -14,7 +14,6 @@
     [o11ylite.alert-rule.schema :as alert-rule-schema]
     [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.store.services :as services]
-    [o11ylite.util.json :as json-util]
     [o11ylite.util.response :as response]
     [o11ylite.util.validation :as validation]
     [ring.util.response :as rr])
@@ -93,34 +92,26 @@
   "POST /alert-rules - Create a new alert rule."
   [{:keys [sqlite]}]
   (fn [request]
-    (try
-      (let [params (-parse-form-params (:body request))]
-        (if-let [validation-error (alert-rule-schema/validate params)]
-          (-> (rr/redirect "/alert-rules/new" :see-other)
-              (assoc :flash {:errors (validation/flatten-for-inertia (:error validation-error))}))
-          (let [id (str (UuidCreator/getTimeOrderedEpoch))]
-            (alert-rule/create! sqlite id params)
-            (rr/redirect "/alert-rules" :see-other))))
-      (catch Exception e
+    (let [params (-parse-form-params (:body request))]
+      (if-let [validation-error (alert-rule-schema/validate params)]
         (-> (rr/redirect "/alert-rules/new" :see-other)
-            (assoc :flash {:errors {:exception (ex-message e)}}))))))
+            (assoc :flash {:errors (validation/flatten-for-inertia (:error validation-error))}))
+        (let [id (str (UuidCreator/getTimeOrderedEpoch))]
+          (alert-rule/create! sqlite id params)
+          (rr/redirect "/alert-rules" :see-other))))))
 
 (defn- -make-update-handler
   "PUT /alert-rules/:id - Update an existing alert rule."
   [{:keys [sqlite]}]
   (fn [request]
-    (try
-      (let [id (get-in request [:path-params :id])
-            params (-parse-form-params (:body request))]
-        (if-let [validation-error (alert-rule-schema/validate params)]
-          (-> (rr/redirect (str "/alert-rules/" id "/edit") :see-other)
-              (assoc :flash {:errors (validation/flatten-for-inertia (:error validation-error))}))
-          (do
-            (alert-rule/update! sqlite id params)
-            (rr/redirect "/alert-rules" :see-other))))
-      (catch Exception e
-        (-> (rr/redirect (str "/alert-rules/" (get-in request [:path-params :id]) "/edit") :see-other)
-            (assoc :flash {:errors {:exception (ex-message e)}}))))))
+    (let [id (get-in request [:path-params :id])
+          params (-parse-form-params (:body request))]
+      (if-let [validation-error (alert-rule-schema/validate params)]
+        (-> (rr/redirect (str "/alert-rules/" id "/edit") :see-other)
+            (assoc :flash {:errors (validation/flatten-for-inertia (:error validation-error))}))
+        (do
+          (alert-rule/update! sqlite id params)
+          (rr/redirect "/alert-rules" :see-other))))))
 
 (defn- -make-delete-handler
   "DELETE /alert-rules/:id - Delete an alert rule."

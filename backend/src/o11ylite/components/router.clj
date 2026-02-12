@@ -64,12 +64,42 @@
     (inertia/wrap-inertia handler inertia-config)))
 
 ;; ---------------------------------------------------------
+;; Exception Handling
+
+(defn- -api-exception-handler
+  "Record exception on current span and return 500 with JSON body."
+  [exception _request]
+  (span/add-exception! exception)
+  (response/json 500 {:error "Internal server error"}))
+
+(defn- -page-exception-handler
+  "Record exception on current span and return Inertia error response."
+  [exception _request]
+  (span/add-exception! exception)
+  (response/inertia "Error" {:status 500}))
+
+(def ^:private -api-exception-middleware
+  "Exception middleware for API routes - returns JSON responses."
+  (exception/create-exception-middleware
+    (merge
+      exception/default-handlers
+      {::exception/default -api-exception-handler})))
+
+(def ^:private -page-exception-middleware
+  "Exception middleware for page routes - returns Inertia error page."
+  (exception/create-exception-middleware
+    (merge
+      exception/default-handlers
+      {::exception/default -page-exception-handler})))
+
+;; ---------------------------------------------------------
 ;; Routes
 
 (defn api-routes
   "API routes - no CSRF, no sessions."
   [{:keys [duckdb sqlite event-metadata]}]
-  ["/api" {:middleware [wrap-api-defaults]}
+  ["/api" {:middleware [wrap-api-defaults
+                        -api-exception-middleware]}
    (api.health/routes {})
    (api.metrics/routes {:sqlite sqlite})
    (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})])
@@ -78,12 +108,13 @@
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
    These routes handle their own protobuf/JSON parsing."
   [{:keys [event-metadata event-batcher id-generator metric-batcher metric-normalizer sqlite]}]
-  (otel-http/routes {:event-metadata event-metadata
-                     :event-batcher event-batcher
-                     :id-generator id-generator
-                     :metric-batcher metric-batcher
-                     :metric-normalizer metric-normalizer
-                     :sqlite sqlite}))
+  ["" {:middleware [-api-exception-middleware]}
+   (otel-http/routes {:event-metadata event-metadata
+                      :event-batcher event-batcher
+                      :id-generator id-generator
+                      :metric-batcher metric-batcher
+                      :metric-normalizer metric-normalizer
+                      :sqlite sqlite})])
 
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."
@@ -93,7 +124,8 @@
                     (make-wrap-inertia inertia)
                     ;; Inertia sends POST/PUT/DELETE as JSON; site-defaults
                     ;; only parses form-encoded bodies, so we need this.
-                    wrap-json-body]}
+                    wrap-json-body
+                    -page-exception-middleware]}
    (home/routes {})
    (explore/routes {:sqlite sqlite :event-metadata event-metadata})
    (trace/routes {})
@@ -101,22 +133,6 @@
    (alert-rules/routes {:sqlite sqlite
                         :event-metadata event-metadata
                         :id-generator id-generator})])
-
-;; ---------------------------------------------------------
-;; Exception Handling
-
-(defn- -exception-handler
-  "Record exception on current span and return 500 with JSON body."
-  [exception _request]
-  (span/add-exception! exception)
-  (response/json 500 {:error "Internal server error"}))
-
-(def ^:private -exception-middleware
-  "Custom exception middleware that returns JSON responses."
-  (exception/create-exception-middleware
-    (merge
-      exception/default-handlers
-      {::exception/default -exception-handler})))
 
 ;; ---------------------------------------------------------
 ;; Router Component
@@ -133,8 +149,7 @@
        ;; sibling paths (e.g. /alert-rules/new vs /alert-rules/:id) as ambiguous.
        ;; Suppressing the check is safe because reitit still matches literal
        ;; segments before falling back to parameter capture.
-       :conflicts nil
-       :data {:middleware [-exception-middleware]}})
+       :conflicts nil})
     (ring/routes
       (ring/create-default-handler
         {:not-found (constantly (response/not-found))}))))
