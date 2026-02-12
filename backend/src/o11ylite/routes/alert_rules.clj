@@ -14,7 +14,9 @@
     [o11ylite.alert-rule.schema :as alert-rule-schema]
     [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.store.services :as services]
+    [o11ylite.util.json :as json-util]
     [o11ylite.util.response :as response]
+    [o11ylite.util.validation :as validation]
     [ring.util.response :as rr])
   (:import
     [com.github.f4b6a3.uuid UuidCreator]))
@@ -68,10 +70,11 @@
 (defn- -make-new-handler
   "GET /alert-rules/new - Render create form."
   [{:keys [sqlite event-metadata]}]
-  (fn [_request]
+  (fn [request]
     (response/inertia "AlertRuleEdit"
                       (merge (-common-props sqlite event-metadata)
-                             {:alert_rule nil}))))
+                             {:alert_rule nil
+                              :errors (get-in request [:flash :errors] {})}))))
 
 (defn- -make-edit-handler
   "GET /alert-rules/:id/edit - Render edit form."
@@ -82,35 +85,42 @@
       (if rule
         (response/inertia "AlertRuleEdit"
                           (merge (-common-props sqlite event-metadata)
-                                 {:alert_rule rule}))
+                                 {:alert_rule rule
+                                  :errors (get-in request [:flash :errors] {})}))
         (rr/not-found "Alert rule not found")))))
 
 (defn- -make-create-handler
   "POST /alert-rules - Create a new alert rule."
   [{:keys [sqlite]}]
   (fn [request]
-    (let [params (-parse-form-params (:body request))]
-      (if-let [validation-error (alert-rule-schema/validate params)]
-        (-> (rr/response {:error (:error validation-error)})
-            (rr/status 422)
-            (rr/content-type "application/json"))
-        (let [id (str (UuidCreator/getTimeOrderedEpoch))]
-          (alert-rule/create! sqlite id params)
-          (rr/redirect "/alert-rules" :see-other))))))
+    (try
+      (let [params (-parse-form-params (:body request))]
+        (if-let [validation-error (alert-rule-schema/validate params)]
+          (-> (rr/redirect "/alert-rules/new" :see-other)
+              (assoc :flash {:errors (validation/flatten-for-inertia (:error validation-error))}))
+          (let [id (str (UuidCreator/getTimeOrderedEpoch))]
+            (alert-rule/create! sqlite id params)
+            (rr/redirect "/alert-rules" :see-other))))
+      (catch Exception e
+        (-> (rr/redirect "/alert-rules/new" :see-other)
+            (assoc :flash {:errors {:exception (ex-message e)}}))))))
 
 (defn- -make-update-handler
   "PUT /alert-rules/:id - Update an existing alert rule."
   [{:keys [sqlite]}]
   (fn [request]
-    (let [id (get-in request [:path-params :id])
-          params (-parse-form-params (:body request))]
-      (if-let [validation-error (alert-rule-schema/validate params)]
-        (-> (rr/response {:error (:error validation-error)})
-            (rr/status 422)
-            (rr/content-type "application/json"))
-        (do
-          (alert-rule/update! sqlite id params)
-          (rr/redirect "/alert-rules" :see-other))))))
+    (try
+      (let [id (get-in request [:path-params :id])
+            params (-parse-form-params (:body request))]
+        (if-let [validation-error (alert-rule-schema/validate params)]
+          (-> (rr/redirect (str "/alert-rules/" id "/edit") :see-other)
+              (assoc :flash {:errors (validation/flatten-for-inertia (:error validation-error))}))
+          (do
+            (alert-rule/update! sqlite id params)
+            (rr/redirect "/alert-rules" :see-other))))
+      (catch Exception e
+        (-> (rr/redirect (str "/alert-rules/" (get-in request [:path-params :id]) "/edit") :see-other)
+            (assoc :flash {:errors {:exception (ex-message e)}}))))))
 
 (defn- -make-delete-handler
   "DELETE /alert-rules/:id - Delete an alert rule."
