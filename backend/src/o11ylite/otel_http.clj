@@ -17,7 +17,7 @@
 ;; This HTTP module reuses all the conversion logic (*_events.clj)
 ;; and only adds thin HTTP handlers. The transport-specific code
 ;; (parsing request body, building response) is minimal and doesn't
-;; warrant separate files. If HTTP-specific logic grows (e.g., 
+;; warrant separate files. If HTTP-specific logic grows (e.g.,
 ;; streaming, compression), we can split into otel_http/ folder.
 ;; ---------------------------------------------------------
 
@@ -227,7 +227,7 @@
 
 (defn routes
   "OTLP HTTP routes.
-   
+
    Arguments:
      opts - Map with :event-metadata, :event-batcher, :metric-batcher, :metric-normalizer, and :sqlite components"
   [opts]
