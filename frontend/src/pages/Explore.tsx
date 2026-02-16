@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { QueryBuilder } from "@/components/query-builder"
@@ -20,8 +19,6 @@ import {
   LIVE_REFRESH_INTERVAL,
 } from "@/hooks/use-time-range"
 import type {
-  Field,
-  Service,
   EventsQuery,
   MetricsQuery,
   MetricDefinition,
@@ -83,7 +80,6 @@ function buildFilterExpr(filters: SimpleFilter[]): FilterExpr | undefined {
 // ============================================================================
 
 export default function Explore() {
-  const { fields, services } = usePage<{ fields: Field[]; services: Service[] }>().props
   const { state, setState, hasQuery } = useQueryState()
   const { from, to, live } = useTimeRange()
 
@@ -248,7 +244,7 @@ export default function Explore() {
   }
 
   const rightPanel = isEventsMode ? (
-    <EventsSidePanel fields={fields} />
+    <EventsSidePanel />
   ) : (
     <MetricSidePanel />
   )
@@ -289,8 +285,6 @@ export default function Explore() {
     <ApplicationLayout title="Explore" showTimeRange rightPanel={rightPanel}>
       <div className="flex flex-col h-full gap-3">
         <QueryBuilder
-          fields={fields}
-          services={services}
           initialState={state}
           onSubmit={handleSubmit}
         />

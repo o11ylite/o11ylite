@@ -9,13 +9,11 @@ import {
   DEFAULT_QUERY_STATE,
   queryStateFromRule,
 } from "@/components/alert-rules/query-helpers"
-import type { AlertRule, Field, Service } from "@/types"
+import type { AlertRule } from "@/types"
 
 export default function AlertRuleEdit() {
-  const { alertRule, fields, services, errors } = usePage<{
+  const { alertRule, errors } = usePage<{
     alertRule: AlertRule | null
-    fields: Field[]
-    services: Service[]
     errors: Partial<Record<string, string>>
   }>().props
 
@@ -63,8 +61,6 @@ export default function AlertRuleEdit() {
         </div>
 
         <AlertRuleForm
-          fields={fields}
-          services={services}
           initialValues={initialValues}
           errors={errors}
           submitting={submitting}

@@ -11,8 +11,6 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  type Field,
-  type Service,
   type QueryBuilderState,
   type QueryMode,
   type Visualization,
@@ -20,6 +18,8 @@ import {
   type SimpleFilter,
   type Aggregation,
 } from "@/types"
+import { useEventFieldsQuery } from "@/hooks/use-event-fields-query"
+import { useServicesQuery } from "@/hooks/use-services-query"
 import { FiltersSection } from "./filters-section"
 import { AggregationSection } from "./aggregation-section"
 import { MetricsSection } from "./metrics-section"
@@ -38,22 +38,21 @@ const isStateComplete = (state: QueryBuilderState) =>
   state.aggregations.every(isAggregationComplete)
 
 export function QueryBuilder({
-  fields,
-  services,
   initialState,
   onSubmit,
   onChange,
   autoSubmit = true,
   alertRuleMode = false,
 }: {
-  fields: Field[]
-  services: Service[]
   initialState: QueryBuilderState
   onSubmit: (state: QueryBuilderState) => void,
   onChange?: (state: QueryBuilderState) => void,
   autoSubmit?: boolean,
   alertRuleMode?: boolean,
 }) {
+  const { fields } = useEventFieldsQuery()
+  const { services } = useServicesQuery()
+
   const [state, setState] = useState(initialState)
 
   useEffect(() => {

@@ -15,9 +15,11 @@
     [jsonista.core :as json]
     [o11ylite.util.response :as response]
     [o11ylite.inertia.middleware :as inertia]
+    [o11ylite.api.events :as api.events]
     [o11ylite.api.health :as api.health]
     [o11ylite.api.metrics :as api.metrics]
     [o11ylite.api.query :as api.query]
+    [o11ylite.api.services :as api.services]
     [o11ylite.otel-http :as otel-http]
     [o11ylite.routes.home :as home]
     [o11ylite.routes.explore :as explore]
@@ -100,9 +102,11 @@
   [{:keys [duckdb sqlite event-metadata]}]
   ["/api" {:middleware [wrap-api-defaults
                         -api-exception-middleware]}
+   (api.events/routes {:event-metadata event-metadata})
    (api.health/routes {})
    (api.metrics/routes {:sqlite sqlite})
-   (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})])
+   (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})
+   (api.services/routes {:sqlite sqlite})])
 
 (defn otlp-routes
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
@@ -118,7 +122,7 @@
 
 (defn page-routes
   "Page routes - site defaults + Inertia middleware."
-  [{:keys [inertia sqlite event-metadata id-generator]}]
+  [{:keys [inertia sqlite id-generator]}]
   ["" {:middleware [wrap-site-defaults
                     inertia/wrap-csrf-cookie
                     (make-wrap-inertia inertia)
@@ -127,11 +131,10 @@
                     wrap-json-body
                     -page-exception-middleware]}
    (home/routes {})
-   (explore/routes {:sqlite sqlite :event-metadata event-metadata})
+   (explore/routes {})
    (trace/routes {})
    (notebooks/routes {})
    (alert-rules/routes {:sqlite sqlite
-                        :event-metadata event-metadata
                         :id-generator id-generator})])
 
 ;; ---------------------------------------------------------

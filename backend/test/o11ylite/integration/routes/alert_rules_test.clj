@@ -76,9 +76,7 @@
           props (:props body)]
       (is (= 200 (h/status response)))
       (is (= "AlertRuleEdit" (:component body)))
-      (is (nil? (:alertRule props)))
-      (is (vector? (:fields props)))
-      (is (vector? (:services props))))))
+      (is (nil? (:alertRule props))))))
 
 ;; ---------------------------------------------------------
 ;; Create
