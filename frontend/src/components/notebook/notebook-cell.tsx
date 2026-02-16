@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { router } from "@inertiajs/react"
-import { useQuery } from "@tanstack/react-query"
 import {
   Pencil,
   Trash2,
@@ -18,67 +17,12 @@ import {
 } from "@/components/results"
 import { CellTimeBadge } from "@/components/notebook/cell-time-badge"
 import { CellQueryDrawer } from "@/components/notebook/cell-query-drawer"
-import { queryStateFromCell, queryStateToPayload } from "@/components/notebook/query-helpers"
-import { resolveTimeRange } from "@/hooks/use-time-range"
-import { extractSimpleHaving } from "@/lib/metric-query-helpers"
-import type {
-  NotebookCell as NotebookCellType,
-  EventsQuery,
-  MetricsQuery,
-  QueryResponse,
-  SimpleFilter,
-  FilterExpr,
-  MetricDefinition,
-} from "@/types"
-
-// ============================================================================
-// API
-// ============================================================================
-
-async function fetchEventsQuery(query: EventsQuery): Promise<QueryResponse> {
-  const response = await fetch("/api/query/events", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(query),
-  })
-  if (!response.ok) {
-    const errorData = (await response.json()) as { error?: string }
-    throw new Error(errorData.error ?? "Query failed")
-  }
-  return response.json() as Promise<QueryResponse>
-}
-
-async function fetchMetricsQuery(query: MetricsQuery): Promise<QueryResponse> {
-  const response = await fetch("/api/query/metrics", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(query),
-  })
-  if (!response.ok) {
-    const errorData = (await response.json()) as { error?: string }
-    throw new Error(errorData.error ?? "Query failed")
-  }
-  return response.json() as Promise<QueryResponse>
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function buildFilterExpr(filters: SimpleFilter[]): FilterExpr | undefined {
-  const valid = filters.filter((f) => f.field && f.value !== "")
-  if (valid.length === 0) return undefined
-  if (valid.length === 1) return valid[0]
-  return { and: valid }
-}
-
-function resolveMs(from: string, to: string) {
-  const resolved = resolveTimeRange({ from, to })
-  return {
-    start: Math.floor(resolved.from.getTime() / 1000) * 1000,
-    end: Math.floor(resolved.to.getTime() / 1000) * 1000,
-  }
-}
+import {
+  queryStateFromEntity,
+  queryStateToPayload,
+} from "@/lib/query-helpers"
+import { useQueryExecution } from "@/hooks/use-query-execution"
+import type { NotebookCell as NotebookCellType } from "@/types"
 
 // ============================================================================
 // Component
@@ -105,65 +49,15 @@ export function NotebookCell({
   const effectiveFrom = isPinned ? cell.pinnedFrom! : globalFrom
   const effectiveTo = isPinned ? cell.pinnedTo! : globalTo
 
-  const queryState = queryStateFromCell(cell)
-  const isEventsMode = cell.queryMode === "events"
+  const queryState = queryStateFromEntity(cell)
 
-  // Build query payloads
-  const eventsPayload = isEventsMode
-    ? {
-        filter: buildFilterExpr(queryState.filters),
-        aggregations: queryState.aggregations.length > 0 ? queryState.aggregations : undefined,
-        group_by: queryState.groupBy.length > 0 ? queryState.groupBy : undefined,
-        ...(queryState.having ? { having: queryState.having } : {}),
-        limit: queryState.limit ?? 100,
-        visualization: queryState.visualization,
-      }
-    : null
-
-  const validMetrics = (queryState.metrics ?? []).filter(
-    (m: MetricDefinition) => m.name,
-  )
-  const metricsPayload = !isEventsMode && validMetrics.length > 0
-    ? {
-        filter: buildFilterExpr(queryState.filters),
-        group_by: queryState.groupBy.length > 0 ? queryState.groupBy : undefined,
-        ...(queryState.having ? { having: extractSimpleHaving(queryState.having) } : {}),
-        metrics: validMetrics,
-      }
-    : null
-
-  // Use stable key based on time range strings (resolve fresh inside queryFn)
-  const timeKey = { from: effectiveFrom, to: effectiveTo }
-
-  const {
-    data: eventsResult,
-    isLoading: eventsLoading,
-    error: eventsError,
-  } = useQuery({
-    queryKey: ["notebook-cell", cell.id, "events", timeKey, eventsPayload],
-    queryFn: () => {
-      const timeRange = resolveMs(effectiveFrom, effectiveTo)
-      return fetchEventsQuery({ ...eventsPayload!, time_range: timeRange })
-    },
-    enabled: eventsPayload !== null,
-  })
-
-  const {
-    data: metricsResult,
-    isLoading: metricsLoading,
-    error: metricsError,
-  } = useQuery({
-    queryKey: ["notebook-cell", cell.id, "metrics", timeKey, metricsPayload],
-    queryFn: () => {
-      const timeRange = resolveMs(effectiveFrom, effectiveTo)
-      return fetchMetricsQuery({ ...metricsPayload!, time_range: timeRange })
-    },
-    enabled: metricsPayload !== null,
-  })
-
-  const result = isEventsMode ? eventsResult : metricsResult
-  const isLoading = isEventsMode ? eventsLoading : metricsLoading
-  const error = isEventsMode ? eventsError : metricsError
+  const { data, isLoading, error, eventsPayload, metricsPayload } =
+    useQueryExecution({
+      state: queryState,
+      from: effectiveFrom,
+      to: effectiveTo,
+      queryKeyPrefix: ["notebook-cell", cell.id],
+    })
 
   const handleDelete = () => {
     if (!confirm("Delete this cell?")) return
@@ -185,25 +79,24 @@ export function NotebookCell({
     router.put(`/notebooks/${notebookId}/cells/${cell.id}`, payload)
   }
 
-  const hasQuery = isEventsMode
-    ? eventsPayload !== null
-    : metricsPayload !== null
+  const hasQuery = eventsPayload !== null || metricsPayload !== null
+  const isEventsMode = cell.queryMode === "events"
 
   const renderResults = () => {
     if (!hasQuery) return <ResultsPlaceholder />
     if (isLoading) return <ResultsLoading />
     if (error instanceof Error) return <ResultsError message={error.message} />
-    if (!result) return <ResultsPlaceholder />
+    if (!data) return <ResultsPlaceholder />
 
     if (!isEventsMode) {
-      return <ResultsTimeSeries data={result} connectNulls />
+      return <ResultsTimeSeries data={data} connectNulls />
     }
 
     if (queryState.visualization.type === "time_series") {
-      return <ResultsTimeSeries data={result} />
+      return <ResultsTimeSeries data={data} />
     }
 
-    return <ResultsTable data={result} />
+    return <ResultsTable data={data} />
   }
 
   const cellTitle = cell.title || "Untitled"

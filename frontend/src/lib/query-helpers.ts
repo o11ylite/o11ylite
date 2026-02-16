@@ -1,11 +1,15 @@
 import type {
-  NotebookCell,
   FilterExpr,
   SimpleFilter,
   QueryBuilderState,
+  QueryMode,
 } from "@/types"
 
-export const DEFAULT_CELL_QUERY_STATE: QueryBuilderState = {
+// ============================================================================
+// Defaults
+// ============================================================================
+
+export const DEFAULT_QUERY_STATE: QueryBuilderState = {
   mode: "events",
   filters: [],
   aggregations: [],
@@ -14,15 +18,19 @@ export const DEFAULT_CELL_QUERY_STATE: QueryBuilderState = {
   visualization: { type: "table" },
 }
 
+// ============================================================================
+// Filter conversions
+// ============================================================================
+
 /** Convert a backend FilterExpr to a flat SimpleFilter array. */
-function filtersFromExpr(expr: unknown): SimpleFilter[] {
+export function filtersFromExpr(expr: unknown): SimpleFilter[] {
   if (!expr || typeof expr !== "object") return []
   if ("and" in expr) return (expr as { and: SimpleFilter[] }).and
   return [expr as SimpleFilter]
 }
 
 /** Convert a SimpleFilter array to a backend FilterExpr. */
-function buildFilterExpr(
+export function buildFilterExpr(
   filters: SimpleFilter[],
 ): FilterExpr | undefined {
   const valid = filters.filter((f) => f.field && f.value !== "")
@@ -30,6 +38,10 @@ function buildFilterExpr(
   if (valid.length === 1) return valid[0]
   return { and: valid }
 }
+
+// ============================================================================
+// State <-> Payload conversion
+// ============================================================================
 
 /** Convert QueryBuilderState to the backend query payload shape. */
 export function queryStateToPayload(
@@ -62,11 +74,21 @@ export function queryStateToPayload(
   )
 }
 
-/** Derive QueryBuilderState from an existing NotebookCell (for editing). */
-export function queryStateFromCell(cell: NotebookCell): QueryBuilderState {
-  const q = cell.query
+// ============================================================================
+// Entity -> QueryBuilderState
+// ============================================================================
+
+/** Any persisted entity that carries a query (AlertRule, NotebookCell, etc.) */
+interface QueryEntity {
+  queryMode: QueryMode
+  query: Record<string, unknown>
+}
+
+/** Derive QueryBuilderState from a persisted entity. */
+export function queryStateFromEntity(entity: QueryEntity): QueryBuilderState {
+  const q = entity.query
   return {
-    mode: cell.queryMode,
+    mode: entity.queryMode,
     filters: filtersFromExpr(q.filter),
     aggregations:
       (q.aggregations as QueryBuilderState["aggregations"]) ?? [],

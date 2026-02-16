@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/sheet"
 import {
   queryStateToPayload,
-  queryStateFromCell,
-} from "@/components/notebook/query-helpers"
+  queryStateFromEntity,
+} from "@/lib/query-helpers"
 import type { NotebookCell, QueryBuilderState } from "@/types"
 
 export function CellQueryDrawer({
@@ -32,7 +32,7 @@ export function CellQueryDrawer({
 }) {
   const [title, setTitle] = useState(cell.title ?? "")
   const [queryState, setQueryState] = useState<QueryBuilderState>(
-    queryStateFromCell(cell)
+    queryStateFromEntity(cell)
   )
   const [saving, setSaving] = useState(false)
 
@@ -40,7 +40,7 @@ export function CellQueryDrawer({
   useEffect(() => {
     if (open) {
       setTitle(cell.title ?? "")
-      setQueryState(queryStateFromCell(cell))
+      setQueryState(queryStateFromEntity(cell))
     }
   }, [open, cell])
 
