@@ -15,15 +15,7 @@ export default function AlertRules() {
   if (alertRules.length === 0) {
     return (
       <ApplicationLayout title="Alert Rules">
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold">Alert Rules</h1>
-            <p className="text-sm text-muted-foreground">
-              Define alert conditions for your telemetry data.
-            </p>
-          </div>
-          <AlertRuleEmpty />
-        </div>
+        <AlertRuleEmpty />
       </ApplicationLayout>
     )
   }
@@ -31,21 +23,12 @@ export default function AlertRules() {
   return (
     <ApplicationLayout title="Alert Rules">
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Alert Rules</h1>
-            <p className="text-sm text-muted-foreground">
-              Define alert conditions for your telemetry data.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/alert-rules/new">
-              <Plus className="mr-2" size={16} />
-              New Rule
-            </Link>
-          </Button>
-        </div>
-
+        <Button asChild>
+          <Link href="/alert-rules/new">
+            <Plus className="mr-2" size={16} />
+            New Rule
+          </Link>
+        </Button>
         <AlertRuleList alertRules={alertRules} />
       </div>
     </ApplicationLayout>

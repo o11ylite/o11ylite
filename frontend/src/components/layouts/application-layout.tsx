@@ -1,4 +1,5 @@
 import { type ReactNode } from "react"
+import { Link } from "@inertiajs/react"
 import { PanelRightIcon } from "lucide-react"
 
 import { useLocalStorage } from "@/hooks/use-local-storage"
@@ -15,9 +16,13 @@ import {
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+
+type BreadcrumbEntry = { label: string; href?: string }
 
 export default function ApplicationLayout({
   children,
@@ -26,7 +31,7 @@ export default function ApplicationLayout({
   rightPanel,
 }: {
   children: ReactNode
-  title?: string
+  title?: string | BreadcrumbEntry[]
   showTimeRange?: boolean
   rightPanel?: ReactNode
 }) {
@@ -58,9 +63,31 @@ export default function ApplicationLayout({
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Breadcrumb>
             <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>{title ?? "Home"}</BreadcrumbPage>
-              </BreadcrumbItem>
+              {typeof title === "string" || title === undefined ? (
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="font-semibold">
+                    {title ?? "Home"}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              ) : (
+                title.map((entry, i) => {
+                  const isLast = i === title.length - 1
+                  return (
+                    <BreadcrumbItem key={i}>
+                      {i > 0 && <BreadcrumbSeparator />}
+                      {isLast ? (
+                        <BreadcrumbPage className="font-semibold">
+                          {entry.label}
+                        </BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink asChild>
+                          <Link href={entry.href!}>{entry.label}</Link>
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                  )
+                })
+              )}
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ml-auto flex h-full items-center gap-2">

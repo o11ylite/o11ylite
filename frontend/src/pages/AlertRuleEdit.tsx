@@ -1,9 +1,7 @@
 import { useState } from "react"
-import { Link, router, usePage } from "@inertiajs/react"
-import { ArrowLeft } from "lucide-react"
+import { router, usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
-import { Button } from "@/components/ui/button"
 import { AlertRuleForm } from "@/components/alert-rules/alert-rule-form"
 import {
   DEFAULT_QUERY_STATE,
@@ -46,20 +44,15 @@ export default function AlertRuleEdit() {
     }
   }
 
-  const title = isEditing ? `Edit: ${alertRule.name}` : "New Alert Rule"
+  const pageLabel = isEditing ? `Edit: ${alertRule.name}` : "New Alert Rule"
+  const breadcrumb = [
+    { label: "Alert Rules", href: "/alert-rules" },
+    { label: pageLabel },
+  ]
 
   return (
-    <ApplicationLayout title={title}>
+    <ApplicationLayout title={breadcrumb}>
       <div className="mx-auto max-w-4xl space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/alert-rules">
-              <ArrowLeft size={18} />
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-bold">{title}</h1>
-        </div>
-
         <AlertRuleForm
           initialValues={initialValues}
           errors={errors}
