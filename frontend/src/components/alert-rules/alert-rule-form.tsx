@@ -18,7 +18,7 @@ import {
   EVAL_WINDOW_PRESETS,
   EVAL_INTERVAL_PRESETS,
 } from "@/components/alert-rules/eval-presets"
-import { queryStateToPayload } from "@/components/alert-rules/query-helpers"
+import { queryStateToPayload } from "@/lib/query-helpers"
 import type { QueryBuilderState } from "@/types"
 
 interface AlertRuleFormPayload {

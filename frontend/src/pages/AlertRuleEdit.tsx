@@ -5,8 +5,8 @@ import ApplicationLayout from "@/components/layouts/application-layout"
 import { AlertRuleForm } from "@/components/alert-rules/alert-rule-form"
 import {
   DEFAULT_QUERY_STATE,
-  queryStateFromRule,
-} from "@/components/alert-rules/query-helpers"
+  queryStateFromEntity,
+} from "@/lib/query-helpers"
 import type { AlertRule } from "@/types"
 
 export default function AlertRuleEdit() {
@@ -19,7 +19,7 @@ export default function AlertRuleEdit() {
 
   const isEditing = alertRule !== null
   const initialQueryState = alertRule
-    ? queryStateFromRule(alertRule)
+    ? queryStateFromEntity(alertRule)
     : DEFAULT_QUERY_STATE
 
   const initialValues = {
