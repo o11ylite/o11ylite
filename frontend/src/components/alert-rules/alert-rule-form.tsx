@@ -19,7 +19,7 @@ import {
   EVAL_INTERVAL_PRESETS,
 } from "@/components/alert-rules/eval-presets"
 import { queryStateToPayload } from "@/components/alert-rules/query-helpers"
-import type { Field, Service, QueryBuilderState } from "@/types"
+import type { QueryBuilderState } from "@/types"
 
 interface AlertRuleFormPayload {
   name: string
@@ -32,8 +32,6 @@ interface AlertRuleFormPayload {
 }
 
 interface AlertRuleFormProps {
-  fields: Field[]
-  services: Service[]
   initialValues: {
     name: string
     description: string
@@ -49,8 +47,6 @@ interface AlertRuleFormProps {
 }
 
 export function AlertRuleForm({
-  fields,
-  services,
   initialValues,
   errors = {},
   submitting = false,
@@ -176,8 +172,6 @@ export function AlertRuleForm({
         )}
         <div className={`rounded-lg border p-4 ${queryError ? "border-destructive" : ""}`}>
           <QueryBuilder
-            fields={fields}
-            services={services}
             initialState={queryState}
             onSubmit={setQueryState}
             onChange={setQueryState}

@@ -12,8 +12,6 @@
     [jsonista.core :as json]
     [o11ylite.alert-rule :as alert-rule]
     [o11ylite.alert-rule.schema :as alert-rule-schema]
-    [o11ylite.components.event-metadata :as event-metadata]
-    [o11ylite.store.services :as services]
     [o11ylite.util.response :as response]
     [o11ylite.util.validation :as validation]
     [ring.util.response :as rr])
@@ -22,20 +20,6 @@
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
-
-(defn- -fields-map->vec
-  "Convert fields map to sorted vector of {:name :type} maps."
-  [fields-map]
-  (->> fields-map
-       (map (fn [[k v]] {:name (name k) :type (:type v)}))
-       (sort-by :name)
-       vec))
-
-(defn- -common-props
-  "Build props shared across alert rule pages: services and fields."
-  [sqlite event-metadata-component]
-  {:services (services/get-services sqlite)
-   :fields (-fields-map->vec (event-metadata/get-fields event-metadata-component))})
 
 (defn- -parse-query-field
   "Parse query field - may be a map (from JSON body) or a string (JSON-encoded)."
@@ -68,24 +52,22 @@
 
 (defn- -make-new-handler
   "GET /alert-rules/new - Render create form."
-  [{:keys [sqlite event-metadata]}]
+  [_opts]
   (fn [request]
     (response/inertia "AlertRuleEdit"
-                      (merge (-common-props sqlite event-metadata)
-                             {:alert_rule nil
-                              :errors (get-in request [:flash :errors] {})}))))
+                      {:alert_rule nil
+                       :errors (get-in request [:flash :errors] {})})))
 
 (defn- -make-edit-handler
   "GET /alert-rules/:id/edit - Render edit form."
-  [{:keys [sqlite event-metadata]}]
+  [{:keys [sqlite]}]
   (fn [request]
     (let [id (get-in request [:path-params :id])
           rule (alert-rule/get-by-id sqlite id)]
       (if rule
         (response/inertia "AlertRuleEdit"
-                          (merge (-common-props sqlite event-metadata)
-                                 {:alert_rule rule
-                                  :errors (get-in request [:flash :errors] {})}))
+                          {:alert_rule rule
+                           :errors (get-in request [:flash :errors] {})})
         (rr/not-found "Alert rule not found")))))
 
 (defn- -make-create-handler

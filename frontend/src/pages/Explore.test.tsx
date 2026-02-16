@@ -53,12 +53,28 @@ const mockMetricsList = [
   { name: "http.server.duration", metric_type: "histogram", unit: "ms" },
 ]
 
+const mockEventFields = [
+  { name: "timestamp", type: "instant" },
+  { name: "service", type: "string" },
+  { name: "message", type: "string" },
+]
+
+const mockServices = [
+  { name: "api-gateway", first_seen_at: 1700000000, updated_at: 1700000000 },
+]
+
 const server = setupServer(
   http.post("/api/query/events", () => {
     return HttpResponse.json(mockQueryResponse)
   }),
   http.post("/api/query/metrics", () => {
     return HttpResponse.json(mockMetricsQueryResponse)
+  }),
+  http.get("/api/events/fields", () => {
+    return HttpResponse.json(mockEventFields)
+  }),
+  http.get("/api/services", () => {
+    return HttpResponse.json(mockServices)
   }),
   http.get("/api/metrics", () => {
     return HttpResponse.json(mockMetricsList)
@@ -101,17 +117,8 @@ const { mockState, mockRouterPush } = vi.hoisted(() => ({
   mockRouterPush: vi.fn(),
 }))
 
-// Mock props that Inertia would pass from the backend
-const mockInertiaProps = {
-  fields: [
-    { name: "timestamp", type: "instant" },
-    { name: "service", type: "string" },
-    { name: "message", type: "string" },
-  ],
-  services: [
-    { name: "api-gateway", first_seen_at: 1700000000, updated_at: 1700000000 },
-  ],
-}
+// Mock props that Inertia would pass from the backend (empty now - fields/services fetched via API)
+const mockInertiaProps = {}
 
 vi.mock("@inertiajs/react", () => ({
   usePage: () => ({ url: mockState.url, props: mockInertiaProps }),

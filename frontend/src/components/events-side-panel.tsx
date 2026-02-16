@@ -8,11 +8,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { type Field } from "@/types"
 import { FieldTypeBadge } from "@/components/field-type-badge"
+import { useEventFieldsQuery } from "@/hooks/use-event-fields-query"
 import { useEventQueryActions } from "@/hooks/use-event-query-actions"
 
-export function EventsSidePanel({ fields }: { fields: Field[] }) {
+export function EventsSidePanel() {
+  const { fields } = useEventFieldsQuery()
   const [searchQuery, setSearchQuery] = useState("")
   const { addExistsFilter } = useEventQueryActions()
 
