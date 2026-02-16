@@ -67,4 +67,32 @@ CREATE TABLE IF NOT EXISTS alert_rules (
   created_at INTEGER NOT NULL,           -- epoch ms
   updated_at INTEGER NOT NULL            -- epoch ms
 );
+--;;
+-- Notebooks for multi-query saved investigations
+-- Global time range stored as text (relative like "now-1h" or absolute epoch ms string)
+CREATE TABLE IF NOT EXISTS notebooks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  global_from TEXT NOT NULL DEFAULT 'now-1h',
+  global_to TEXT NOT NULL DEFAULT 'now',
+  created_at INTEGER NOT NULL,           -- epoch ms
+  updated_at INTEGER NOT NULL            -- epoch ms
+);
+--;;
+-- Individual query cells within a notebook
+-- Query stored as nippy BLOB (same as alert_rules)
+-- Pinned time overrides global; NULL means use global
+CREATE TABLE IF NOT EXISTS notebook_cells (
+  id TEXT PRIMARY KEY,
+  notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  title TEXT,
+  query_mode TEXT NOT NULL CHECK(query_mode IN ('events', 'metrics')),
+  query BLOB NOT NULL,
+  pinned_from TEXT,                       -- NULL = use notebook global time
+  pinned_to TEXT,                         -- NULL = use notebook global time
+  created_at INTEGER NOT NULL,            -- epoch ms
+  updated_at INTEGER NOT NULL             -- epoch ms
+);
 

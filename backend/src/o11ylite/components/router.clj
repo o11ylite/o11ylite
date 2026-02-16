@@ -133,7 +133,7 @@
    (home/routes {})
    (explore/routes {})
    (trace/routes {})
-   (notebooks/routes {})
+   (notebooks/routes {:sqlite sqlite})
    (alert-rules/routes {:sqlite sqlite
                         :id-generator id-generator})])
 

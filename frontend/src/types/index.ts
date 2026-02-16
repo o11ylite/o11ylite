@@ -312,3 +312,32 @@ export interface AlertRule {
   createdAt: number
   updatedAt: number
 }
+
+// ============================================================================
+// Notebook Types
+// ============================================================================
+
+export interface Notebook {
+  id: string
+  name: string
+  description: string | null
+  globalFrom: string             // "now-1h" or absolute epoch ms string
+  globalTo: string               // "now" or absolute epoch ms string
+  cellCount?: number             // Present in list view (from JOIN)
+  cells?: NotebookCell[]         // Present in show view
+  createdAt: number
+  updatedAt: number
+}
+
+export interface NotebookCell {
+  id: string
+  notebookId: string
+  position: number
+  title: string | null
+  queryMode: QueryMode
+  query: Record<string, unknown>
+  pinnedFrom: string | null
+  pinnedTo: string | null
+  createdAt: number
+  updatedAt: number
+}

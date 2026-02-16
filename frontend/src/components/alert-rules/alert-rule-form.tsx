@@ -176,7 +176,7 @@ export function AlertRuleForm({
             onSubmit={setQueryState}
             onChange={setQueryState}
             autoSubmit={false}
-            alertRuleMode
+            embeddedMode
           />
         </div>
       </div>
