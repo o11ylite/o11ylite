@@ -48,7 +48,7 @@ export function CellQueryDrawer({
     const payload = {
       title: title || null,
       query_mode: queryState.mode,
-      query: JSON.stringify(queryStateToPayload(queryState)),
+      query: queryStateToPayload(queryState),
       pinned_from: cell.pinnedFrom,
       pinned_to: cell.pinnedTo,
     }

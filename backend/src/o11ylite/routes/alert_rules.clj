@@ -9,7 +9,6 @@
 
 (ns o11ylite.routes.alert-rules
   (:require
-    [jsonista.core :as json]
     [o11ylite.alert-rule :as alert-rule]
     [o11ylite.alert-rule.schema :as alert-rule-schema]
     [o11ylite.util.response :as response]
@@ -21,13 +20,6 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-(defn- -parse-query-field
-  "Parse query field - may be a map (from JSON body) or a string (JSON-encoded)."
-  [query-val]
-  (if (string? query-val)
-    (json/read-value query-val json/keyword-keys-object-mapper)
-    query-val))
-
 (defn- -parse-form-params
   "Extract and normalize alert rule form params from an Inertia request body."
   [body]
@@ -35,7 +27,7 @@
    :description (:description body)
    :enabled (if (false? (:enabled body)) false true)
    :query_mode (:query_mode body)
-   :query (-parse-query-field (:query body))
+   :query (:query body)
    :eval_window_ms (some-> (:eval_window_ms body) long)
    :eval_interval_ms (some-> (:eval_interval_ms body) long)})
 

@@ -9,22 +9,16 @@
 
 (ns o11ylite.routes.notebooks
   (:require
-   [jsonista.core :as json]
-   [o11ylite.notebook :as notebook]
-   [o11ylite.notebook.schema :as notebook-schema]
-   [o11ylite.util.response :as response]
-   [o11ylite.util.validation :as validation]
-   [ring.util.response :as rr])
+    [o11ylite.notebook :as notebook]
+    [o11ylite.notebook.schema :as notebook-schema]
+    [o11ylite.util.response :as response]
+    [o11ylite.util.validation :as validation]
+    [ring.util.response :as rr])
   (:import
-   [com.github.f4b6a3.uuid UuidCreator]))
+    [com.github.f4b6a3.uuid UuidCreator]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
-
-(defn- -parse-json-string
-  "Parse a JSON-encoded string into Clojure data with keyword keys."
-  [s]
-  (json/read-value s json/keyword-keys-object-mapper))
 
 (defn- -parse-notebook-params
   "Extract and normalize notebook form params from request body."
@@ -36,11 +30,11 @@
 
 (defn- -parse-cell-params
   "Extract and normalize cell form params from request body.
-   Query arrives as a JSON-encoded string (Inertia limitation on nested objects)."
+   Query arrives as a nested map (parsed by wrap-json-body middleware)."
   [body]
   {:title (:title body)
    :query_mode (or (:query_mode body) "events")
-   :query (-parse-json-string (:query body))
+   :query (:query body)
    :pinned_from (:pinned_from body)
    :pinned_to (:pinned_to body)})
 

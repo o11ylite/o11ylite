@@ -72,7 +72,7 @@ export function NotebookCell({
     const payload = {
       title: cell.title,
       query_mode: cell.queryMode,
-      query: JSON.stringify(queryStateToPayload(queryState)),
+      query: queryStateToPayload(queryState),
       pinned_from: isPinned ? null : globalFrom,
       pinned_to: isPinned ? null : globalTo,
     }
