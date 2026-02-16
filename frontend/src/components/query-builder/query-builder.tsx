@@ -42,16 +42,20 @@ export function QueryBuilder({
   onSubmit,
   onChange,
   autoSubmit = true,
-  alertRuleMode = false,
+  embeddedMode = false,
+  showVisualizationToggle,
 }: {
   initialState: QueryBuilderState
   onSubmit: (state: QueryBuilderState) => void,
   onChange?: (state: QueryBuilderState) => void,
   autoSubmit?: boolean,
-  alertRuleMode?: boolean,
+  embeddedMode?: boolean,
+  showVisualizationToggle?: boolean,
 }) {
   const { fields } = useEventFieldsQuery()
   const { services } = useServicesQuery()
+
+  const vizToggle = showVisualizationToggle ?? !embeddedMode
 
   const [state, setState] = useState(initialState)
 
@@ -139,8 +143,8 @@ export function QueryBuilder({
 
         <div className="flex-1" />
 
-        {/* Visualization toggle - only show for events mode (not in alert rule mode) */}
-        {mode === "events" && !alertRuleMode && (
+        {/* Visualization toggle - only show for events mode when enabled */}
+        {mode === "events" && vizToggle && (
           <Tabs value={vizType} onValueChange={(v) => handleVizTypeChange(v as VisualizationType)}>
             <TabsList>
               <TabsTrigger value="table" title="Table">
@@ -161,7 +165,7 @@ export function QueryBuilder({
           />
         )}
 
-        {!alertRuleMode && (
+        {!embeddedMode && (
           <Button size="sm" className="gap-1.5" onClick={handleRun}>
             <Play size={12} />
             Run
@@ -226,8 +230,8 @@ export function QueryBuilder({
             onChange={(groupBy) => updateState({ ...state, groupBy })}
           />
 
-          {/* Having - only in alert rule mode */}
-          {alertRuleMode && state.metrics.length > 0 && (
+          {/* Having - only in embedded mode (alert rules, notebooks) */}
+          {embeddedMode && state.metrics.length > 0 && (
             <HavingSection
               having={state.having}
               refs={availableRefs}
