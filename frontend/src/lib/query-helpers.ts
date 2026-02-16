@@ -1,3 +1,4 @@
+import type { FormDataConvertible } from "@inertiajs/core"
 import type {
   FilterExpr,
   SimpleFilter,
@@ -46,7 +47,7 @@ export function buildFilterExpr(
 /** Convert QueryBuilderState to the backend query payload shape. */
 export function queryStateToPayload(
   state: QueryBuilderState,
-): Record<string, unknown> {
+): Record<string, FormDataConvertible> {
   const full: Record<string, unknown> =
     state.mode === "events"
       ? {
@@ -71,7 +72,7 @@ export function queryStateToPayload(
     Object.entries(full).filter(
       ([k, v]) => k === "visualization" || isPresent(v),
     ),
-  )
+  ) as Record<string, FormDataConvertible>
 }
 
 // ============================================================================

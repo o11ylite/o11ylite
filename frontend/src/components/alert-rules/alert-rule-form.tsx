@@ -1,4 +1,5 @@
 import { useState } from "react"
+import type { FormDataConvertible } from "@inertiajs/core"
 import { Link } from "@inertiajs/react"
 import { Save, AlertCircle } from "lucide-react"
 
@@ -26,7 +27,7 @@ interface AlertRuleFormPayload {
   description: string | null
   enabled: boolean
   query_mode: string
-  query: string
+  query: Record<string, FormDataConvertible>
   eval_window_ms: number
   eval_interval_ms: number
 }
@@ -69,7 +70,7 @@ export function AlertRuleForm({
       description: description || null,
       enabled,
       query_mode: queryState.mode,
-      query: JSON.stringify(queryStateToPayload(queryState)),
+      query: queryStateToPayload(queryState),
       eval_window_ms: evalWindowMs,
       eval_interval_ms: evalIntervalMs,
     })
