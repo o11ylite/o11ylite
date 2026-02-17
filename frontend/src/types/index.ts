@@ -321,8 +321,6 @@ export interface Notebook {
   id: string
   name: string
   description: string | null
-  globalFrom: string             // "now-1h" or absolute epoch ms string
-  globalTo: string               // "now" or absolute epoch ms string
   cellCount?: number             // Present in list view (from JOIN)
   cells?: NotebookCell[]         // Present in show view
   createdAt: number
@@ -336,8 +334,8 @@ export interface NotebookCell {
   title: string | null
   queryMode: QueryMode
   query: Record<string, unknown>
-  pinnedFrom: string | null
-  pinnedTo: string | null
+  pinnedFrom: string | null      // null = use global time, ISO timestamp when pinned
+  pinnedTo: string | null        // null = use global time, ISO timestamp when pinned
   createdAt: number
   updatedAt: number
 }

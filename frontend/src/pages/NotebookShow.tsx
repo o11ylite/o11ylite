@@ -13,10 +13,7 @@ export default function NotebookShow() {
 
   const cells = notebook.cells ?? []
 
-  // Global time range from URL, defaults to notebook's saved values
-  const { from, to } = useTimeRange({
-    defaultRange: { from: notebook.globalFrom, to: notebook.globalTo },
-  })
+  const { from, to } = useTimeRange()
 
   const breadcrumb = [
     { label: "Notebooks", href: "/notebooks" },

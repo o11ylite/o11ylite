@@ -72,9 +72,7 @@
   "Schema for notebook create/update requests."
   [:map {:closed true}
    [:name [:string {:min 1, :max 255}]]
-   [:description {:optional true} [:maybe :string]]
-   [:global_from [:string {:min 1}]]
-   [:global_to [:string {:min 1}]]])
+   [:description {:optional true} [:maybe :string]]])
 
 ;; ---------------------------------------------------------
 ;; Cell Schema
@@ -118,13 +116,11 @@
 
   ;; Valid notebook
   (validate-notebook {:name "Debug session"
-                      :description "Investigating latency"
-                      :global_from "now-1h"
-                      :global_to "now"})
+                      :description "Investigating latency"})
   ;; => nil
 
   ;; Invalid: missing name
-  (validate-notebook {:global_from "now-1h" :global_to "now"})
+  (validate-notebook {:description "no name"})
   ;; => {:error {:name ["missing required key"]}}
 
   ;; Valid cell (events with limit — notebooks allow limit)

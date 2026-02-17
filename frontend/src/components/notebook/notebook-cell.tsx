@@ -22,6 +22,7 @@ import {
   queryStateToPayload,
 } from "@/lib/query-helpers"
 import { useQueryExecution } from "@/hooks/use-query-execution"
+import { resolveTimeRange } from "@/hooks/use-time-range"
 import type { NotebookCell as NotebookCellType } from "@/types"
 
 // ============================================================================
@@ -69,12 +70,21 @@ export function NotebookCell({
   }
 
   const handleTogglePin = () => {
+    let pinnedFrom: string | null = null
+    let pinnedTo: string | null = null
+
+    if (!isPinned) {
+      const resolved = resolveTimeRange({ from: globalFrom, to: globalTo })
+      pinnedFrom = resolved.from.toISOString()
+      pinnedTo = resolved.to.toISOString()
+    }
+
     const payload = {
       title: cell.title,
       query_mode: cell.queryMode,
       query: queryStateToPayload(queryState),
-      pinned_from: isPinned ? null : globalFrom,
-      pinned_to: isPinned ? null : globalTo,
+      pinned_from: pinnedFrom,
+      pinned_to: pinnedTo,
     }
     router.put(`/notebooks/${notebookId}/cells/${cell.id}`, payload)
   }
