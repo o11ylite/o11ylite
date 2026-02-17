@@ -6,20 +6,19 @@
 
 (ns o11ylite.inertia.core
   (:require
-    [camel-snake-kebab.core :as csk]
     [clojure.string :as str]
     [jsonista.core :as json]
     [ring.util.response :as rr]))
 
 ;; ---------------------------------------------------------
-;; JSON Encoding (camelCase keys for frontend)
+;; JSON Encoding (keys pass through as-is, no casing transform)
 
 (def ^:private json-mapper
   (json/object-mapper
-    {:encode-key-fn (comp csk/->camelCase name)}))
+    {:encode-key-fn name}))
 
 (defn ->json
-  "Encode data as JSON with camelCase keys."
+  "Encode data as JSON. Keys are serialized as-is (snake_case)."
   [data]
   (json/write-value-as-string data json-mapper))
 
