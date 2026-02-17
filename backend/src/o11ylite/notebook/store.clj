@@ -97,7 +97,7 @@
 
 (defn create-cell!
   "Insert a new cell at the end of a notebook. Returns the cell id."
-  [sqlite id {:keys [notebook_id title query_mode query pinned_from pinned_to]}]
+  [sqlite id {:keys [notebook_id title description query_mode query pinned_from pinned_to]}]
   (let [now (-now-ms)
         max-pos (or (:max_pos (jdbc/execute-one!
                                 sqlite
@@ -107,22 +107,22 @@
         position (inc max-pos)]
     (jdbc/execute!
       sqlite
-      ["INSERT INTO notebook_cells (id, notebook_id, position, title, query_mode, query, pinned_from, pinned_to, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-       id notebook_id position title query_mode (-serialize-query query)
+      ["INSERT INTO notebook_cells (id, notebook_id, position, title, description, query_mode, query, pinned_from, pinned_to, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+       id notebook_id position title description query_mode (-serialize-query query)
        pinned_from pinned_to now now])
     id))
 
 (defn update-cell!
   "Update a cell's content by ID."
-  [sqlite id {:keys [title query_mode query pinned_from pinned_to]}]
+  [sqlite id {:keys [title description query_mode query pinned_from pinned_to]}]
   (let [now (-now-ms)]
     (jdbc/execute!
       sqlite
       ["UPDATE notebook_cells
-        SET title = ?, query_mode = ?, query = ?, pinned_from = ?, pinned_to = ?, updated_at = ?
+        SET title = ?, description = ?, query_mode = ?, query = ?, pinned_from = ?, pinned_to = ?, updated_at = ?
         WHERE id = ?"
-       title query_mode (-serialize-query query) pinned_from pinned_to now id])))
+       title description query_mode (-serialize-query query) pinned_from pinned_to now id])))
 
 (defn delete-cell!
   "Delete a cell by ID."

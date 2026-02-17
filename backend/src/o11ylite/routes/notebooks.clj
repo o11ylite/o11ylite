@@ -31,6 +31,7 @@
    Query arrives as a nested map (parsed by wrap-json-body middleware)."
   [body]
   {:title (:title body)
+   :description (:description body)
    :query_mode (or (:query_mode body) "events")
    :query (:query body)
    :pinned_from (:pinned_from body)

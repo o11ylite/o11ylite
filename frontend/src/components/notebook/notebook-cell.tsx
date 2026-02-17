@@ -46,10 +46,11 @@ function cellUrl(notebookId: string, cellId: string): string {
 function buildCellPayload(
   cell: NotebookCellType,
   queryState: QueryBuilderState,
-  overrides?: { title?: string | null; pinnedFrom?: string | null; pinnedTo?: string | null },
+  overrides?: { title?: string | null; description?: string | null; pinnedFrom?: string | null; pinnedTo?: string | null },
 ): Record<string, FormDataConvertible> {
   return {
     title: overrides?.title !== undefined ? overrides.title : cell.title,
+    description: overrides?.description !== undefined ? overrides.description : cell.description,
     query_mode: queryState.mode,
     query: queryStateToPayload(queryState),
     pinned_from: overrides?.pinnedFrom !== undefined ? overrides.pinnedFrom : cell.pinned_from,
@@ -106,9 +107,9 @@ export function NotebookCell({
     })
   }
 
-  const handleSaveQuery = (title: string | null, newQueryState: QueryBuilderState) => {
+  const handleSaveQuery = (title: string | null, description: string | null, newQueryState: QueryBuilderState) => {
     setSaving(true)
-    saveCell(buildCellPayload(cell, newQueryState, { title }), {
+    saveCell(buildCellPayload(cell, newQueryState, { title, description }), {
       onFinish: () => {
         setSaving(false)
         setDrawerOpen(false)
@@ -235,6 +236,11 @@ export function NotebookCell({
             </Button>
           </div>
         </div>
+        {cell.description && (
+          <p className="border-b px-3 py-2 text-sm text-muted-foreground whitespace-pre-line">
+            {cell.description}
+          </p>
+        )}
         <div className="p-3 min-h-[200px] max-h-[500px] overflow-y-auto">
           {renderResults()}
         </div>

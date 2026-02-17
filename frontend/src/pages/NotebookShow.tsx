@@ -23,6 +23,9 @@ export default function NotebookShow() {
   return (
     <ApplicationLayout title={breadcrumb} showTimeRange>
       <div className="space-y-4">
+        {notebook.description && (
+          <p className="text-sm text-muted-foreground">{notebook.description}</p>
+        )}
         {cells.map((cell, index) => (
           <NotebookCell
             key={cell.id}

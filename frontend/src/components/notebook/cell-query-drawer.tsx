@@ -5,6 +5,7 @@ import { QueryBuilder } from "@/components/query-builder"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Sheet,
   SheetContent,
@@ -25,10 +26,11 @@ export function CellQueryDrawer({
   cell: NotebookCell
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSave: (title: string | null, queryState: QueryBuilderState) => void
+  onSave: (title: string | null, description: string | null, queryState: QueryBuilderState) => void
   saving?: boolean
 }) {
   const [title, setTitle] = useState(cell.title ?? "")
+  const [description, setDescription] = useState(cell.description ?? "")
   const [queryState, setQueryState] = useState<QueryBuilderState>(
     queryStateFromEntity(cell)
   )
@@ -37,12 +39,13 @@ export function CellQueryDrawer({
   useEffect(() => {
     if (open) {
       setTitle(cell.title ?? "")
+      setDescription(cell.description ?? "")
       setQueryState(queryStateFromEntity(cell))
     }
   }, [open, cell])
 
   const handleSave = () => {
-    onSave(title || null, queryState)
+    onSave(title || null, description || null, queryState)
   }
 
   return (
@@ -63,6 +66,17 @@ export function CellQueryDrawer({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Optional cell title"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cell-description">Description</Label>
+            <Textarea
+              id="cell-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional notes about this cell"
+              rows={3}
             />
           </div>
 
