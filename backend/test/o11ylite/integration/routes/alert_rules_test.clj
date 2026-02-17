@@ -9,7 +9,6 @@
   (:require
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [jsonista.core :as json]
     [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
@@ -22,8 +21,7 @@
    :description "A test alert rule"
    :enabled true
    :query_mode "events"
-   :query (json/write-value-as-string
-            {:visualization {:type "table"}})
+   :query {:visualization {:type "table"}}
    :eval_window_ms 300000
    :eval_interval_ms 60000})
 
@@ -130,7 +128,7 @@
   (testing "Edit page returns full query data (filters, aggregations, group_by, having)"
     (let [session (h/csrf-session)]
       (-create-rule! session {:name "Rich Query Alert"
-                              :query (json/write-value-as-string rich-query)})
+                              :query rich-query})
       (let [rule-id (:id (first (-list-rules)))
             response (h/inertia-json-request (str "/alert-rules/" rule-id "/edit"))
             alert-rule (get-in (h/body response) [:props :alert_rule])
