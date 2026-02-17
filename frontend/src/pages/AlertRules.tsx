@@ -8,11 +8,11 @@ import { AlertRuleList } from "@/components/alert-rules/alert-rule-list"
 import type { AlertRule } from "@/types"
 
 export default function AlertRules() {
-  const { alertRules } = usePage<{
-    alertRules: AlertRule[]
+  const { alert_rules } = usePage<{
+    alert_rules: AlertRule[]
   }>().props
 
-  if (alertRules.length === 0) {
+  if (alert_rules.length === 0) {
     return (
       <ApplicationLayout title="Alert Rules">
         <AlertRuleEmpty />
@@ -29,7 +29,7 @@ export default function AlertRules() {
             New Rule
           </Link>
         </Button>
-        <AlertRuleList alertRules={alertRules} />
+        <AlertRuleList alertRules={alert_rules} />
       </div>
     </ApplicationLayout>
   )

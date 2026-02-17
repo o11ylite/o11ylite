@@ -81,7 +81,7 @@ export function queryStateToPayload(
 
 /** Any persisted entity that carries a query (AlertRule, NotebookCell, etc.) */
 interface QueryEntity {
-  queryMode: QueryMode
+  query_mode: QueryMode
   query: Record<string, unknown>
 }
 
@@ -89,17 +89,16 @@ interface QueryEntity {
 export function queryStateFromEntity(entity: QueryEntity): QueryBuilderState {
   const q = entity.query
   return {
-    mode: entity.queryMode,
+    mode: entity.query_mode,
     filters: filtersFromExpr(q.filter),
     aggregations:
       (q.aggregations as QueryBuilderState["aggregations"]) ?? [],
-    groupBy: (q.groupBy as string[]) ?? [],
+    groupBy: (q.group_by as string[]) ?? [],
     having: q.having as QueryBuilderState["having"],
     limit: q.limit as number | undefined,
     metrics: (q.metrics as QueryBuilderState["metrics"]) ?? [],
-    visualization:
-      (q.visualization as QueryBuilderState["visualization"]) ?? {
-        type: "table",
-      },
+    visualization: (q.visualization as QueryBuilderState["visualization"]) ?? {
+      type: "table",
+    },
   }
 }

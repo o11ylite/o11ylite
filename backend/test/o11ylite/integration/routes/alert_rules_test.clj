@@ -45,7 +45,7 @@
   "Fetch alert rules via Inertia JSON request."
   []
   (get-in (h/body (h/inertia-json-request "/alert-rules"))
-          [:props :alertRules]))
+          [:props :alert_rules]))
 
 ;; ---------------------------------------------------------
 ;; List Page
@@ -58,25 +58,25 @@
       (is (str/includes? (h/body response) "AlertRules")))))
 
 (deftest list-returns-inertia-props-test
-  (testing "Alert rules Inertia response includes alertRules"
+  (testing "Alert rules Inertia response includes alert_rules"
     (let [response (h/inertia-json-request "/alert-rules")
           body (h/body response)
           props (:props body)]
       (is (= 200 (h/status response)))
       (is (= "AlertRules" (:component body)))
-      (is (vector? (:alertRules props))))))
+      (is (vector? (:alert_rules props))))))
 
 ;; ---------------------------------------------------------
 ;; New Page
 
 (deftest new-renders-inertia-page-test
-  (testing "New alert rule page renders AlertRuleEdit with nil alertRule"
+  (testing "New alert rule page renders AlertRuleEdit with nil alert_rule"
     (let [response (h/inertia-json-request "/alert-rules/new")
           body (h/body response)
           props (:props body)]
       (is (= 200 (h/status response)))
       (is (= "AlertRuleEdit" (:component body)))
-      (is (nil? (:alertRule props))))))
+      (is (nil? (:alert_rule props))))))
 
 ;; ---------------------------------------------------------
 ;; Create
@@ -92,8 +92,8 @@
             rule (first rules)]
         (is (= 1 (count rules)))
         (is (= "Test Alert" (:name rule)))
-        (is (= "events" (:queryMode rule)))
-        (is (= 300000 (:evalWindowMs rule)))
+        (is (= "events" (:query_mode rule)))
+        (is (= 300000 (:eval_window_ms rule)))
         ;; Verify query data is a map (not a string or nil)
         (is (map? (:query rule))
             "query should be deserialized as a map")
@@ -105,19 +105,19 @@
 ;; Edit Page
 
 (deftest edit-renders-existing-rule-test
-  (testing "Edit page renders AlertRuleEdit with populated alertRule"
+  (testing "Edit page renders AlertRuleEdit with populated alert_rule"
     (let [session (h/csrf-session)]
       (-create-rule! session)
       (let [rule-id (:id (first (-list-rules)))
             response (h/inertia-json-request (str "/alert-rules/" rule-id "/edit"))
             body (h/body response)
             props (:props body)
-            alert-rule (:alertRule props)]
+            alert-rule (:alert_rule props)]
         (is (= 200 (h/status response)))
         (is (= "AlertRuleEdit" (:component body)))
         (is (= "Test Alert" (:name alert-rule)))
-        (is (= "events" (:queryMode alert-rule)))
-        (is (= 300000 (:evalWindowMs alert-rule)))
+        (is (= "events" (:query_mode alert-rule)))
+        (is (= 300000 (:eval_window_ms alert-rule)))
         ;; Verify query data is present (not nil/empty)
         (is (map? (:query alert-rule))
             "query should be a map, not nil or a string")
@@ -133,7 +133,7 @@
                               :query (json/write-value-as-string rich-query)})
       (let [rule-id (:id (first (-list-rules)))
             response (h/inertia-json-request (str "/alert-rules/" rule-id "/edit"))
-            alert-rule (get-in (h/body response) [:props :alertRule])
+            alert-rule (get-in (h/body response) [:props :alert_rule])
             query (:query alert-rule)]
         (is (= "Rich Query Alert" (:name alert-rule)))
         ;; Verify all query fields round-trip correctly
@@ -141,8 +141,8 @@
                (:filter query)))
         (is (= [{:id "A" :field "*" :function "count"}]
                (:aggregations query)))
-        ;; group_by is camelCased to groupBy by Inertia's JSON encoder
-        (is (= ["service"] (:groupBy query)))
+        ;; Keys pass through as-is (snake_case) — no Inertia casing transform
+        (is (= ["service"] (:group_by query)))
         (is (= {:ref "A" :op ">" :value 100}
                (:having query)))
         (is (= {:type "time_series"}
@@ -168,7 +168,7 @@
         ;; Verify the update
         (let [rule (first (-list-rules))]
           (is (= "Updated Alert" (:name rule)))
-          (is (= 900000 (:evalWindowMs rule))))))))
+          (is (= 900000 (:eval_window_ms rule))))))))
 
 ;; ---------------------------------------------------------
 ;; Delete

@@ -57,10 +57,10 @@ export function NotebookList({ notebooks }: { notebooks: Notebook[] }) {
                 </Link>
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {nb.cellCount ?? 0}
+                {nb.cell_count ?? 0}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {formatRelativeTime(nb.updatedAt)}
+                {formatRelativeTime(nb.updated_at)}
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">

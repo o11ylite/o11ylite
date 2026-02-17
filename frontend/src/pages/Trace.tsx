@@ -40,17 +40,17 @@ async function fetchTrace(
 // ============================================================================
 
 export default function Trace() {
-  const { traceId } = usePage<{ traceId: string }>().props
+  const { trace_id } = usePage<{ trace_id: string }>().props
   const { from, to } = useTimeRange()
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
 
   // Use stable strings for query key to prevent infinite refetch loops.
   // Relative time strings like "now-1h" stay stable; timestamps are resolved fresh in queryFn.
   const { data, isLoading, error } = useQuery({
-    queryKey: ["trace", traceId, from, to],
+    queryKey: ["trace", trace_id, from, to],
     queryFn: () => {
       const resolved = resolveTimeRange({ from, to })
-      return fetchTrace(traceId, {
+      return fetchTrace(trace_id, {
         start: Math.floor(resolved.from.getTime()),
         end: Math.floor(resolved.to.getTime()),
       })
@@ -86,7 +86,7 @@ export default function Trace() {
   }
 
   return (
-    <ApplicationLayout title={`Trace: ${traceId}`} showTimeRange rightPanel={rightPanel}>
+    <ApplicationLayout title={`Trace: ${trace_id}`} showTimeRange rightPanel={rightPanel}>
       <div className="flex h-full flex-col">{renderContent()}</div>
     </ApplicationLayout>
   )

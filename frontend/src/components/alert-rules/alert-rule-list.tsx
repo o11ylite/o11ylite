@@ -58,24 +58,24 @@ export function AlertRuleList({ alertRules }: { alertRules: AlertRule[] }) {
                       {rule.description}
                     </p>
                   )}
-                  {rule.lastEvalError && (
+                  {rule.last_eval_error && (
                     <p className="text-xs text-destructive truncate max-w-[300px]">
-                      {rule.lastEvalError}
+                      {rule.last_eval_error}
                     </p>
                   )}
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {rule.queryMode}
+                {rule.query_mode}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {formatMs(rule.evalWindowMs)}
+                {formatMs(rule.eval_window_ms)}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {formatMs(rule.evalIntervalMs)}
+                {formatMs(rule.eval_interval_ms)}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {formatRelativeTime(rule.lastEvalAt)}
+                {formatRelativeTime(rule.last_eval_at)}
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">

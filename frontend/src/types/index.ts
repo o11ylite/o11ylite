@@ -302,16 +302,16 @@ export interface AlertRule {
   name: string
   description: string | null
   enabled: boolean
-  queryMode: QueryMode
+  query_mode: QueryMode
   query: Record<string, unknown>
-  evalWindowMs: number
-  evalIntervalMs: number
+  eval_window_ms: number
+  eval_interval_ms: number
   state: AlertState
-  stateChangedAt: number | null
-  lastEvalAt: number | null
-  lastEvalError: string | null
-  createdAt: number
-  updatedAt: number
+  state_changed_at: number | null
+  last_eval_at: number | null
+  last_eval_error: string | null
+  created_at: number
+  updated_at: number
 }
 
 // ============================================================================
@@ -322,21 +322,21 @@ export interface Notebook {
   id: string
   name: string
   description: string | null
-  cellCount?: number             // Present in list view (from JOIN)
-  cells?: NotebookCell[]         // Present in show view
-  createdAt: number
-  updatedAt: number
+  cell_count?: number             // Present in list view (from JOIN)
+  cells?: NotebookCell[]          // Present in show view
+  created_at: number
+  updated_at: number
 }
 
 export interface NotebookCell {
   id: string
-  notebookId: string
+  notebook_id: string
   position: number
   title: string | null
-  queryMode: QueryMode
+  query_mode: QueryMode
   query: Record<string, unknown>
-  pinnedFrom: string | null      // null = use global time, ISO timestamp when pinned
-  pinnedTo: string | null        // null = use global time, ISO timestamp when pinned
-  createdAt: number
-  updatedAt: number
+  pinned_from: string | null      // null = use global time, ISO timestamp when pinned
+  pinned_to: string | null        // null = use global time, ISO timestamp when pinned
+  created_at: number
+  updated_at: number
 }

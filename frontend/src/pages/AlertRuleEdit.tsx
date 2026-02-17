@@ -10,25 +10,25 @@ import {
 import type { AlertRule } from "@/types"
 
 export default function AlertRuleEdit() {
-  const { alertRule, errors } = usePage<{
-    alertRule: AlertRule | null
+  const { alert_rule, errors } = usePage<{
+    alert_rule: AlertRule | null
     errors: Partial<Record<string, string>>
   }>().props
 
   const [submitting, setSubmitting] = useState(false)
 
-  const isEditing = alertRule !== null
-  const initialQueryState = alertRule
-    ? queryStateFromEntity(alertRule)
+  const isEditing = alert_rule !== null
+  const initialQueryState = alert_rule
+    ? queryStateFromEntity(alert_rule)
     : DEFAULT_QUERY_STATE
 
   const initialValues = {
-    name: alertRule?.name ?? "",
-    description: alertRule?.description ?? "",
-    enabled: alertRule?.enabled ?? true,
+    name: alert_rule?.name ?? "",
+    description: alert_rule?.description ?? "",
+    enabled: alert_rule?.enabled ?? true,
     queryState: initialQueryState,
-    evalWindowMs: alertRule?.evalWindowMs ?? 300000,
-    evalIntervalMs: alertRule?.evalIntervalMs ?? 60000,
+    evalWindowMs: alert_rule?.eval_window_ms ?? 300000,
+    evalIntervalMs: alert_rule?.eval_interval_ms ?? 60000,
   }
 
   const handleSubmit: React.ComponentProps<typeof AlertRuleForm>["onSubmit"] = (data) => {
@@ -38,13 +38,13 @@ export default function AlertRuleEdit() {
       onFinish: () => setSubmitting(false),
     }
     if (isEditing) {
-      router.put(`/alert-rules/${alertRule.id}`, payload, options)
+      router.put(`/alert-rules/${alert_rule.id}`, payload, options)
     } else {
       router.post("/alert-rules", payload, options)
     }
   }
 
-  const pageLabel = isEditing ? `Edit: ${alertRule.name}` : "New Alert Rule"
+  const pageLabel = isEditing ? `Edit: ${alert_rule.name}` : "New Alert Rule"
   const breadcrumb = [
     { label: "Alert Rules", href: "/alert-rules" },
     { label: pageLabel },

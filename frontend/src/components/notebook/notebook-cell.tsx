@@ -52,8 +52,8 @@ function buildCellPayload(
     title: overrides?.title !== undefined ? overrides.title : cell.title,
     query_mode: queryState.mode,
     query: queryStateToPayload(queryState),
-    pinned_from: overrides?.pinnedFrom !== undefined ? overrides.pinnedFrom : cell.pinnedFrom,
-    pinned_to: overrides?.pinnedTo !== undefined ? overrides.pinnedTo : cell.pinnedTo,
+    pinned_from: overrides?.pinnedFrom !== undefined ? overrides.pinnedFrom : cell.pinned_from,
+    pinned_to: overrides?.pinnedTo !== undefined ? overrides.pinnedTo : cell.pinned_to,
   }
 }
 
@@ -79,9 +79,9 @@ export function NotebookCell({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const isPinned = cell.pinnedFrom !== null && cell.pinnedTo !== null
-  const effectiveFrom = isPinned ? cell.pinnedFrom! : globalFrom
-  const effectiveTo = isPinned ? cell.pinnedTo! : globalTo
+  const isPinned = cell.pinned_from !== null && cell.pinned_to !== null
+  const effectiveFrom = isPinned ? cell.pinned_from! : globalFrom
+  const effectiveTo = isPinned ? cell.pinned_to! : globalTo
 
   const queryState = queryStateFromEntity(cell)
 
@@ -158,7 +158,7 @@ export function NotebookCell({
   // ------------------------------------------------------------------
 
   const hasQuery = eventsPayload !== null || metricsPayload !== null
-  const isEventsMode = cell.queryMode === "events"
+  const isEventsMode = cell.query_mode === "events"
 
   const currentDisplayedFields =
     queryState.visualization.type === "table"
@@ -191,7 +191,7 @@ export function NotebookCell({
   const cellTitle = cell.title || "Untitled"
   const modeBadge = (
     <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-      {cell.queryMode}
+      {cell.query_mode}
     </span>
   )
 
@@ -202,8 +202,8 @@ export function NotebookCell({
           <span className="text-sm font-medium truncate">{cellTitle}</span>
           {modeBadge}
           <CellTimeBadge
-            pinnedFrom={cell.pinnedFrom}
-            pinnedTo={cell.pinnedTo}
+            pinnedFrom={cell.pinned_from}
+            pinnedTo={cell.pinned_to}
             onToggle={handleTogglePin}
           />
           <div className="ml-auto flex items-center gap-1">
