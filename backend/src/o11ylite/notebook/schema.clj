@@ -81,6 +81,7 @@
   "Schema for cell create/update requests."
   [:map {:closed true}
    [:title {:optional true} [:maybe :string]]
+   [:description {:optional true} [:maybe :string]]
    [:query_mode [:enum "events" "metrics"]]
    [:query :any]
    [:pinned_from {:optional true} [:maybe :string]]

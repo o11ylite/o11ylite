@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS notebook_cells (
   notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
   title TEXT,
+  description TEXT,
   query_mode TEXT NOT NULL CHECK(query_mode IN ('events', 'metrics')),
   query BLOB NOT NULL,
   pinned_from TEXT,                       -- NULL = use global time, absolute ISO timestamp when pinned

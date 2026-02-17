@@ -333,6 +333,7 @@ export interface NotebookCell {
   notebook_id: string
   position: number
   title: string | null
+  description: string | null
   query_mode: QueryMode
   query: Record<string, unknown>
   pinned_from: string | null      // null = use global time, ISO timestamp when pinned
