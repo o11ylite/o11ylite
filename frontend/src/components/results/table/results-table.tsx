@@ -41,6 +41,8 @@ export function ResultsTable({
   sortable = false,
   sort,
   onSortChange,
+  displayedFields,
+  onDisplayedFieldsChange,
 }: {
   data: QueryResponse
   live?: boolean
@@ -50,6 +52,8 @@ export function ResultsTable({
   sortable?: boolean
   sort?: SortConfig
   onSortChange?: (sort: SortConfig) => void
+  displayedFields?: string[] | null
+  onDisplayedFieldsChange?: (fields: string[] | null) => void
 }) {
   const { rows, total_count, has_more, next_cursor, columns: responseColumns } = data.data as TableQueryResult
 
@@ -95,6 +99,8 @@ export function ResultsTable({
 
   const { visibility, setVisibility } = useDisplayedFields({
     availableFields: fields,
+    displayedFields,
+    onDisplayedFieldsChange,
   })
 
   // TanStack Table's useReactTable returns functions that React Compiler cannot

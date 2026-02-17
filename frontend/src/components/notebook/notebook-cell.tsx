@@ -1,4 +1,5 @@
 import { useState } from "react"
+import type { FormDataConvertible } from "@inertiajs/core"
 import { router } from "@inertiajs/react"
 import {
   Pencil,
@@ -23,7 +24,38 @@ import {
 } from "@/lib/query-helpers"
 import { useQueryExecution } from "@/hooks/use-query-execution"
 import { resolveTimeRange } from "@/hooks/use-time-range"
-import type { NotebookCell as NotebookCellType } from "@/types"
+import type {
+  NotebookCell as NotebookCellType,
+  QueryBuilderState,
+  TableVisualization,
+} from "@/types"
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function cellUrl(notebookId: string, cellId: string): string {
+  return `/notebooks/${notebookId}/cells/${cellId}`
+}
+
+/**
+ * Build the full cell update payload from current cell props and an
+ * optional queryState override. This is the single place that assembles
+ * the payload shape expected by the backend.
+ */
+function buildCellPayload(
+  cell: NotebookCellType,
+  queryState: QueryBuilderState,
+  overrides?: { title?: string | null; pinnedFrom?: string | null; pinnedTo?: string | null },
+): Record<string, FormDataConvertible> {
+  return {
+    title: overrides?.title !== undefined ? overrides.title : cell.title,
+    query_mode: queryState.mode,
+    query: queryStateToPayload(queryState),
+    pinned_from: overrides?.pinnedFrom !== undefined ? overrides.pinnedFrom : cell.pinnedFrom,
+    pinned_to: overrides?.pinnedTo !== undefined ? overrides.pinnedTo : cell.pinnedTo,
+  }
+}
 
 // ============================================================================
 // Component
@@ -45,6 +77,7 @@ export function NotebookCell({
   isLast: boolean
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const isPinned = cell.pinnedFrom !== null && cell.pinnedTo !== null
   const effectiveFrom = isPinned ? cell.pinnedFrom! : globalFrom
@@ -60,13 +93,27 @@ export function NotebookCell({
       queryKeyPrefix: ["notebook-cell", cell.id],
     })
 
-  const handleDelete = () => {
-    if (!confirm("Delete this cell?")) return
-    router.delete(`/notebooks/${notebookId}/cells/${cell.id}`)
+  // ------------------------------------------------------------------
+  // Cell persistence — all router.put calls go through here
+  // ------------------------------------------------------------------
+
+  const saveCell = (
+    payload: Record<string, FormDataConvertible>,
+    opts?: { onFinish?: () => void },
+  ) => {
+    router.put(cellUrl(notebookId, cell.id), payload, {
+      onFinish: opts?.onFinish,
+    })
   }
 
-  const handleMove = (direction: "up" | "down") => {
-    router.post(`/notebooks/${notebookId}/cells/${cell.id}/move`, { direction })
+  const handleSaveQuery = (title: string | null, newQueryState: QueryBuilderState) => {
+    setSaving(true)
+    saveCell(buildCellPayload(cell, newQueryState, { title }), {
+      onFinish: () => {
+        setSaving(false)
+        setDrawerOpen(false)
+      },
+    })
   }
 
   const handleTogglePin = () => {
@@ -79,18 +126,44 @@ export function NotebookCell({
       pinnedTo = resolved.to.toISOString()
     }
 
-    const payload = {
-      title: cell.title,
-      query_mode: cell.queryMode,
-      query: queryStateToPayload(queryState),
-      pinned_from: pinnedFrom,
-      pinned_to: pinnedTo,
-    }
-    router.put(`/notebooks/${notebookId}/cells/${cell.id}`, payload)
+    saveCell(buildCellPayload(cell, queryState, { pinnedFrom, pinnedTo }))
   }
+
+  const handleDisplayedFieldsChange = (fields: string[] | null) => {
+    if (queryState.visualization.type !== "table") return
+
+    const viz: TableVisualization = fields
+      ? { ...queryState.visualization, displayed_fields: fields }
+      : (() => {
+          const { displayed_fields, ...rest } = queryState.visualization
+          void displayed_fields
+          return rest
+        })()
+
+    const newQueryState = { ...queryState, visualization: viz }
+    saveCell(buildCellPayload(cell, newQueryState))
+  }
+
+  const handleDelete = () => {
+    if (!confirm("Delete this cell?")) return
+    router.delete(cellUrl(notebookId, cell.id))
+  }
+
+  const handleMove = (direction: "up" | "down") => {
+    router.post(`${cellUrl(notebookId, cell.id)}/move`, { direction })
+  }
+
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
 
   const hasQuery = eventsPayload !== null || metricsPayload !== null
   const isEventsMode = cell.queryMode === "events"
+
+  const currentDisplayedFields =
+    queryState.visualization.type === "table"
+      ? queryState.visualization.displayed_fields ?? null
+      : null
 
   const renderResults = () => {
     if (!hasQuery) return <ResultsPlaceholder />
@@ -106,7 +179,13 @@ export function NotebookCell({
       return <ResultsTimeSeries data={data} />
     }
 
-    return <ResultsTable data={data} />
+    return (
+      <ResultsTable
+        data={data}
+        displayedFields={currentDisplayedFields}
+        onDisplayedFieldsChange={handleDisplayedFieldsChange}
+      />
+    )
   }
 
   const cellTitle = cell.title || "Untitled"
@@ -163,9 +242,10 @@ export function NotebookCell({
 
       <CellQueryDrawer
         cell={cell}
-        notebookId={notebookId}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+        onSave={handleSaveQuery}
+        saving={saving}
       />
     </>
   )

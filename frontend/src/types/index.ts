@@ -90,6 +90,7 @@ export type SortConfig = SortByField | SortByRef
 export interface TableVisualization {
   type: "table"
   sort?: SortConfig
+  displayed_fields?: string[]
 }
 
 export interface TimeSeriesVisualization {

@@ -60,6 +60,17 @@
                    :limit 10001
                    :visualization {:type "table"}})))
 
+  (testing "table visualization with displayed_fields"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :visualization {:type "table"
+                                 :displayed_fields ["timestamp" "service" "name"]}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :visualization {:type "table"
+                                 :displayed_fields ["attr.http.method" "span.duration_ms"]}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :visualization {:type "table"
+                                   :displayed_fields ["bad;injection"]}})))
+
   (testing "time_series visualization requires at least one aggregation"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :visualization {:type "time_series"}}))

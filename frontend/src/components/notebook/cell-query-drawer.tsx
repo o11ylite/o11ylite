@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react"
-import { router } from "@inertiajs/react"
 import { Save } from "lucide-react"
 
 import { QueryBuilder } from "@/components/query-builder"
@@ -13,28 +12,26 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet"
-import {
-  queryStateToPayload,
-  queryStateFromEntity,
-} from "@/lib/query-helpers"
+import { queryStateFromEntity } from "@/lib/query-helpers"
 import type { NotebookCell, QueryBuilderState } from "@/types"
 
 export function CellQueryDrawer({
   cell,
-  notebookId,
   open,
   onOpenChange,
+  onSave,
+  saving = false,
 }: {
   cell: NotebookCell
-  notebookId: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  onSave: (title: string | null, queryState: QueryBuilderState) => void
+  saving?: boolean
 }) {
   const [title, setTitle] = useState(cell.title ?? "")
   const [queryState, setQueryState] = useState<QueryBuilderState>(
     queryStateFromEntity(cell)
   )
-  const [saving, setSaving] = useState(false)
 
   // Reset local state when drawer opens (cell props may have changed)
   useEffect(() => {
@@ -45,21 +42,7 @@ export function CellQueryDrawer({
   }, [open, cell])
 
   const handleSave = () => {
-    const payload = {
-      title: title || null,
-      query_mode: queryState.mode,
-      query: queryStateToPayload(queryState),
-      pinned_from: cell.pinnedFrom,
-      pinned_to: cell.pinnedTo,
-    }
-
-    router.put(`/notebooks/${notebookId}/cells/${cell.id}`, payload, {
-      onBefore: () => setSaving(true),
-      onFinish: () => {
-        setSaving(false)
-        onOpenChange(false)
-      },
-    })
+    onSave(title || null, queryState)
   }
 
   return (
