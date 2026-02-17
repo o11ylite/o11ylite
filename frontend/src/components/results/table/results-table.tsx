@@ -129,7 +129,10 @@ export function ResultsTable({
   return (
     <div className="flex-1 flex flex-col overflow-hidden rounded-lg border">
       <div className="flex items-center justify-end px-3 py-2 border-b bg-muted/30">
-        <DisplayedFieldsSelector table={table} />
+        <DisplayedFieldsSelector
+          table={table}
+          onReset={onDisplayedFieldsChange ? () => onDisplayedFieldsChange(null) : undefined}
+        />
       </div>
       <div className="overflow-auto flex-1">
         <table
