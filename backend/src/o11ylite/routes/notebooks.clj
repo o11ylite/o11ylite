@@ -24,9 +24,7 @@
   "Extract and normalize notebook form params from request body."
   [body]
   {:name (:name body)
-   :description (:description body)
-   :global_from (or (:global_from body) "now-1h")
-   :global_to (or (:global_to body) "now")})
+   :description (:description body)})
 
 (defn- -parse-cell-params
   "Extract and normalize cell form params from request body.

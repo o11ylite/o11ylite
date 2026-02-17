@@ -7,10 +7,20 @@ import {
 
 import { Button } from "@/components/ui/button"
 
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return iso
+
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 function formatPinnedLabel(from: string, to: string): string {
-  const fromLabel = from.startsWith("now") ? from : "abs"
-  const toLabel = to.startsWith("now") ? to : "abs"
-  return `${fromLabel} \u2192 ${toLabel}`
+  return `${formatTimestamp(from)} - ${formatTimestamp(to)}`
 }
 
 export function CellTimeBadge({

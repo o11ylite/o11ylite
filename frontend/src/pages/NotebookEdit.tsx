@@ -15,19 +15,15 @@ export default function NotebookEdit() {
   }>().props
 
   const isEditing = notebook !== null
-  const [submitting, setSubmitting] = useState(false)
 
+  const [submitting, setSubmitting] = useState(false)
   const [name, setName] = useState(notebook?.name ?? "")
   const [description, setDescription] = useState(notebook?.description ?? "")
-  const [globalFrom, setGlobalFrom] = useState(notebook?.globalFrom ?? "now-1h")
-  const [globalTo, setGlobalTo] = useState(notebook?.globalTo ?? "now")
 
   const handleSubmit = () => {
     const payload = {
       name,
       description: description || null,
-      global_from: globalFrom,
-      global_to: globalTo,
     }
     const options = {
       onBefore: () => setSubmitting(true),
@@ -72,30 +68,6 @@ export default function NotebookEdit() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="global-from">Default Time From</Label>
-              <Input
-                id="global-from"
-                value={globalFrom}
-                onChange={(e) => setGlobalFrom(e.target.value)}
-                placeholder="now-1h"
-              />
-              <p className="text-xs text-muted-foreground">
-                Relative (now-1h) or absolute time
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="global-to">Default Time To</Label>
-              <Input
-                id="global-to"
-                value={globalTo}
-                onChange={(e) => setGlobalTo(e.target.value)}
-                placeholder="now"
-              />
-            </div>
           </div>
         </div>
 
