@@ -2,7 +2,6 @@ import { usePage, router } from "@inertiajs/react"
 import { useMemo, useCallback } from "react"
 
 import { urlSafeEncode, urlSafeDecode } from "@/lib/url-codec"
-import { DISPLAYED_FIELDS_PARAM } from "@/hooks/use-displayed-fields"
 import type { QueryBuilderState, Aggregation, MetricDefinition } from "@/types"
 
 // ============================================================================
@@ -33,17 +32,15 @@ const DEFAULT_STATE: QueryBuilderState = {
  * - Events aggregation query: returns groupBy fields + aggregation result columns
  * - Metrics query: returns time-series with metric labels
  *
- * When this fingerprint changes, the user's displayed field selection becomes
- * invalid (the columns no longer exist), so we clear the `fields` URL param.
+ * When this fingerprint changes, displayed_fields becomes invalid (the columns
+ * no longer exist), so we clear it from the visualization config.
  *
  * Note: Filters and time range don't affect which columns are returned.
  */
 function computeResultColumnFingerprint(state: QueryBuilderState): string {
-  // Mode change always changes result shape
   const modeKey = state.mode
 
   if (state.mode === "metrics") {
-    // For metrics, result shape depends on selected metrics and groupBy
     const metricsKey = (state.metrics ?? [])
       .map((m: MetricDefinition) => `${m.id}:${m.name}:${m.agg}`)
       .sort()
@@ -59,6 +56,19 @@ function computeResultColumnFingerprint(state: QueryBuilderState): string {
     .join(",")
   const groupKey = [...state.groupBy].sort().join(",")
   return `mode=${modeKey}|agg=${aggKey}|group=${groupKey}`
+}
+
+/**
+ * Strip displayed_fields from visualization config.
+ * Returns a new state with displayed_fields removed if present.
+ */
+function clearDisplayedFields(state: QueryBuilderState): QueryBuilderState {
+  if (state.visualization.type !== "table" || !("displayed_fields" in state.visualization)) {
+    return state
+  }
+  const { displayed_fields, ...vizWithoutFields } = state.visualization
+  void displayed_fields // Explicitly discard
+  return { ...state, visualization: vizWithoutFields }
 }
 
 // ============================================================================
@@ -80,17 +90,13 @@ function parseQueryStateFromUrl(url: string): QueryBuilderState | null {
   }
 }
 
-function updateQueryStateInUrl(
-  state: QueryBuilderState,
-  clearDisplayedFields: boolean
-): void {
+function updateQueryStateInUrl(state: QueryBuilderState): void {
   const encoded = urlSafeEncode(state)
   const params = new URLSearchParams(window.location.search)
   params.set(QUERY_PARAM, encoded)
 
-  if (clearDisplayedFields) {
-    params.delete(DISPLAYED_FIELDS_PARAM)
-  }
+  // Clean up legacy ?fields= param if present
+  params.delete("fields")
 
   const newUrl = `${window.location.pathname}?${params.toString()}`
 
@@ -146,12 +152,16 @@ export function useQueryState() {
 
   const setState = useCallback(
     (newState: QueryBuilderState) => {
-      // Clear displayed fields selection when result columns will change
+      // Clear displayed_fields when result columns will change
       const currentFingerprint = computeResultColumnFingerprint(state)
       const newFingerprint = computeResultColumnFingerprint(newState)
       const resultColumnsChanged = currentFingerprint !== newFingerprint
 
-      updateQueryStateInUrl(newState, resultColumnsChanged)
+      const effectiveState = resultColumnsChanged
+        ? clearDisplayedFields(newState)
+        : newState
+
+      updateQueryStateInUrl(effectiveState)
     },
     [state]
   )

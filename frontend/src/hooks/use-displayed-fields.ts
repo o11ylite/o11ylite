@@ -1,4 +1,3 @@
-import { usePage, router } from "@inertiajs/react"
 import { useMemo, useCallback } from "react"
 import type { VisibilityState } from "@tanstack/react-table"
 
@@ -6,10 +5,7 @@ import type { VisibilityState } from "@tanstack/react-table"
 // Constants
 // ============================================================================
 
-/** URL parameter name for displayed fields. Exported for use by useQueryState. */
-export const DISPLAYED_FIELDS_PARAM = "fields"
-
-const DEFAULT_VISIBLE_FIELDS = new Set([
+export const DEFAULT_VISIBLE_FIELDS = new Set([
   "timestamp",
   "service",
   "name",
@@ -17,43 +13,6 @@ const DEFAULT_VISIBLE_FIELDS = new Set([
   "trace_id",
   "meta.signal_type",
 ])
-
-// ============================================================================
-// URL Helpers
-// ============================================================================
-
-function parseDisplayedFieldsFromUrl(url: string): string[] | null {
-  try {
-    const urlObj = new URL(url, window.location.origin)
-    const encoded = urlObj.searchParams.get(DISPLAYED_FIELDS_PARAM)
-
-    if (!encoded) {
-      return null
-    }
-
-    return encoded.split(",").filter(Boolean)
-  } catch {
-    return null
-  }
-}
-
-function updateDisplayedFieldsInUrl(fields: string[] | null): void {
-  const params = new URLSearchParams(window.location.search)
-
-  if (fields === null || fields.length === 0) {
-    params.delete(DISPLAYED_FIELDS_PARAM)
-  } else {
-    params.set(DISPLAYED_FIELDS_PARAM, fields.join(","))
-  }
-
-  const newUrl = `${window.location.pathname}?${params.toString()}`
-
-  router.push({
-    url: newUrl,
-    preserveState: true,
-    preserveScroll: true,
-  })
-}
 
 // ============================================================================
 // Visibility Conversion
@@ -109,42 +68,45 @@ function fromVisibilityState(
 interface UseDisplayedFieldsOptions {
   /** Available fields from the current query result */
   availableFields: string[]
+  /** Explicit field selection (from visualization config, URL, etc.) */
+  displayedFields?: string[] | null
+  /** Called when the user changes which fields are visible */
+  onDisplayedFieldsChange?: (fields: string[] | null) => void
 }
 
 /**
- * Hook for managing displayed fields state via URL query parameters.
+ * Hook for managing displayed fields as TanStack Table column visibility.
  *
- * The URL is the source of truth. Fields are stored as comma-separated values.
+ * Source-agnostic: accepts displayed fields and a change callback from the
+ * caller. The caller decides where to store them (URL param, visualization
+ * config, etc.).
  *
  * @example
  * ```tsx
- * const fields = rows.length > 0 ? Object.keys(rows[0]) : []
  * const { visibility, setVisibility } = useDisplayedFields({
  *   availableFields: fields,
+ *   displayedFields: state.visualization.displayed_fields,
+ *   onDisplayedFieldsChange: (fields) => updateVisualization({ displayed_fields: fields }),
  * })
  *
- * // Pass to TanStack Table
  * const table = useReactTable({
  *   state: { columnVisibility: visibility },
  *   onColumnVisibilityChange: setVisibility,
  * })
  * ```
  */
-export function useDisplayedFields({ availableFields }: UseDisplayedFieldsOptions) {
-  const { url } = usePage()
-
-  const selectedFields = useMemo(
-    () => parseDisplayedFieldsFromUrl(url),
-    [url]
-  )
-
+export function useDisplayedFields({
+  availableFields,
+  displayedFields,
+  onDisplayedFieldsChange,
+}: UseDisplayedFieldsOptions) {
   const visibility = useMemo((): VisibilityState => {
-    if (selectedFields === null) {
+    if (!displayedFields || displayedFields.length === 0) {
       return buildDefaultVisibility(availableFields)
     }
 
     // Filter to only include fields that exist in current results
-    const validFields = selectedFields.filter((f) => availableFields.includes(f))
+    const validFields = displayedFields.filter((f) => availableFields.includes(f))
 
     // If no valid fields remain, fall back to defaults
     if (validFields.length === 0) {
@@ -152,7 +114,7 @@ export function useDisplayedFields({ availableFields }: UseDisplayedFieldsOption
     }
 
     return toVisibilityState(validFields, availableFields)
-  }, [selectedFields, availableFields])
+  }, [displayedFields, availableFields])
 
   const setVisibility = useCallback(
     (updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
@@ -169,29 +131,16 @@ export function useDisplayedFields({ availableFields }: UseDisplayedFieldsOption
         newFields.length === defaultFields.length &&
         newFields.every((f) => defaultFields.includes(f))
 
-      // Clear URL param if matches default
-      updateDisplayedFieldsInUrl(isDefault ? null : newFields)
+      // Report null if selection matches default (allows caller to clear stored value)
+      onDisplayedFieldsChange?.(isDefault ? null : newFields)
     },
-    [visibility, availableFields]
+    [visibility, availableFields, onDisplayedFieldsChange]
   )
-
-  const reset = useCallback(() => {
-    updateDisplayedFieldsInUrl(null)
-  }, [])
 
   return {
     visibility,
     setVisibility,
-    reset,
     /** Whether there's an explicit field selection (vs using defaults) */
-    hasSelection: selectedFields !== null,
+    hasSelection: displayedFields != null && displayedFields.length > 0,
   }
-}
-
-/**
- * Clears the displayed fields URL parameter.
- * Call this when the query shape changes (e.g., aggregations added/removed).
- */
-export function clearDisplayedFieldsParam(): void {
-  updateDisplayedFieldsInUrl(null)
 }

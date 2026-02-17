@@ -126,7 +126,8 @@
 (def table-visualization
   [:map {:closed true}
    [:type [:= "table"]]
-   [:sort {:optional true} sort-config]])
+   [:sort {:optional true} sort-config]
+   [:displayed_fields {:optional true} [:vector field-name]]])
 
 (def time-series-visualization
   [:map {:closed true}

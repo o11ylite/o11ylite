@@ -87,12 +87,30 @@ export default function Explore() {
     setPagination(p => ({ ...p, cursorStack: [...p.cursorStack, nextCursor] }))
   }
 
+  // Displayed fields from visualization config
+  const currentDisplayedFields = state.visualization.type === "table"
+    ? state.visualization.displayed_fields ?? null
+    : null
+
   // Sort handler - updates visualization config which resets pagination via queryResetKey
   const handleSortChange = (newSort: SortConfig) => {
     setState({
       ...state,
       visualization: { ...state.visualization, sort: newSort } as TableVisualization,
     })
+  }
+
+  // Displayed fields handler - updates visualization config
+  const handleDisplayedFieldsChange = (fields: string[] | null) => {
+    if (state.visualization.type !== "table") return
+    const viz = fields
+      ? { ...state.visualization, displayed_fields: fields }
+      : (() => {
+          const { displayed_fields, ...rest } = state.visualization
+          void displayed_fields
+          return rest
+        })()
+    setState({ ...state, visualization: viz })
   }
 
   // Called when user clicks "Run" - updates URL which triggers refetch
@@ -143,6 +161,8 @@ export default function Explore() {
             sortable={sortingEnabled}
             sort={currentSort}
             onSortChange={sortingEnabled ? handleSortChange : undefined}
+            displayedFields={currentDisplayedFields}
+            onDisplayedFieldsChange={handleDisplayedFieldsChange}
           />
         )
     }
