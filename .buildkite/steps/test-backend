@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "--- :hammer: Installing system dependencies"
+apt-get update && apt-get install -y --no-install-recommends make unzip
+
+echo "--- :gear: Installing mise"
+curl https://mise.run | sh
+export PATH="$HOME/.local/bin:$PATH"
+eval "$(mise activate bash)"
+mise install
+
+cd backend
+
+echo "--- :package: Fetching dependencies"
+make deps
+make otel-proto-download
+make proto-compile
+
+echo "--- :clojure: Running tests"
+make test

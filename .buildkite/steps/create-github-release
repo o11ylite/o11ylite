@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="$(buildkite-agent meta-data get "release-version")"
+TAG="$VERSION"
+
+echo "--- :git: Tagging $TAG"
+git tag "$TAG"
+git push origin "$TAG"
+
+echo "--- :github: Creating GitHub release"
+IMAGE="ghcr.io/o11ylite/o11ylite"
+gh release create "$TAG" --title "$TAG" --generate-notes --notes "## Docker image
+
+\`\`\`
+docker pull $IMAGE:$VERSION
+\`\`\`
+"

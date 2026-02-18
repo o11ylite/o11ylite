@@ -1,0 +1,19 @@
+steps:
+  - label: ":calendar: Calculate version"
+    command: .buildkite/steps/set-calver
+
+  - wait
+
+  - label: ":docker: Build & Push"
+    agents:
+      queue: hosted-amd64-small
+    secrets:
+      - GITHUB_TOKEN
+    command: .buildkite/steps/build-and-push-image
+
+  - wait
+
+  - label: ":github: Create GitHub release"
+    secrets:
+      - GITHUB_TOKEN
+    command: .buildkite/steps/create-github-release

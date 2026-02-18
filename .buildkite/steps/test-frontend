@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "--- :gear: Installing mise"
+curl https://mise.run | sh
+export PATH="$HOME/.local/bin:$PATH"
+eval "$(mise activate bash)"
+mise install
+
+cd frontend
+
+echo "--- :package: Installing dependencies"
+npm ci
+
+echo "--- :eslint: Linting"
+npm run lint
+
+echo "--- :typescript: Building"
+npm run build
+
+echo "--- :vitest: Running tests"
+npm test
