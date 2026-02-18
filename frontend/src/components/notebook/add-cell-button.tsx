@@ -7,7 +7,7 @@ export function AddCellButton({ notebookId }: { notebookId: string }) {
   const handleAdd = () => {
     router.post(`/notebooks/${notebookId}/cells`, {
       query_mode: "events",
-      query: { visualization: { type: "table" } },
+      query: { visualization: { type: "table" }, limit: 10 },
     })
   }
 
