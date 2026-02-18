@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Save } from "lucide-react"
 
 import { QueryBuilder } from "@/components/query-builder"
@@ -36,13 +36,15 @@ export function CellQueryDrawer({
   )
 
   // Reset local state when drawer opens (cell props may have changed)
-  useEffect(() => {
-    if (open) {
-      setTitle(cell.title ?? "")
-      setDescription(cell.description ?? "")
-      setQueryState(queryStateFromEntity(cell))
-    }
-  }, [open, cell])
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open && !prevOpen) {
+    setTitle(cell.title ?? "")
+    setDescription(cell.description ?? "")
+    setQueryState(queryStateFromEntity(cell))
+  }
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+  }
 
   const handleSave = () => {
     onSave(title || null, description || null, queryState)
