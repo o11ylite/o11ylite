@@ -9,7 +9,7 @@ variable "REGISTRY" {
 }
 
 variable "IMAGE_NAME" {
-  default = "zhming0/o11ylite"
+  default = "o11ylite/o11ylite"
 }
 
 variable "VERSION" {

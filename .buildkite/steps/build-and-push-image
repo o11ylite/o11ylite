@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="$(buildkite-agent meta-data get "release-version")"
+export VERSION
+
+echo "--- :key: Logging into GHCR"
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u o11ylite --password-stdin
+
+echo "--- :docker: Building and pushing $VERSION"
+docker buildx bake \
+  --set "default.tags=ghcr.io/o11ylite/o11ylite:$VERSION" \
+  --set "default.tags=ghcr.io/o11ylite/o11ylite:latest" \
+  --push

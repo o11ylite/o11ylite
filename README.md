@@ -28,7 +28,7 @@ Ship traces, logs, and metrics to a single container. No distributed infrastruct
 docker run -d \
   -p 80:80 \
   -v o11ylite-data:/data \
-  ghcr.io/zhming0/o11ylite:latest
+  ghcr.io/o11ylite/o11ylite:latest
 ```
 
 Then:

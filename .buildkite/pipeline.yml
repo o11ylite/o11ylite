@@ -1,0 +1,20 @@
+steps:
+  - label: ":docker: Build"
+    agents:
+      queue: hosted-amd64-small
+    if: build.branch != "main"
+    command: docker buildx bake dev
+
+  - label: ":clojure: Backend Test"
+    command: ".buildkite/steps/test-backend"
+
+  - label: ":typescript: Frontend Test"
+    command: ".buildkite/steps/test-frontend"
+
+  - block: ":rocket: Release"
+    if: build.branch == "main"
+    prompt: "Create a new release and push to GHCR?"
+
+  - label: ":pipeline: Upload release pipeline"
+    if: build.branch == "main"
+    command: buildkite-agent pipeline upload .buildkite/pipeline.release.yml
