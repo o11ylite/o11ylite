@@ -22,7 +22,7 @@ export default function NotebookShow() {
 
   return (
     <ApplicationLayout title={breadcrumb} showTimeRange>
-      <div className="space-y-4">
+      <div className="space-y-6">
         {notebook.description && (
           <p className="text-sm text-muted-foreground">{notebook.description}</p>
         )}

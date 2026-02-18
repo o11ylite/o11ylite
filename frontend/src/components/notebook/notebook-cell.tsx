@@ -198,8 +198,8 @@ export function NotebookCell({
 
   return (
     <>
-      <div className="rounded-lg border">
-        <div className="flex items-center gap-2 border-b px-3 py-2">
+      <div className={isFirst ? "" : "border-t pt-2"}>
+        <div className="flex items-center gap-2 px-1 py-2">
           <span className="text-sm font-medium truncate">{cellTitle}</span>
           {modeBadge}
           <CellTimeBadge
@@ -237,11 +237,11 @@ export function NotebookCell({
           </div>
         </div>
         {cell.description && (
-          <p className="border-b px-3 py-2 text-sm text-muted-foreground whitespace-pre-line">
+          <p className="px-1 pb-2 text-sm text-muted-foreground whitespace-pre-line">
             {cell.description}
           </p>
         )}
-        <div className="p-3 min-h-[200px] max-h-[500px] overflow-y-auto">
+        <div className="min-h-[200px]">
           {renderResults()}
         </div>
       </div>
