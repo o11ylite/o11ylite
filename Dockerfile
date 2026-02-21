@@ -89,6 +89,8 @@ RUN groupadd -r o11ylite && useradd -r -g o11ylite o11ylite \
     && mkdir -p /app /data /config \
     && chown -R o11ylite:o11ylite /app /data /config
 
+LABEL org.opencontainers.image.source=https://github.com/o11ylite/o11ylite
+
 WORKDIR /app
 
 # Copy backend uberjar

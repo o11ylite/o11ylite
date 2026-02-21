@@ -4,6 +4,9 @@ set -euo pipefail
 VERSION="$(buildkite-agent meta-data get "release-version")"
 TAG="$VERSION"
 
+echo "--- :git: Configuring HTTPS authentication"
+git config url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+
 echo "--- :git: Tagging $TAG"
 git tag "$TAG"
 git push origin "$TAG"
