@@ -21,6 +21,9 @@ target "dev" {
   context = "."
   dockerfile = "Dockerfile"
   tags = ["o11ylite:dev"]
+  args = {
+    VERSION = "dev"
+  }
 }
 
 // Production multi-platform build
@@ -32,4 +35,7 @@ target "default" {
     "${REGISTRY}/${IMAGE_NAME}:latest"
   ]
   platforms = ["linux/amd64", "linux/arm64"]
+  args = {
+    VERSION = VERSION
+  }
 }

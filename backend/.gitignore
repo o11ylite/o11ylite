@@ -23,6 +23,7 @@
 !dev/
 !docs/
 !resources/
+resources/version.txt
 !src/
 !test/
 

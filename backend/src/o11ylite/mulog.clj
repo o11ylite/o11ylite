@@ -9,7 +9,8 @@
   (:require
     [com.brunobonacci.mulog :as mulog]
     ;; Require to register :open-telemetry publisher multimethod
-    [com.brunobonacci.mulog.publishers.open-telemetry]))
+    [com.brunobonacci.mulog.publishers.open-telemetry]
+    [o11ylite.version :as version]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -59,7 +60,7 @@
       (-dev-publisher)
       (-prod-publisher)))
   (mulog/set-global-context!
-    {:app-name "o11ylite" :version "0.1.0-SNAPSHOT"}))
+    {:app-name "o11ylite" :version version/current}))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

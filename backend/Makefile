@@ -23,6 +23,9 @@
 # Column the target description is printed from
 HELP-DESCRIPTION-SPACING := 24
 
+# Application version (override with `make dist VERSION=1.0.0`)
+VERSION := dev
+
 # Tool variables
 CLOJURE_TEST_RUNNER := clojure -M:test/env:test/run
 CLOJURE_EXEC_TEST_RUNNER := clojure -X:test/env:test/run
@@ -86,8 +89,8 @@ build-config: ## Pretty print build configuration
 	clojure -T:build/task config
 
 build-uberjar: ## Build a uberjar archive of Clojure project & Clojure runtime
-	$(info -- Build service Uberjar  ----------------)
-	clojure -T:build/task uberjar
+	$(info -- Build service Uberjar (version: $(VERSION)) --)
+	clojure -J-Do11ylite.version=$(VERSION) -T:build/task uberjar
 
 build-clean: ## Clean build assets or given directory
 	$(info -- Clean Build  --------------------------)

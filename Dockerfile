@@ -26,6 +26,9 @@ RUN npm run build
 # Use non-Alpine image because grpc-java plugin requires glibc
 FROM clojure:temurin-21-tools-deps AS backend-build
 
+# Application version baked into the uberjar (override at build time)
+ARG VERSION=dev
+
 # Install build dependencies for protobuf compilation
 RUN apt-get update && apt-get install -y --no-install-recommends make curl unzip \
     && rm -rf /var/lib/apt/lists/*
@@ -49,8 +52,8 @@ COPY backend/resources ./resources
 # Copy frontend manifest to backend resources for Inertia integration
 COPY --from=frontend-build /app/frontend/dist/.vite ./resources/.vite
 
-# Build uberjar
-RUN clojure -T:build/task uberjar
+# Build uberjar with version baked in
+RUN clojure -J-Do11ylite.version=${VERSION} -T:build/task uberjar
 
 # =============================================================================
 # Stage 3: Runtime Image
