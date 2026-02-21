@@ -22,7 +22,9 @@
 (ns build
   (:require
     [clojure.tools.build.api :as build-api]
-    [clojure.pprint :as pprint]))
+    [clojure.pprint :as pprint])
+  (:import
+    [java.io File]))
 
 ;; ---------------------------------------------------------
 ;; Project configuration
@@ -40,6 +42,35 @@
   (pprint/pprint (or config project-config)))
 
 ;; End of Build configuration
+;; ---------------------------------------------------------
+
+;; ---------------------------------------------------------
+;; Version
+
+(def ^:private version-file "resources/version.txt")
+
+(defn- -resolve-version
+  "Resolve the version string from system property o11ylite.version.
+   Falls back to \"dev\" when not provided."
+  []
+  (or (System/getProperty "o11ylite.version") "dev"))
+
+(defn- -write-version-file!
+  "Write the resolved version to resources/version.txt so it ends up
+   on the uberjar classpath."
+  []
+  (let [version (-resolve-version)]
+    (spit version-file version)
+    (println "Wrote version" (pr-str version) "to" version-file)))
+
+(defn- -clean-version-file!
+  "Remove the generated version file."
+  []
+  (let [f (File. version-file)]
+    (when (.exists f)
+      (.delete f))))
+
+;; End of Version
 ;; ---------------------------------------------------------
 
 ;; ---------------------------------------------------------
@@ -64,18 +95,22 @@
         {:keys [class-directory main-namespace project-basis uberjar-file]} config]
 
     (clean "target")
+    (-write-version-file!)
 
-    (build-api/copy-dir {:src-dirs   ["src" "resources" "classes"]
-                         :target-dir class-directory})
+    (try
+      (build-api/copy-dir {:src-dirs   ["src" "resources" "classes"]
+                           :target-dir class-directory})
 
-    (build-api/compile-clj {:basis     project-basis
-                            :class-dir class-directory
-                            :src-dirs  ["src"]})
+      (build-api/compile-clj {:basis     project-basis
+                              :class-dir class-directory
+                              :src-dirs  ["src"]})
 
-    (build-api/uber {:basis     project-basis
-                     :class-dir class-directory
-                     :main      main-namespace
-                     :uber-file uberjar-file})))
+      (build-api/uber {:basis     project-basis
+                       :class-dir class-directory
+                       :main      main-namespace
+                       :uber-file uberjar-file})
+      (finally
+        (-clean-version-file!)))))
 
 ;; End of Build tasks
 ;; ---------------------------------------------------------
