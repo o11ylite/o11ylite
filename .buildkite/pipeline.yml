@@ -16,7 +16,7 @@ steps:
 
   - block: ":rocket: Release"
     if: build.branch == "main"
-    prompt: "Create a new release and push to GHCR?"
+    prompt: "Create a new release?"
 
   - label: ":pipeline: Upload release pipeline"
     if: build.branch == "main"
