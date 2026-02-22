@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="$(date -u +'%Y.%m.%d-%H.%M.%S')"
+YEAR="$(date -u +'%Y')"
+MONTH="$(date -u +'%-m')"
+DAY="$(date -u +'%-d')"
+HOUR="$(date -u +'%-H')"
+MIN="$(date -u +'%-M')"
+SEC="$(date -u +'%-S')"
+VERSION="${YEAR}.${MONTH}.${DAY}-${HOUR}.${MIN}.${SEC}"
 echo "Version: $VERSION"
 buildkite-agent meta-data set "release-version" "$VERSION"

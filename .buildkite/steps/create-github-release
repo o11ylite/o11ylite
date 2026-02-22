@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! command -v gh >/dev/null 2>&1; then
+  echo "--- :github: Installing GitHub CLI"
+  GH_VERSION="2.87.2"
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    x86_64)  ARCH="amd64" ;;
+    aarch64) ARCH="arm64" ;;
+  esac
+  curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
+    | tar -xz --strip-components=1 -C /usr/local
+fi
+
 VERSION="$(buildkite-agent meta-data get "release-version")"
 TAG="$VERSION"
 
