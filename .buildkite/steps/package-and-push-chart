@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="$(buildkite-agent meta-data get "release-version")"
+
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Stamp version into Chart.yaml
+sed -i "s/^version: .*/version: ${VERSION}/" chart/o11ylite/Chart.yaml
+sed -i "s/^appVersion: .*/appVersion: \"${VERSION}\"/" chart/o11ylite/Chart.yaml
+
+helm package chart/o11ylite
+
+echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u o11ylite --password-stdin
+helm push "o11ylite-${VERSION}.tgz" oci://ghcr.io/o11ylite/charts

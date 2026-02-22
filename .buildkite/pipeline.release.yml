@@ -17,3 +17,8 @@ steps:
     secrets:
       - GITHUB_TOKEN
     command: .buildkite/steps/create-github-release
+
+  - label: ":helm: Package & Push Chart"
+    secrets:
+      - GITHUB_TOKEN
+    command: .buildkite/steps/package-and-push-chart
