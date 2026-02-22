@@ -1,0 +1,9 @@
+apiVersion: v2
+name: o11ylite
+description: Lightweight, single-process observability engine that speaks OpenTelemetry
+type: application
+version: 0.0.0
+appVersion: "0.0.0"
+home: https://github.com/o11ylite/o11ylite
+sources:
+  - https://github.com/o11ylite/o11ylite

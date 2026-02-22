@@ -11,6 +11,9 @@ steps:
   - label: ":typescript: Frontend Test"
     command: ".buildkite/steps/test-frontend"
 
+  - label: ":helm: Lint Chart"
+    command: ".buildkite/steps/lint-chart"
+
   - block: ":rocket: Release"
     if: build.branch == "main"
     prompt: "Create a new release and push to GHCR?"

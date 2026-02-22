@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+helm lint chart/o11ylite
