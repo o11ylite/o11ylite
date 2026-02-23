@@ -4,9 +4,8 @@ set -euo pipefail
 YEAR="$(date -u +'%Y')"
 MONTH="$(date -u +'%-m')"
 DAY="$(date -u +'%-d')"
-HOUR="$(date -u +'%-H')"
-MIN="$(date -u +'%-M')"
-SEC="$(date -u +'%-S')"
-VERSION="${YEAR}.${MONTH}.${DAY}-${HOUR}.${MIN}.${SEC}"
+# Prefix with 1 to avoid leading zeros (semver forbids them) while keeping fixed width for lexical sorting
+TIME="1$(date -u +'%H%M%S')"
+VERSION="${YEAR}.${MONTH}.${DAY}-${TIME}"
 echo "Version: $VERSION"
 buildkite-agent meta-data set "release-version" "$VERSION"
