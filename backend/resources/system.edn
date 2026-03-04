@@ -62,6 +62,15 @@
  {:core-config #ig/ref :config/core
   :handler #ig/ref :router/routes}
 
+ :auth/config
+ {:core-config #ig/ref :config/core
+  :sqlite #ig/ref :db/sqlite
+  :_storage #ig/ref :storage/init}
+
+ :auth/api-key-cache
+ {:sqlite #ig/ref :db/sqlite
+  :_storage #ig/ref :storage/init}
+
  :server/otel-grpc
  {:core-config #ig/ref :config/core
   :event-metadata #ig/ref :cache/event-metadata
@@ -69,7 +78,8 @@
   :id-generator #ig/ref :id/generator
   :metric-batcher #ig/ref :ingest/metric-batcher
   :metric-normalizer #ig/ref :ingest/metric-normalizer
-  :sqlite #ig/ref :db/sqlite}
+  :sqlite #ig/ref :db/sqlite
+  :api-key-cache #ig/ref :auth/api-key-cache}
 
  :inertia/config
  {:core-config #ig/ref :config/core}
@@ -84,4 +94,6 @@
   :id-generator #ig/ref :id/generator
   :metric-batcher #ig/ref :ingest/metric-batcher
   :metric-normalizer #ig/ref :ingest/metric-normalizer
+  :auth-config #ig/ref :auth/config
+  :api-key-cache #ig/ref :auth/api-key-cache
   :_storage #ig/ref :storage/init}}

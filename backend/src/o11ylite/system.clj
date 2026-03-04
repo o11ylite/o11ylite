@@ -24,6 +24,8 @@
     [o11ylite.components.scheduler]
     [o11ylite.components.otel-grpc-server]
     [o11ylite.components.inertia]
+    [o11ylite.components.auth-config]
+    [o11ylite.components.api-key-cache]
     [o11ylite.components.router]
     [o11ylite.components.web-server])
   (:import

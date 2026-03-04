@@ -341,3 +341,33 @@ export interface NotebookCell {
   created_at: number
   updated_at: number
 }
+
+// ============================================================================
+// API Key Types
+// ============================================================================
+
+export type ApiKeyScope = "ingest" | "read" | "write" | "admin"
+
+export interface ApiKey {
+  id: string
+  name: string
+  prefix: string
+  scope: ApiKeyScope
+  created_at: number
+  last_used_at: number | null
+}
+
+// ============================================================================
+// Auth Shared Data (from Inertia shared props)
+// ============================================================================
+
+export interface AuthUser {
+  email: string
+  name: string
+  sub: string
+}
+
+export interface AuthSharedData {
+  user: AuthUser | null
+  oidc_enabled: boolean
+}
