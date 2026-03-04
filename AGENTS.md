@@ -38,6 +38,7 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Rich comment block `(comment ...)` at end of files for REPL experimentation
 - Formatting enforced by cljstyle (2-space indent, kebab-case naming)
 - Tests in `test/o11ylite/integration/` use fixture `(use-fixtures :each h/with-system)`
+- **Cost of `with-system`:** The fixture starts and tears down the entire system (SQLite, DuckDB, HTTP server, gRPC server, etc.) for **every single `deftest`**. This is expensive. Two ways to manage this: (1) use `(use-fixtures :each (h/with-partial-system [:component/key]))` when a test only needs a subset of components, and (2) group related assertions into fewer `deftest` blocks using `testing` to amortize startup cost — one `deftest` with multiple `testing` sections is much cheaper than many single-assertion `deftest` blocks.
 - Backend is all-in Java virtual thread.
 - Avoid parameter lists with more than three or four positional parameters.
 - Namespace splitting patterns:

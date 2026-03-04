@@ -93,4 +93,17 @@ CREATE TABLE IF NOT EXISTS notebook_cells (
   created_at INTEGER NOT NULL,            -- epoch ms
   updated_at INTEGER NOT NULL             -- epoch ms
 );
+--;;
+-- API keys for ingestion and API authentication
+-- Full key shown only once at creation; only SHA-256 hash is persisted
+-- Keys are immutable (create or delete only)
+CREATE TABLE IF NOT EXISTS api_keys (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  prefix       TEXT NOT NULL,            -- "o11y_" + first 8 chars of random part, for identification
+  key_hash     TEXT NOT NULL,            -- SHA-256 hash of the full key
+  scope        TEXT NOT NULL CHECK(scope IN ('ingest', 'read', 'write', 'admin')),
+  created_at   INTEGER NOT NULL,         -- epoch ms
+  last_used_at INTEGER                   -- epoch ms, updated on use
+);
 

@@ -7,7 +7,8 @@
 (ns o11ylite.test-helpers.otlp
   (:import
     [com.google.protobuf ByteString]
-    [io.grpc ManagedChannelBuilder]
+    [io.grpc ManagedChannelBuilder Metadata Metadata$Key StatusRuntimeException]
+    [io.grpc.stub MetadataUtils]
     [io.opentelemetry.proto.common.v1 AnyValue KeyValue InstrumentationScope]
     [io.opentelemetry.proto.resource.v1 Resource]
     [io.opentelemetry.proto.trace.v1 Span Span$SpanKind Span$Event Status Status$StatusCode ResourceSpans ScopeSpans]
@@ -178,17 +179,29 @@
 ;; ---------------------------------------------------------
 ;; gRPC Client
 
+(defn- -attach-auth
+  "Attach an authorization header to a gRPC stub if token is provided."
+  [stub token]
+  (if-not token
+    stub
+    (let [metadata (Metadata.)
+          key (Metadata$Key/of "authorization" Metadata/ASCII_STRING_MARSHALLER)]
+      (.put metadata key (str "Bearer " token))
+      (.withInterceptors stub (into-array [(MetadataUtils/newAttachHeadersInterceptor metadata)])))))
+
 (defn export-traces!
   "Export traces to the test gRPC server.
    Ingestion is synchronous - data is queryable immediately after this returns.
 
    Takes a map with :service-name, :tracer-name, :spans etc.
+   Optional :token key attaches a Bearer authorization header.
    Returns the ExportTraceServiceResponse."
-  [request-map]
+  [request-map & {:keys [token]}]
   (let [channel (-> (ManagedChannelBuilder/forAddress "localhost" test-port)
                     (.usePlaintext)
                     (.build))
-        stub (TraceServiceGrpc/newBlockingStub channel)
+        stub (-> (TraceServiceGrpc/newBlockingStub channel)
+                 (-attach-auth token))
         request (build-trace-request request-map)]
     (try
       (.export stub request)
