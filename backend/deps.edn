@@ -77,7 +77,10 @@
   com.github.f4b6a3/uuid-creator {:mvn/version "6.0.0"}
 
   ;; OpenTelemetry manual instrumentation
-  com.github.steffan-westcott/clj-otel-api {:mvn/version "0.2.10"}}
+  com.github.steffan-westcott/clj-otel-api {:mvn/version "0.2.10"}
+
+  ;; OIDC client for UI authentication
+  io.github.zhming0/oidc-client {:mvn/version "2026.3.3-1124840"}}
  ;; ---------------------------------------------------------
 
  ;; ---------------------------------------------------------

@@ -48,7 +48,19 @@
    {:key :dev? :env-var "O11YLITE_DEV" :default false :parser #(= "true" %)}
 
    ;; Enable runtime app configuration via KV store
-   {:key :runtime-app-config? :env-var "O11YLITE_ENABLE_RUNTIME_APP_CONFIG" :default false :parser #(= "true" %)}])
+   {:key :runtime-app-config? :env-var "O11YLITE_ENABLE_RUNTIME_APP_CONFIG" :default false :parser #(= "true" %)}
+
+   ;; OIDC issuer URL - enables UI authentication when set
+   {:key :oidc-issuer-url :env-var "O11YLITE_OIDC_ISSUER_URL" :default nil :parser identity}
+
+   ;; OIDC client ID - required if OIDC enabled
+   {:key :oidc-client-id :env-var "O11YLITE_OIDC_CLIENT_ID" :default nil :parser identity}
+
+   ;; OIDC client secret - required if OIDC enabled
+   {:key :oidc-client-secret :env-var "O11YLITE_OIDC_CLIENT_SECRET" :default nil :parser identity}
+
+   ;; Session encryption key (16-byte hex string); auto-generated if not set
+   {:key :session-secret :env-var "O11YLITE_SESSION_SECRET" :default nil :parser identity}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps

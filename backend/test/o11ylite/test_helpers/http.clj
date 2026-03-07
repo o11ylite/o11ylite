@@ -135,7 +135,7 @@
         (when (and cookie-str (.contains ^String cookie-str "XSRF-TOKEN"))
           (URLDecoder/decode (second (re-find #"XSRF-TOKEN=([^;]+)" cookie-str)) "UTF-8"))))))
 
-(defn- -extract-session-cookie
+(defn extract-session-cookie
   "Extract ring-session cookie value from Set-Cookie header (raw, URL-encoded)."
   [response]
   (let [cookies (get-in response [:headers "set-cookie"])]
@@ -144,9 +144,23 @@
         (when (and cookie-str (.contains ^String cookie-str "ring-session"))
           (second (re-find #"ring-session=([^;]+)" cookie-str)))))))
 
-(def ^:private no-redirect-client
+(def no-redirect-client
   "HTTP client that does not follow redirects."
   (delay (http/client {:follow-redirects :never})))
+
+(defn no-redirect-get
+  "GET without following redirects. Returns raw response."
+  ([path] (no-redirect-get path {}))
+  ([path opts]
+   (http/get (url path)
+             (merge {:client @no-redirect-client :throw false} opts))))
+
+(defn no-redirect-post
+  "POST without following redirects. Returns raw response."
+  ([path] (no-redirect-post path {}))
+  ([path opts]
+   (http/post (url path)
+              (merge {:client @no-redirect-client :throw false} opts))))
 
 (defn csrf-session
   "Establish a session by hitting a page route and extracting CSRF + session cookies.
@@ -155,7 +169,7 @@
   ([path]
    (let [response (get-request path)
          csrf (-extract-csrf-token response)
-         session (-extract-session-cookie response)]
+         session (extract-session-cookie response)]
      {:csrf-token csrf
       :cookie-header (str "ring-session=" session "; XSRF-TOKEN=" csrf)})))
 

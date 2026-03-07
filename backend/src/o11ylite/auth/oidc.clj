@@ -1,0 +1,108 @@
+;; ---------------------------------------------------------
+;; o11ylite.auth.oidc
+;;
+;; OIDC authentication flow handlers: login, callback, logout.
+;; Uses io.github.zhming0/oidc-client for all OIDC operations.
+;; ---------------------------------------------------------
+
+(ns o11ylite.auth.oidc
+  (:require
+   [com.brunobonacci.mulog :as mulog]
+   [o11ylite.util.response :as response]
+   [oidc-client.core :as oidc]
+   [ring.util.response :as rr]))
+
+;; ---------------------------------------------------------
+;; Private Helpers
+
+(defn- -derive-redirect-uri
+  "Derive the OAuth redirect URI from the request's Host header.
+   Prefers X-Forwarded-Host over Host for reverse-proxy setups."
+  [request]
+  (let [scheme (or (get-in request [:headers "x-forwarded-proto"]) "http")
+        host (or (get-in request [:headers "x-forwarded-host"])
+                 (get-in request [:headers "host"]))]
+    (str scheme "://" host "/auth/callback")))
+
+;; ---------------------------------------------------------
+;; Handlers
+
+(defn login-handler
+  "GET /auth/login — Generate PKCE verifier + state + nonce,
+   store in session, redirect to authorization URL."
+  [{:keys [oidc-config]}]
+  (fn [request]
+    (if-not oidc-config
+      (rr/redirect "/")
+      (let [verifier (oidc/random-pkce-code-verifier)
+            state (oidc/random-state)
+            nonce (oidc/random-nonce)
+            redirect-uri (-derive-redirect-uri request)
+            auth-url (oidc/build-authorization-url oidc-config
+                                                   {:redirect_uri redirect-uri
+                                                    :scope "openid email profile"
+                                                    :state state
+                                                    :nonce nonce
+                                                    :code_challenge (oidc/pkce-code-challenge verifier)
+                                                    :code_challenge_method "S256"})]
+        (-> (rr/redirect auth-url)
+            (assoc :session {:oidc-state state
+                             :oidc-nonce nonce
+                             :oidc-verifier verifier}))))))
+
+(defn callback-handler
+  "GET /auth/callback — Exchange authorization code for tokens,
+   fetch userinfo, populate session."
+  [{:keys [oidc-config]}]
+  (fn [request]
+    (if-not oidc-config
+      (rr/redirect "/")
+      (let [{:keys [code state]} (:params request)
+            session-state (get-in request [:session :oidc-state])
+            verifier (get-in request [:session :oidc-verifier])]
+        (cond
+          (not= state session-state)
+          (do
+            (mulog/log ::oidc-callback-state-mismatch)
+            (response/json 400 {:error "State mismatch"}))
+
+          :else
+          (let [redirect-uri (-derive-redirect-uri request)
+                tokens (oidc/authorization-code-grant oidc-config
+                                                      {:code code
+                                                       :redirect_uri redirect-uri
+                                                       :code_verifier verifier})
+                userinfo (oidc/fetch-userinfo oidc-config (:access_token tokens))
+                email (:email userinfo)]
+            (mulog/log ::oidc-login-success :sub (:sub userinfo) :email email)
+            (-> (rr/redirect "/")
+                (assoc :session {:user {:sub (:sub userinfo)
+                                        :email email
+                                        :name (:name userinfo)}}))))))))
+
+(defn logout-handler
+  "POST /auth/logout — Clear session and optionally redirect to IdP logout."
+  [{:keys [oidc-config]}]
+  (fn [_request]
+    (let [redirect-url (when oidc-config
+                         (oidc/build-end-session-url oidc-config {}))]
+      (-> (rr/redirect (or redirect-url "/"))
+          (assoc :session nil)))))
+
+;; ---------------------------------------------------------
+;; Routes
+
+(defn routes
+  "Authentication routes (outside auth-protected group)."
+  [auth-config]
+  ["/auth"
+   ["/login" {:get {:handler (login-handler auth-config)}}]
+   ["/callback" {:get {:handler (callback-handler auth-config)}}]
+   ["/logout" {:post {:handler (logout-handler auth-config)}}]])
+
+;; ---------------------------------------------------------
+;; Rich Comment
+(comment
+
+  #_()) ; End of rich comment block
+;; ---------------------------------------------------------
