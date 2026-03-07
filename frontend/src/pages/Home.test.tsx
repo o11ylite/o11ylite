@@ -7,7 +7,7 @@ import * as React from "react"
 // ============================================================================
 
 vi.mock("@inertiajs/react", () => ({
-  usePage: () => ({ url: "https://localhost/" }),
+  usePage: () => ({ url: "https://localhost/", props: {} }),
   router: {
     push: vi.fn(),
     on: vi.fn(),

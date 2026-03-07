@@ -7,10 +7,10 @@
 
 (ns o11ylite.auth.oidc
   (:require
-   [com.brunobonacci.mulog :as mulog]
-   [o11ylite.util.response :as response]
-   [oidc-client.core :as oidc]
-   [ring.util.response :as rr]))
+    [com.brunobonacci.mulog :as mulog]
+    [o11ylite.util.response :as response]
+    [oidc-client.core :as oidc]
+    [ring.util.response :as rr]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -81,13 +81,11 @@
                                         :name (:name userinfo)}}))))))))
 
 (defn logout-handler
-  "POST /auth/logout — Clear session and optionally redirect to IdP logout."
-  [{:keys [oidc-config]}]
+  "POST /auth/logout — Clear session and redirect to /."
+  [_auth-config]
   (fn [_request]
-    (let [redirect-url (when oidc-config
-                         (oidc/build-end-session-url oidc-config {}))]
-      (-> (rr/redirect (or redirect-url "/"))
-          (assoc :session nil)))))
+    (-> (rr/redirect "/")
+        (assoc :session nil))))
 
 ;; ---------------------------------------------------------
 ;; Routes
