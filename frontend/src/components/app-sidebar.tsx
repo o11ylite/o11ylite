@@ -13,9 +13,11 @@ import {
 } from "lucide-react"
 import logo from "@/assets/logo.svg"
 
+import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -33,6 +35,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import type { AuthSharedData } from "@/types"
 
 type NavItem = {
   title: string
@@ -64,7 +67,9 @@ const systemItems = [
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { url } = usePage()
+  const { url, props: pageProps } = usePage()
+  const auth = (pageProps as { auth?: AuthSharedData }).auth
+  const user = auth?.user
 
   return (
     <Sidebar {...props}>
@@ -139,6 +144,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      {user && (
+        <SidebarFooter>
+          <NavUser user={user} />
+        </SidebarFooter>
+      )}
       <SidebarRail />
     </Sidebar>
   )
