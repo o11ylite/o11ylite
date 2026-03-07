@@ -80,6 +80,9 @@
 ;; 404 Handling
 
 (deftest not-found-test
-  (testing "Non-existent route returns 404"
-    (let [response (h/get-request "/nonexistent/path")]
-      (is (= 404 (h/status response))))))
+  (testing "Non-existent route returns 404 with Inertia Error page"
+    (let [response (h/get-request "/nonexistent/path")
+          html (h/body response)]
+      (is (= 404 (h/status response)))
+      (is (h/html-response? response))
+      (is (str/includes? html "Error")))))
