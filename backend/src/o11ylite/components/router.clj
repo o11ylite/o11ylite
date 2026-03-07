@@ -99,7 +99,7 @@
   "Record exception on current span and return Inertia error response."
   [exception _request]
   (span/add-exception! exception)
-  (response/inertia "Error" {:status 500}))
+  (response/inertia-error 500))
 
 (def ^:private -api-exception-middleware
   "Exception middleware for API routes - returns JSON responses."
@@ -189,7 +189,9 @@
      ;; API key management requires admin scope
      (api-keys/routes {:sqlite sqlite
                        :api-key-cache api-key-cache
-                       :auth-config auth-config})]))
+                       :auth-config auth-config})
+     ;; Catch-all: render a proper 404 page for unmatched browser routes
+     ["/*path" {:handler (fn [_] (response/inertia-error 404))}]]))
 
 (defn health-routes
   "Health check routes — no auth, always accessible."
