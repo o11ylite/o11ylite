@@ -11,6 +11,7 @@
     [jsonista.core :as json]
     [o11ylite.system :as system]
     [o11ylite.test-helpers.event-ingest :as event-ingest]
+    [o11ylite.test-helpers.fake-oidc :as fake-oidc]
     [o11ylite.test-helpers.http :as http]
     [o11ylite.test-helpers.metric-ingest :as metric-ingest]
     [o11ylite.test-helpers.otlp :as otlp])
@@ -122,6 +123,35 @@
           (stop-system! sys))))))
 
 ;; ---------------------------------------------------------
+;; OIDC Test Support
+
+(defn oidc-test-config
+  "Build test configuration with OIDC enabled, pointing at a fake IdP."
+  [idp-base-url]
+  (-> (test-config)
+      (assoc-in [:config/core :oidc-issuer-url] idp-base-url)
+      (assoc-in [:config/core :oidc-client-id] "test-client")))
+
+(defn with-oidc-system
+  "Test fixture that starts a fake OIDC IdP and system with OIDC enabled.
+   The fake IdP must be running before the system starts (OIDC discovery
+   happens during ig/init-key :auth/config).
+
+   Usage:
+   (use-fixtures :each h/with-oidc-system)"
+  [f]
+  (let [idp (fake-oidc/start-server)]
+    (try
+      (let [sys (ig/init (oidc-test-config (:base-url idp)))]
+        (try
+          (binding [*system* sys]
+            (f))
+          (finally
+            (stop-system! sys))))
+      (finally
+        (fake-oidc/stop-server idp)))))
+
+;; ---------------------------------------------------------
 ;; Component Groups
 ;; Centralized lists for use in with-partial-system fixtures.
 
@@ -169,6 +199,10 @@
 (def content-type http/content-type)
 (def json-response? http/json-response?)
 (def html-response? http/html-response?)
+
+(def no-redirect-get http/no-redirect-get)
+(def no-redirect-post http/no-redirect-post)
+(def extract-session-cookie http/extract-session-cookie)
 
 ;; ---------------------------------------------------------
 ;; Re-exports: OTLP helpers
