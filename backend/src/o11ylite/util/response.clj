@@ -22,7 +22,7 @@
    :body (json/write-str body)})
 
 (defn not-found
-  "Create a 404 not found response."
+  "Create a 404 JSON response for API routes."
   []
   (json 404 {:error "Not found"}))
 
@@ -37,3 +37,10 @@
   ([component props]
    (rr/response {:component component
                  :props props})))
+
+(defn inertia-error
+  "Create an Inertia error response that renders the Error page.
+   Sets both the HTTP status and passes it as a prop to the component."
+  [status]
+  (-> (inertia "Error" {:status status})
+      (rr/status status)))
