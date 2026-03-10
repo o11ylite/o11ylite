@@ -35,6 +35,10 @@ Then:
 - Open `http://localhost` for the UI
 - Point your OTLP exporters at `localhost:80`. The built-in proxy routes both gRPC and HTTP on the same port
 
+## Documentation
+
+- [Authentication](docs/authentication.md) — OIDC setup, API keys, and scopes
+
 ## Roadmap
 
 - Basic RBAC system
