@@ -37,6 +37,7 @@ Then:
 
 ## Documentation
 
+- [Installation](docs/installation.md) — Docker and Helm chart setup
 - [Authentication](docs/authentication.md) — OIDC setup, API keys, and scopes
 
 ## Roadmap
