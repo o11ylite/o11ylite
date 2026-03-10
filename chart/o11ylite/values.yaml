@@ -8,6 +8,11 @@ service:
   type: ClusterIP
   port: 80
 
+persistence:
+  enabled: false
+  size: 10Gi
+  # storageClass: ""
+
 resources: {}
   # limits:
   #   cpu: "2"
