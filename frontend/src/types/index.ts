@@ -358,6 +358,23 @@ export interface ApiKey {
 }
 
 // ============================================================================
+// Scheduled Job Types
+// ============================================================================
+
+export interface ScheduledJob {
+  job_name: string
+  description: string
+  interval_ms: number
+  last_run_at: number | null
+  last_success_at: number | null
+  last_error: string | null
+  next_run_at: number | null
+  enabled: number
+  created_at: number
+  updated_at: number
+}
+
+// ============================================================================
 // Auth Shared Data (from Inertia shared props)
 // ============================================================================
 

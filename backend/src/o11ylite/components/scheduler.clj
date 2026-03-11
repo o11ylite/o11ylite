@@ -195,6 +195,29 @@
   [sqlite]
   (store/get-all-jobs sqlite))
 
+(defn trigger-job!
+  "Manually trigger a job in the background.
+   Returns :triggered if the job was started, :already-running if locked."
+  [executor sqlite registry job-key]
+  (let [running-jobs (:running-jobs executor)
+        handler      (get-in registry [job-key :handler])]
+    (when handler
+      (if-not (-try-acquire-lock! running-jobs job-key)
+        :already-running
+        (do (future
+              (try
+                (mulog/log ::job-manual-trigger :job job-key)
+                (handler)
+                (store/record-success! sqlite job-key)
+                (mulog/log ::job-succeeded :job job-key)
+                (catch Exception e
+                  (let [error-msg (.getMessage e)]
+                    (store/record-failure! sqlite job-key error-msg)
+                    (mulog/log ::job-failed :job job-key :error error-msg)))
+                (finally
+                  (-release-lock! running-jobs job-key))))
+            :triggered)))))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment

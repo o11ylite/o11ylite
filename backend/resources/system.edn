@@ -96,4 +96,6 @@
   :metric-normalizer #ig/ref :ingest/metric-normalizer
   :auth-config #ig/ref :auth/config
   :api-key-cache #ig/ref :auth/api-key-cache
+  :scheduler-registry #ig/ref :scheduler/registry
+  :scheduler-executor #ig/ref :scheduler/executor
   :_storage #ig/ref :storage/init}}

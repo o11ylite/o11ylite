@@ -72,7 +72,8 @@
   []
   (-> (base-test-config)
       (dissoc :scheduler/registry)
-      (dissoc :scheduler/executor)))
+      (dissoc :scheduler/executor)
+      (update :router/routes dissoc :scheduler-registry :scheduler-executor)))
 
 (defn start-system!
   "Start the full system with test configuration."
