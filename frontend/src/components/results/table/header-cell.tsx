@@ -22,14 +22,21 @@ export function HeaderCell({
   currentOrder: SortOrder
   onSort?: () => void
 }) {
+  const sortProps = sortable
+    ? { role: "button" as const, onClick: onSort, className: "cursor-pointer select-none hover:bg-muted" }
+    : {}
+
   return (
     <th
       key={header.id}
-      className={`text-foreground px-2 py-2 text-left align-middle font-medium break-words relative group ${sortable ? "cursor-pointer select-none hover:bg-muted" : ""}`}
+      className="text-foreground text-left align-middle font-medium break-words relative group"
       style={{ width: header.getSize() }}
-      onClick={sortable ? onSort : undefined}
     >
-      <span className="flex items-center gap-1">
+      {/* Sort target covers the content area but not the resize handle */}
+      <span
+        {...sortProps}
+        className={`flex items-center gap-1 px-2 py-2 ${sortProps.className ?? ""}`}
+      >
         {header.isPlaceholder
           ? null
           : flexRender(header.column.columnDef.header, header.getContext())}
@@ -39,8 +46,7 @@ export function HeaderCell({
         <div
           onMouseDown={header.getResizeHandler()}
           onTouchStart={header.getResizeHandler()}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none bg-transparent group-hover:bg-border hover:bg-primary"
+          className="absolute right-0 top-0 h-full w-2 cursor-col-resize select-none touch-none bg-transparent group-hover:bg-border hover:bg-primary"
         />
       )}
     </th>
