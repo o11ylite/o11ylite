@@ -38,6 +38,7 @@
             state (oidc/random-state)
             nonce (oidc/random-nonce)
             redirect-uri (-derive-redirect-uri request)
+            return-to (get-in request [:params :return_to])
             auth-url (oidc/build-authorization-url oidc-config
                                                    {:redirect_uri redirect-uri
                                                     :scope "openid email profile"
@@ -46,9 +47,10 @@
                                                     :code_challenge (oidc/pkce-code-challenge verifier)
                                                     :code_challenge_method "S256"})]
         (-> (rr/redirect auth-url)
-            (assoc :session {:oidc-state state
-                             :oidc-nonce nonce
-                             :oidc-verifier verifier}))))))
+            (assoc :session (cond-> {:oidc-state state
+                                     :oidc-nonce nonce
+                                     :oidc-verifier verifier}
+                              return-to (assoc :return-to return-to))))))))
 
 (defn callback-handler
   "GET /auth/callback — Exchange authorization code for tokens,
@@ -68,6 +70,7 @@
 
           :else
           (let [redirect-uri (-derive-redirect-uri request)
+                return-to (get-in request [:session :return-to])
                 tokens (oidc/authorization-code-grant oidc-config
                                                       {:code code
                                                        :redirect_uri redirect-uri
@@ -75,7 +78,7 @@
                 userinfo (oidc/fetch-userinfo oidc-config (:access_token tokens))
                 email (:email userinfo)]
             (mulog/log ::oidc-login-success :sub (:sub userinfo) :email email)
-            (-> (rr/redirect "/")
+            (-> (rr/redirect (or return-to "/"))
                 (assoc :session {:user {:sub (:sub userinfo)
                                         :email email
                                         :name (:name userinfo)}}))))))))
