@@ -16,6 +16,7 @@
     [o11ylite.auth.scope :as scope]
     [o11ylite.components.api-key-cache :as api-key-cache]
     [o11ylite.util.response :as response]
+    [ring.util.codec :as codec]
     [ring.util.response :as rr]))
 
 ;; ---------------------------------------------------------
@@ -71,7 +72,11 @@
                            :name (:name key-info)}))
           (if (-api-request? request)
             (response/json 401 {:error "Authentication required"})
-            (rr/redirect "/auth/login")))))))
+            (let [return-to (cond-> (:uri request)
+                              (:query-string request)
+                              (str "?" (:query-string request)))]
+              (rr/redirect (str "/auth/login?return_to="
+                                (codec/url-encode return-to))))))))))
 
 ;; ---------------------------------------------------------
 ;; 2. API Key Middleware (OTLP HTTP routes)
