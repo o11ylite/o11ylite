@@ -48,22 +48,26 @@
   "Execute the full OIDC login flow. Returns the session cookie
    from the successful callback, or nil on failure.
 
+   Optionally accepts a login-url to initiate from (e.g., with return_to param).
+
    Steps:
    1. GET /auth/login → redirect to IdP with state in session
    2. GET /auth/callback?code=test-code&state=<state> → redirect to /
-   3. Return the session cookie from step 2"
-  []
-  (let [;; Step 1: initiate login
-        login-resp (h/no-redirect-get "/auth/login")
-        login-session (h/extract-session-cookie login-resp)
-        redirect-url (h/header login-resp "location")
-        state (-extract-query-param redirect-url "state")
+   3. Return {:session <cookie>, :callback-location <redirect-target>}"
+  ([] (-login! "/auth/login"))
+  ([login-url]
+   (let [;; Step 1: initiate login
+         login-resp (h/no-redirect-get login-url)
+         login-session (h/extract-session-cookie login-resp)
+         redirect-url (h/header login-resp "location")
+         state (-extract-query-param redirect-url "state")
 
-        ;; Step 2: simulate IdP redirect back with auth code
-        callback-resp (h/no-redirect-get
-                        (str "/auth/callback?code=test-code&state=" state)
-                        {:headers {"Cookie" (-session-cookie-header login-session)}})]
-    (h/extract-session-cookie callback-resp)))
+         ;; Step 2: simulate IdP redirect back with auth code
+         callback-resp (h/no-redirect-get
+                         (str "/auth/callback?code=test-code&state=" state)
+                         {:headers {"Cookie" (-session-cookie-header login-session)}})]
+     {:session (h/extract-session-cookie callback-resp)
+      :callback-location (h/header callback-resp "location")})))
 
 ;; ---------------------------------------------------------
 ;; Tests
@@ -105,12 +109,13 @@
           "redirect_uri should prefer X-Forwarded-Host over Host")))
 
   (testing "Callback with valid state completes login"
-    (let [session-cookie (-login!)]
-      (is (some? session-cookie))
+    (let [{:keys [session callback-location]} (-login!)]
+      (is (some? session))
+      (is (= "/" callback-location))
 
       ;; Authenticated page access should not redirect to login
       (let [response (h/no-redirect-get "/"
-                                        {:headers {"Cookie" (-session-cookie-header session-cookie)}})]
+                                        {:headers {"Cookie" (-session-cookie-header session)}})]
         (is (not (.contains ^String (or (h/header response "location") "")
                             "/auth/login"))))))
 
@@ -122,21 +127,37 @@
                           {:headers {"Cookie" (-session-cookie-header login-session)}})]
       (is (= 400 (h/status callback-resp))))))
 
+(deftest oidc-return-to-test
+  (testing "Unauthenticated page request includes return_to in login redirect"
+    (let [response (h/no-redirect-get "/explore?query=foo")]
+      (is (= 302 (h/status response)))
+      (let [location (h/header response "location")]
+        (is (.contains ^String location "/auth/login"))
+        (is (.contains ^String location "return_to=")))))
+
+  (testing "Login flow preserves return_to through to callback redirect"
+    (let [{:keys [callback-location]} (-login! "/auth/login?return_to=/explore?query=foo")]
+      (is (= "/explore?query=foo" callback-location))))
+
+  (testing "Login without return_to redirects to /"
+    (let [{:keys [callback-location]} (-login!)]
+      (is (= "/" callback-location)))))
+
 (deftest oidc-session-test
-  (let [session-cookie (-login!)]
+  (let [{:keys [session]} (-login!)]
     (testing "Authenticated API request succeeds with session cookie"
       (let [response (h/get-json "/api/services"
-                                 {:headers {"Cookie" (-session-cookie-header session-cookie)}})]
+                                 {:headers {"Cookie" (-session-cookie-header session)}})]
         ;; Should not be 401 — the identity middleware resolves the session
         (is (not= 401 (h/status response)))))
 
     (testing "Logout clears session"
       ;; Need CSRF token from an authenticated page request
       (let [page-resp (h/no-redirect-get "/"
-                                         {:headers {"Cookie" (-session-cookie-header session-cookie)}})
+                                         {:headers {"Cookie" (-session-cookie-header session)}})
             csrf-token (-extract-csrf-token page-resp)
             ;; Also need the updated session cookie (may have changed)
-            updated-session (or (h/extract-session-cookie page-resp) session-cookie)
+            updated-session (or (h/extract-session-cookie page-resp) session)
             cookie-header (str "ring-session=" updated-session "; XSRF-TOKEN=" csrf-token)
             logout-resp (h/no-redirect-post "/auth/logout"
                                             {:headers {"Cookie" cookie-header
