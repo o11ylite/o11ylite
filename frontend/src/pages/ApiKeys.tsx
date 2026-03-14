@@ -3,6 +3,7 @@ import { Link, router, usePage } from "@inertiajs/react"
 import { Copy, Check, Plus, Trash2 } from "lucide-react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,26 +21,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatDateTime } from "@/lib/datetime"
 import type { ApiKey } from "@/types"
 
-function ScopeBadge({ scope }: { scope: string }) {
-  const colors: Record<string, string> = {
-    ingest: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    read: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-    write: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-    admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  }
-
-  return (
-    <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${colors[scope] ?? ""}`}>
-      {scope}
-    </span>
-  )
-}
-
-function formatDate(epochMs: number | null) {
-  if (!epochMs) return "Never"
-  return new Date(epochMs).toLocaleString()
+const scopeColors: Record<string, string> = {
+  ingest: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  read: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  write: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 }
 
 function CreatedKeyDialog({
@@ -112,13 +101,15 @@ function ApiKeyTable({
               <code className="text-xs">{key.prefix}...</code>
             </TableCell>
             <TableCell>
-              <ScopeBadge scope={key.scope} />
+              <Badge variant="outline" className={scopeColors[key.scope] ?? ""}>
+                {key.scope}
+              </Badge>
             </TableCell>
             <TableCell className="text-muted-foreground text-sm">
-              {formatDate(key.created_at)}
+              {formatDateTime(key.created_at)}
             </TableCell>
             <TableCell className="text-muted-foreground text-sm">
-              {formatDate(key.last_used_at)}
+              {formatDateTime(key.last_used_at)}
             </TableCell>
             <TableCell>
               <Button
