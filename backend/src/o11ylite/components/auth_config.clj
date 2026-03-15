@@ -10,6 +10,7 @@
     [com.brunobonacci.mulog :as mulog]
     [integrant.core :as ig]
     [o11ylite.kv :as kv]
+    [o11ylite.oauth :as oauth]
     [oidc-client.core :as oidc])
   (:import
     [java.security SecureRandom]
@@ -79,6 +80,7 @@
                :open-mode? open-mode?)
     {:oidc-config oidc-config
      :session-key session-key
+     :jwt-signing-key (oauth/derive-signing-key session-key)
      :open-mode? open-mode?}))
 
 (defmethod ig/halt-key! :auth/config
