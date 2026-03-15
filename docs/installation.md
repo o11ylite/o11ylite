@@ -47,6 +47,7 @@ helm install o11ylite ./chart/o11ylite \
 | `persistence.storageClass` | (cluster default) | Storage class name |
 | `resources` | `{}` | Container resource requests/limits |
 | `env` | `[]` | Extra environment variables |
+| `existingSecret` | `""` | Name of an existing Secret to inject as env vars |
 
 ### Persistence
 
@@ -75,8 +76,27 @@ env:
     value: https://auth.example.com
   - name: O11YLITE_OIDC_CLIENT_ID
     value: o11ylite
+```
+
+For sensitive values like `O11YLITE_OIDC_CLIENT_SECRET`, use `existingSecret` instead of putting them in plain text. Create a Secret whose keys match the environment variable names the app expects, and all keys will be injected as env vars:
+
+```bash
+kubectl create secret generic o11ylite-secrets \
+  --from-literal=O11YLITE_OIDC_CLIENT_SECRET=secret
+
+helm install o11ylite ./chart/o11ylite \
+  --set existingSecret=o11ylite-secrets
+```
+
+For selective key mapping (e.g., when the Secret key doesn't match the env var name), use `env` with `valueFrom` instead:
+
+```yaml
+env:
   - name: O11YLITE_OIDC_CLIENT_SECRET
-    value: secret
+    valueFrom:
+      secretKeyRef:
+        name: my-secret
+        key: oidc-secret
 ```
 
 ### Exposing the service

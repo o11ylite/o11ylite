@@ -24,3 +24,8 @@ resources: {}
 env: []
   # - name: O11YLITE_DATA_PATH
   #   value: /data
+
+# Reference an existing Kubernetes Secret whose keys will be injected as
+# environment variables (via envFrom). Useful for credentials like
+# O11YLITE_OIDC_CLIENT_SECRET that should not live in values.yaml.
+existingSecret: ""
