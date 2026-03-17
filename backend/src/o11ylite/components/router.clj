@@ -29,6 +29,7 @@
     [o11ylite.routes.notebooks :as notebooks]
     [o11ylite.routes.alert-rules :as alert-rules]
     [o11ylite.routes.api-keys :as api-keys]
+    [o11ylite.routes.oauth :as oauth]
     [o11ylite.routes.scheduled-jobs :as scheduled-jobs]
     [ring.middleware.session]
     [ring.middleware.session.cookie :as cookie]))
@@ -125,7 +126,8 @@
   [{:keys [duckdb sqlite event-metadata auth-config api-key-cache]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-session  (when-not open-mode? (make-wrap-api-session (:session-key auth-config)))
-        wrap-identity (when-not open-mode? (auth-mw/make-wrap-identity {:api-key-cache api-key-cache}))
+        wrap-identity (when-not open-mode? (auth-mw/make-wrap-identity {:api-key-cache api-key-cache
+                                                                        :auth-config auth-config}))
         wrap-scope    (when-not open-mode? (auth-mw/make-wrap-require-scope "read"))]
     ["/api" {:middleware (filterv some? [wrap-api-defaults
                                          wrap-session
@@ -166,7 +168,8 @@
   (let [open-mode? (:open-mode? auth-config)
         wrap-site (make-wrap-site-defaults (:session-key auth-config))
         wrap-identity (when-not open-mode?
-                        (auth-mw/make-wrap-identity {:api-key-cache api-key-cache}))]
+                        (auth-mw/make-wrap-identity {:api-key-cache api-key-cache
+                                                     :auth-config auth-config}))]
     ["" {:middleware (filterv some?
                               [wrap-site
                                wrap-identity
@@ -181,6 +184,8 @@
                                -page-exception-middleware])}
      ;; Auth routes (outside identity check — handled internally)
      (oidc/routes auth-config)
+     ;; OAuth authorize endpoint (needs session for OIDC mode)
+     (oauth/authorize-routes {:auth-config auth-config})
      (home/routes {})
      (explore/routes {})
      (trace/routes {})
@@ -205,6 +210,13 @@
                         -api-exception-middleware]}
    (api.health/routes {})])
 
+(defn oauth-token-routes
+  "OAuth token exchange route. Separate from page-routes because POST /oauth/token
+   is an API-style endpoint (JSON/form body, no CSRF, no session required)."
+  [opts]
+  ["" {:middleware [wrap-api-defaults -api-exception-middleware]}
+   (oauth/token-routes {:auth-config (:auth-config opts)})])
+
 ;; ---------------------------------------------------------
 ;; Router Component
 
@@ -214,6 +226,7 @@
   (ring/ring-handler
     (ring/router
       [(health-routes opts)
+       (oauth-token-routes opts)
        (api-routes opts)
        (otlp-routes opts)
        (page-routes opts)]

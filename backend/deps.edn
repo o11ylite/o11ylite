@@ -80,7 +80,10 @@
   com.github.steffan-westcott/clj-otel-api {:mvn/version "0.2.10"}
 
   ;; OIDC client for UI authentication
-  io.github.zhming0/oidc-client {:mvn/version "2026.3.3-1124840"}}
+  io.github.zhming0/oidc-client {:mvn/version "2026.3.3-1124840"}
+
+  ;; JWT signing/verification for OAuth agent auth
+  com.auth0/java-jwt {:mvn/version "4.5.0"}}
  ;; ---------------------------------------------------------
 
  ;; ---------------------------------------------------------

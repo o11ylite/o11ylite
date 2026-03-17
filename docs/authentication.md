@@ -1,11 +1,12 @@
 # Authentication
 
-O11yLite supports two independent, opt-in authentication mechanisms:
+O11yLite supports three authentication mechanisms:
 
 1. **OIDC** — Protects the UI and REST API. Bring your own identity provider.
 2. **API keys** — Protects OTLP ingestion. Managed via the UI.
+3. **Agent auth (OAuth)** — Short-lived JWT access tokens for LLM agents and scripts. Uses Authorization Code + PKCE.
 
-Both are optional. With zero configuration, everything is open — no login screens, no tokens required.
+OIDC and API keys are opt-in. Agent auth is always available — it uses the same session secret and scope system as the rest of o11ylite.
 
 ## Open mode (default)
 
@@ -117,6 +118,75 @@ Each API key has a scope. Scopes form a hierarchy — higher scopes include all 
 ```
 
 `ingest` and `read` are independent branches — an `ingest` key cannot query data, and a `read` key cannot send telemetry. Use `write` or `admin` if you need both. Most OTLP exporters only need `ingest`.
+
+## Agent auth (OAuth 2.0 Authorization Code + PKCE)
+
+O11yLite acts as its own OAuth 2.0 authorization server, issuing short-lived JWT access tokens via the standard Authorization Code flow with PKCE. This is designed for LLM agents and scripts that need programmatic API access without permanent API keys.
+
+### How it works
+
+1. The agent starts a temporary local HTTP server and opens the authorization URL in the user's browser.
+2. O11yLite validates the request and redirects back to `localhost` with a signed authorization code.
+3. The agent exchanges the code (plus PKCE verifier) for a JWT access token.
+4. The agent uses the token in `Authorization: Bearer <token>` headers to call `/api/*` endpoints.
+
+In **open mode**, the entire flow completes instantly with no user interaction. In **OIDC mode**, the user must log in first (if not already), then the flow auto-approves.
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/oauth/authorize` | GET | Authorization endpoint. Returns a 302 redirect with a signed authorization code. |
+| `/oauth/token` | POST | Token endpoint. Exchanges code + verifier for a JWT access token. |
+
+### Authorization request parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `response_type` | Yes | Must be `code` |
+| `redirect_uri` | Yes | Must be `http://localhost:*` or `http://127.0.0.1:*` |
+| `code_challenge` | Yes | PKCE S256 challenge (`BASE64URL(SHA256(code_verifier))`) |
+| `code_challenge_method` | Yes | Must be `S256` |
+| `scope` | No | Default `write`. One of: `ingest`, `read`, `write`, `admin` |
+| `state` | Recommended | Opaque string, returned as-is in redirect |
+
+### Token exchange
+
+POST to `/oauth/token` with JSON or form-encoded body:
+
+```json
+{
+  "grant_type": "authorization_code",
+  "code": "<authorization_code>",
+  "code_verifier": "<original_verifier>",
+  "redirect_uri": "<same_redirect_uri>"
+}
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbG...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "write"
+}
+```
+
+### Token details
+
+- **Type**: JWT signed with HMAC256 (derived from session secret)
+- **TTL**: 1 hour
+- **Scope**: Follows the same hierarchy as API keys (see [Scopes](#scopes))
+- **Revocation**: Not per-token. Rotating `O11YLITE_SESSION_SECRET` invalidates all tokens.
+
+### Security
+
+- `redirect_uri` restricted to `http://localhost:*` and `http://127.0.0.1:*` only
+- PKCE (S256) is mandatory — authorization codes cannot be exchanged without the correct verifier
+- Authorization codes are signed JWTs with a 5-minute TTL
+- No client registration or consent screen — auto-approves (same model as `gh auth login`)
 
 ## Health endpoints
 

@@ -13,8 +13,10 @@
 
 (ns o11ylite.auth.middleware
   (:require
+    [clojure.string :as str]
     [o11ylite.auth.scope :as scope]
     [o11ylite.components.api-key-cache :as api-key-cache]
+    [o11ylite.oauth :as oauth]
     [o11ylite.util.response :as response]
     [ring.util.codec :as codec]
     [ring.util.response :as rr]))
@@ -25,12 +27,12 @@
 (defn- -auth-path?
   "Returns true if the request path starts with /auth/."
   [request]
-  (.startsWith ^String (:uri request) "/auth/"))
+  (str/starts-with? (:uri request) "/auth/"))
 
 (defn- -api-request?
   "Returns true if the request path starts with /api/."
   [request]
-  (.startsWith ^String (:uri request) "/api/"))
+  (str/starts-with? (:uri request) "/api/"))
 
 (defn- -session-principal
   "Build a principal from the OIDC session user.
@@ -45,18 +47,52 @@
 ;; ---------------------------------------------------------
 ;; 1. Identity Middleware (pages + API routes)
 ;;
-;; Resolves principal from session (OIDC user) or Authorization header (API key).
+;; Resolves principal from session (OIDC user), Authorization header
+;; (API key or JWT access token), or returns 401/redirect.
 ;; When no principal found:
 ;;   - Page requests → redirect to /auth/login
 ;;   - API requests → 401 JSON
 
+(defn- -oauth-path?
+  "Returns true if the request path starts with /oauth/."
+  [request]
+  (str/starts-with? (:uri request) "/oauth/"))
+
+(defn- -extract-bearer-token
+  "Extract token from 'Authorization: Bearer <token>' header, or nil."
+  [request]
+  (when-let [auth-header (get-in request [:headers "authorization"])]
+    (when (str/starts-with? auth-header "Bearer ")
+      (subs auth-header 7))))
+
+(defn- -bearer-principal
+  "Attempt to resolve a principal from the Authorization: Bearer header.
+   Dispatches on token prefix: o11y_ → API key, otherwise → JWT.
+   Returns a principal map or nil."
+  [{:keys [api-key-cache auth-config]} request]
+  (when-let [token (-extract-bearer-token request)]
+    (if (str/starts-with? token "o11y_")
+      (when-let [key-info (api-key-cache/validate-token api-key-cache token)]
+        {:type :api-key
+         :scope (:scope key-info)
+         :id (:id key-info)
+         :name (:name key-info)})
+      (when-let [claims (oauth/verify (:jwt-signing-key auth-config) token "access")]
+        {:type :access-token
+         :scope (:scope claims)
+         :sub (:sub claims)}))))
+
 (defn make-wrap-identity
   "Create identity middleware. Always enforces — caller should omit in open mode."
-  [{:keys [api-key-cache]}]
+  [{:keys [api-key-cache auth-config] :as deps}]
   (fn [handler]
     (fn [request]
       (cond
         (-auth-path? request)
+        (handler request)
+
+        ;; OAuth endpoints handle their own auth
+        (-oauth-path? request)
         (handler request)
 
         (get-in request [:session :user])
@@ -64,12 +100,8 @@
                         (-session-principal (get-in request [:session :user]))))
 
         :else
-        (if-let [key-info (api-key-cache/validate-request api-key-cache request)]
-          (handler (assoc request :auth/principal
-                          {:type :api-key
-                           :scope (:scope key-info)
-                           :id (:id key-info)
-                           :name (:name key-info)}))
+        (if-let [principal (-bearer-principal deps request)]
+          (handler (assoc request :auth/principal principal))
           (if (-api-request? request)
             (response/json 401 {:error "Authentication required"})
             (let [return-to (cond-> (:uri request)
