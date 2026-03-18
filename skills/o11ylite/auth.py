@@ -11,8 +11,8 @@ The agent executes this script but never reads its source.
 Usage:
     python3 auth.py <base-url> [--scope write] [--refresh]
 
-If <base-url> is omitted, reads O11YLITE_AGENT_URL env var.
-If O11YLITE_AGENT_API_KEY is set, uses it directly (no OAuth).
+If <base-url> is omitted, reads O11YLITE_URL env var.
+If O11YLITE_API_KEY is set, uses it directly (no OAuth).
 """
 
 import argparse
@@ -281,9 +281,9 @@ def main():
     args = parser.parse_args()
 
     # Resolve base URL
-    base_url = args.base_url or os.environ.get("O11YLITE_AGENT_URL")
+    base_url = args.base_url or os.environ.get("O11YLITE_URL")
     if not base_url:
-        _die("No base URL provided. Pass as argument or set O11YLITE_AGENT_URL.")
+        _die("No base URL provided. Pass as argument or set O11YLITE_URL.")
     base_url = base_url.rstrip("/")
 
     # Check cache (unless --refresh)
@@ -294,7 +294,7 @@ def main():
             return
 
     # Resolve token
-    api_key = os.environ.get("O11YLITE_AGENT_API_KEY")
+    api_key = os.environ.get("O11YLITE_API_KEY")
     if api_key:
         token = api_key
         token_source = "api_key"
