@@ -40,7 +40,7 @@ If a page route returns **409**, re-run with `--refresh` to get a fresh Inertia 
 |---------------------------------|-------------------------|
 | Query events, logs, or traces   | `docs/events-query.md`  |
 | Query metrics                   | `docs/metrics-query.md` |
-| Manage alert rules              | `docs/alerts.md`        |
+| Manage alert rules              | `docs/alert-rules.md`   |
 | Manage notebooks                | `docs/notebooks.md`     |
 
 ## Conventions
