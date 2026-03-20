@@ -15,12 +15,15 @@ Ship traces, logs, and metrics to a single container. No distributed infrastruct
 - **Explore.** Query and visualize traces, logs, and metrics with a built-in query builder and trace waterfall view.
 - **Alert Rules.** Define alert rules with Alertmanager-compatible webhook notifications.
 - **Notebooks.** Compose and share investigative workflows combining queries and notes.
+- **Agent native.** Built-in OAuth PKCE and an [agent skill package](docs/agent-native.md) let LLM agents query telemetry, manage alerts, and edit notebooks out of the box.
 
 ## Philosophy
 
 **Fat events over scattered logs.** Traditional logging produces dozens of narrow, context-free lines per request that are optimized for writing, not querying. We believe in [wide events](https://loggingsucks.com/): single, rich records per unit of work that carry all the context you need. User info, business data, feature flags, timings. O11yLite's automatic schema evolution and high-cardinality columnar storage are designed specifically to make this style of instrumentation practical. Send us your 50-field spans and we'll make every field queryable without configuration.
 
 **Smaller and more capable.** The backend for observability doesn't need to be a distributed fleet of indexers and query nodes. Advances in embedded analytical databases like DuckDB mean a single process can handle what used to take a cluster. O11yLite leans into this: one container, one volume, minimal moving parts. Built to realize the potential of your 7000 MB/s NVMe drive. It sustains **140K events/s ingestion** on a single M1 Max MacBook Pro and aims to serve teams from small startups through upper-mid-size organizations.
+
+**Simple UX, decent AX.** O11yLite offers first-class agent support through lean, solid primitives. The same simplicity that makes the UI pleasant for humans turns out to be a superpower for LLM agents.
 
 ## Quick Start
 
@@ -39,12 +42,12 @@ Then:
 
 - [Installation](docs/installation.md) — Docker and Helm chart setup
 - [Authentication](docs/authentication.md) — OIDC setup, API keys, and scopes
+- [Agent Native](docs/agent-native.md) — Let LLM agents operate O11yLite
 
 ## Roadmap
 
 - Basic RBAC system
 - Horizontal scaling
-- a CLI tool for agentic usecase.
 
 ## Development
 
