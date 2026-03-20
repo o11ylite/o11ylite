@@ -57,6 +57,10 @@ Read the following file as it's relevant to all workflows: @README.md.
 - Avoid unnecessary deep nesting in JSX, I believe the happy path is left-aligned.
 - `components/ui/` is reserved for shadcn components installed via `npx shadcn add`; place custom components in `components/`
 
+## Agent Skill Maintenance
+
+O11yLite ships an agent skill package in `skills/o11ylite/`. When you change a route, schema, or protocol that agents consume, update the matching file in that directory. `SKILL.md` is the entry point (keep it under 60 lines); `docs/*.md` files hold per-domain API reference.
+
 ## Special notes
 
 ### Stuck in parenthesis mismatch issue?

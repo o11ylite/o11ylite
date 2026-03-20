@@ -9,13 +9,13 @@ O11yLite is a lightweight observability platform for traces, logs, and metrics.
 
 ## Connection
 
-Read `O11YLITE_AGENT_URL` env var for the base URL (e.g., `http://localhost:3000`). If not set, ask the user for their o11ylite hostname.
+Read `O11YLITE_URL` env var for the base URL (e.g., `http://localhost:3000`). If not set, ask the user for their o11ylite hostname.
 
 ## Authentication
 
-Run: `python3 <skill-dir>/auth.py $O11YLITE_AGENT_URL`
+Run: `python3 <skill-dir>/auth.py $O11YLITE_URL`
 
-If `O11YLITE_AGENT_API_KEY` is set, the script uses it directly (no browser). Otherwise it runs an OAuth flow that opens the user's browser.
+If `O11YLITE_API_KEY` is set, the script uses it directly (no browser). Otherwise it runs an OAuth flow that opens the user's browser.
 
 The script prints JSON to stdout:
 ```json
