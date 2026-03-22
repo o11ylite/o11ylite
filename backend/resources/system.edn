@@ -89,6 +89,7 @@
  {:inertia #ig/ref :inertia/config
   :duckdb #ig/ref :db/duckdb
   :sqlite #ig/ref :db/sqlite
+  :core-config #ig/ref :config/core
   :app-config #ig/ref :config/app
   :event-metadata #ig/ref :cache/event-metadata
   :event-batcher #ig/ref :ingest/event-batcher

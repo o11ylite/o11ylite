@@ -20,47 +20,91 @@
 
 (def ^:private core-config-defs
   "Configuration definitions: key, env var, default, parser."
-  [;; Path to data directory for DuckLake and SQLite files
-   {:key :data-path :env-var "O11YLITE_DATA_PATH" :default "./.tmp" :parser identity}
+  [{:key         :data-path
+    :env-var     "O11YLITE_DATA_PATH"
+    :default     "./.tmp"
+    :parser      identity
+    :description "Directory for DuckDB and SQLite data files."}
 
-   ;; Node ID for distributed ID generation (Snowflake-style)
-   {:key :node-id :env-var "O11YLITE_NODE_ID" :default 0 :parser #(Long/parseLong %)}
+   {:key         :node-id
+    :env-var     "O11YLITE_NODE_ID"
+    :default     0
+    :parser      #(Long/parseLong %)
+    :description "Node ID for distributed ID generation (Snowflake-style)."}
 
-   ;; Host interface to bind web server (0.0.0.0 for all interfaces)
-   {:key :host :env-var "O11YLITE_WEB_HOST" :default "0.0.0.0" :parser identity}
+   {:key         :host
+    :env-var     "O11YLITE_WEB_HOST"
+    :default     "0.0.0.0"
+    :parser      identity
+    :description "Host interface the web server binds to."}
 
-   ;; HTTP web server port
-   {:key :web-port :env-var "O11YLITE_WEB_PORT" :default 3000 :parser #(Long/parseLong %)}
+   {:key         :web-port
+    :env-var     "O11YLITE_WEB_PORT"
+    :default     3000
+    :parser      #(Long/parseLong %)
+    :description "HTTP port for the web server."}
 
-   ;; OTLP/gRPC ingestion port for OpenTelemetry data
-   {:key :otel-grpc-port :env-var "O11YLITE_OTEL_GRPC_PORT" :default 4317 :parser #(Long/parseLong %)}
+   {:key         :otel-grpc-port
+    :env-var     "O11YLITE_OTEL_GRPC_PORT"
+    :default     4317
+    :parser      #(Long/parseLong %)
+    :description "gRPC port for OpenTelemetry data ingestion."}
 
-   ;; Base URL for static assets (e.g., '/frontend' or CDN URL)
-   {:key :asset-base-url :env-var "O11YLITE_ASSET_BASE_URL" :default "/frontend" :parser identity}
+   {:key         :asset-base-url
+    :env-var     "O11YLITE_ASSET_BASE_URL"
+    :default     "/frontend"
+    :parser      identity
+    :description "Base URL path for serving static frontend assets."}
 
-   ;; Path to Vite manifest relative to resources/ (prod only)
-   {:key :frontend-manifest-path :env-var "O11YLITE_FRONTEND_MANIFEST_PATH" :default ".vite/manifest.json" :parser identity}
+   {:key         :frontend-manifest-path
+    :env-var     "O11YLITE_FRONTEND_MANIFEST_PATH"
+    :default     ".vite/manifest.json"
+    :parser      identity
+    :description "Path to the Vite manifest file (production only)."}
 
-   ;; Entry point for frontend, must match vite.config.ts rollupOptions.input
-   {:key :frontend-entry-point :env-var "O11YLITE_FRONTEND_ENTRY_POINT" :default "src/main.tsx" :parser identity}
+   {:key         :frontend-entry-point
+    :env-var     "O11YLITE_FRONTEND_ENTRY_POINT"
+    :default     "src/main.tsx"
+    :parser      identity
+    :description "Frontend entry point matching vite.config.ts input."}
 
-   ;; Development mode flag - enables Vite dev server integration
-   {:key :dev? :env-var "O11YLITE_DEV" :default false :parser #(= "true" %)}
+   {:key         :dev?
+    :env-var     "O11YLITE_DEV"
+    :default     false
+    :parser      #(= "true" %)
+    :description "Development mode: enables Vite dev server integration."}
 
-   ;; Enable runtime app configuration via KV store
-   {:key :runtime-app-config? :env-var "O11YLITE_ENABLE_RUNTIME_APP_CONFIG" :default false :parser #(= "true" %)}
+   {:key         :runtime-app-config?
+    :env-var     "O11YLITE_ENABLE_RUNTIME_APP_CONFIG"
+    :default     false
+    :parser      #(= "true" %)
+    :description "Allow runtime configuration changes via the KV store."}
 
-   ;; OIDC issuer URL - enables UI authentication when set
-   {:key :oidc-issuer-url :env-var "O11YLITE_OIDC_ISSUER_URL" :default nil :parser identity}
+   {:key         :oidc-issuer-url
+    :env-var     "O11YLITE_OIDC_ISSUER_URL"
+    :default     nil
+    :parser      identity
+    :description "OIDC provider issuer URL. Enables authentication when set."}
 
-   ;; OIDC client ID - required if OIDC enabled
-   {:key :oidc-client-id :env-var "O11YLITE_OIDC_CLIENT_ID" :default nil :parser identity}
+   {:key         :oidc-client-id
+    :env-var     "O11YLITE_OIDC_CLIENT_ID"
+    :default     nil
+    :parser      identity
+    :description "OIDC client identifier."}
 
-   ;; OIDC client secret - required if OIDC enabled
-   {:key :oidc-client-secret :env-var "O11YLITE_OIDC_CLIENT_SECRET" :default nil :parser identity}
+   {:key          :oidc-client-secret
+    :env-var      "O11YLITE_OIDC_CLIENT_SECRET"
+    :default      nil
+    :parser       identity
+    :description  "OIDC client secret for token exchange."
+    :credential?  true}
 
-   ;; Session encryption key (16-byte hex string); auto-generated if not set
-   {:key :session-secret :env-var "O11YLITE_SESSION_SECRET" :default nil :parser identity}
+   {:key          :session-secret
+    :env-var      "O11YLITE_SESSION_SECRET"
+    :default      nil
+    :parser       identity
+    :description  "Encryption key for session cookies (16-byte hex)."
+    :credential?  true}
 
    ;; DuckLake data inlining row limit (opt-in, default 0 = disabled).
    ;;
@@ -87,7 +131,11 @@
    ;; Set to a positive integer (e.g., 1000) to opt in. Inserts with fewer rows
    ;; than this limit will be inlined; larger inserts go directly to Parquet.
    ;; When enabled, a scheduled flush job periodically materializes inlined data.
-   {:key :data-inlining-row-limit :env-var "O11YLITE_DATA_INLINING_ROW_LIMIT" :default 0 :parser #(Long/parseLong %)}])
+   {:key         :data-inlining-row-limit
+    :env-var     "O11YLITE_DATA_INLINING_ROW_LIMIT"
+    :default     0
+    :parser      #(Long/parseLong %)
+    :description "DuckLake data inlining row limit (0 = disabled). Keep low if enabled."}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps
@@ -142,15 +190,14 @@
 ;; Documentation Helper
 ;; ---------------------------------------------------------
 
+(def ^:private list-config-keys
+  [:key :env-var :default :description :credential?])
+
 (defn list-config
   "Returns a list of all core configuration options with their
-defaults and environment variable names. Useful for documentation."
+defaults, environment variable names, and descriptions."
   []
-  (mapv (fn [{:keys [key env-var default]}]
-          {:key key
-           :env-var env-var
-           :default default})
-        core-config-defs))
+  (mapv #(select-keys % list-config-keys) core-config-defs))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

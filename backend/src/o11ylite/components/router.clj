@@ -31,6 +31,7 @@
     [o11ylite.routes.api-keys :as api-keys]
     [o11ylite.routes.oauth :as oauth]
     [o11ylite.routes.scheduled-jobs :as scheduled-jobs]
+    [o11ylite.routes.settings :as settings]
     [ring.middleware.session]
     [ring.middleware.session.cookie :as cookie]))
 
@@ -164,7 +165,7 @@
 (defn page-routes
   "Page routes - site defaults + Inertia middleware + auth.
    In open mode, no identity middleware (all pages accessible)."
-  [{:keys [inertia sqlite id-generator auth-config api-key-cache scheduler-registry scheduler-executor]}]
+  [{:keys [inertia sqlite id-generator auth-config app-config core-config api-key-cache scheduler-registry scheduler-executor]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-site (make-wrap-site-defaults (:session-key auth-config))
         wrap-identity (when-not open-mode?
@@ -200,6 +201,9 @@
                              :scheduler-registry scheduler-registry
                              :scheduler-executor scheduler-executor
                              :auth-config auth-config})
+     (settings/routes {:core-config core-config
+                       :app-config app-config
+                       :auth-config auth-config})
      ;; Catch-all: render a proper 404 page for unmatched browser routes
      ["/*path" {:handler (fn [_] (response/inertia-error 404))}]]))
 
