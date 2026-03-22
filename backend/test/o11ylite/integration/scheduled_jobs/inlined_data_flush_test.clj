@@ -17,12 +17,16 @@
   (:import
     [java.time Instant]))
 
-;; Start scheduler and event-metadata for these tests
+;; These tests exercise DuckLake data inlining, which is disabled by default.
+;; We override data-inlining-row-limit to enable it for this test suite.
+;;
 ;; Note: We use persist-batch! directly instead of the batcher to avoid a
 ;; known DuckLake concurrency issue where INSERT + flush_inlined_data can
 ;; cause data duplication when running concurrently.
 ;; See: https://github.com/duckdb/ducklake/issues/650
-(use-fixtures :each (h/with-partial-system [:scheduler/executor :cache/event-metadata]))
+(use-fixtures :each
+  (h/with-partial-system [:scheduler/executor :cache/event-metadata]
+                         {:config/core {:data-inlining-row-limit 1000}}))
 
 ;; ---------------------------------------------------------
 ;; Helpers
