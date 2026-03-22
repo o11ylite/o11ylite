@@ -60,7 +60,34 @@
    {:key :oidc-client-secret :env-var "O11YLITE_OIDC_CLIENT_SECRET" :default nil :parser identity}
 
    ;; Session encryption key (16-byte hex string); auto-generated if not set
-   {:key :session-secret :env-var "O11YLITE_SESSION_SECRET" :default nil :parser identity}])
+   {:key :session-secret :env-var "O11YLITE_SESSION_SECRET" :default nil :parser identity}
+
+   ;; DuckLake data inlining row limit (opt-in, default 0 = disabled).
+   ;;
+   ;; Data inlining stores small writes directly in the metadata catalog (SQLite)
+   ;; instead of creating individual Parquet files. This avoids tiny Parquet files
+   ;; from trickle inserts. However, we disable it by default because:
+   ;;
+   ;; 1. DuckLake's data inlining is not yet stable (DuckLake is pre-1.0).
+   ;; 2. OTLP collectors/exporters already batch aggressively (typically 512-8192
+   ;;    spans per batch), so our ingestion pipeline rarely produces single-row
+   ;;    inserts that would benefit from inlining.
+   ;; 3. The merge_adjacent_files maintenance job already compacts small Parquet
+   ;;    files, providing a stable alternative for the small-file problem.
+   ;;
+   ;; WARNING: Do NOT set this to a high value (e.g. DuckLake's old default of
+   ;; 100,000). Our ingestion pipeline does bulk INSERT INTO ... SELECT from a
+   ;; staging table, pushing 1K-50K rows per statement. When the inlining limit
+   ;; is higher than the batch size, those entire batches get inlined into the
+   ;; SQLite metadata catalog instead of going to Parquet, causing significant
+   ;; overhead that caps throughput at ~1k rows/s. If you opt in, keep the limit
+   ;; low (e.g. 1000) so only genuinely small trickle inserts get inlined while
+   ;; normal batched ingestion bypasses inlining entirely.
+   ;;
+   ;; Set to a positive integer (e.g., 1000) to opt in. Inserts with fewer rows
+   ;; than this limit will be inlined; larger inserts go directly to Parquet.
+   ;; When enabled, a scheduled flush job periodically materializes inlined data.
+   {:key :data-inlining-row-limit :env-var "O11YLITE_DATA_INLINING_ROW_LIMIT" :default 0 :parser #(Long/parseLong %)}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps

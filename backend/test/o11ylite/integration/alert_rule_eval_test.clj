@@ -35,13 +35,15 @@
   "Create an alert rule directly via the store. Returns the rule ID."
   [overrides]
   (let [id (str (UuidCreator/getTimeOrderedEpoch))
+        ;; eval_interval_ms defaults to 0 so the rule is always considered due,
+        ;; even if the background scheduler already evaluated it moments ago.
         rule-data (merge {:name "Test Alert Rule"
                           :description "Test rule for evaluation"
                           :query_mode "events"
                           :query {:filter {:field "service" :op "=" :value "test-service"}
                                   :visualization {:type "table"}}
                           :eval_window_ms 300000
-                          :eval_interval_ms 60000}
+                          :eval_interval_ms 0}
                          overrides)]
     (store/create! (sqlite) id rule-data)
     id))
@@ -61,8 +63,7 @@
                                        :query {:filter {:field "service" :op "=" :value "error-service"}
                                                :visualization {:type "table"}}
                                        ;; Use 2-hour window since test helpers generate events within last hour
-                                       :eval_window_ms 7200000
-                                       :eval_interval_ms 60000})]
+                                       :eval_window_ms 7200000})]
 
       ;; Verify initial state is "ok"
       (is (= "ok" (get-rule-state rule-id))

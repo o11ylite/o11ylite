@@ -47,15 +47,6 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
-;; DuckLake's DATA_INLINING_ROW_LIMIT controls whether row data is stored inline
-;; in the metadata catalog (SQLite) or written directly to Parquet files.
-;; Lowered from the default 100000 to 1000 because our ingestion pipeline does
-;; bulk INSERT INTO ... SELECT from a staging table, pushing 1K-50K rows per
-;; statement. With the default, those batches would be inlined in DuckDB, causing
-;; overhead and cap throughput at ~1k rows/s somehow.
-;; we keep use data-inlining so small trickle inserts still inline to avoid tiny Parquet files.
-(def data-inlining-row-limit 1000)
-
 (defn- ensure-data-dir!
   "Ensure the data directory exists, creating it if necessary."
   [data-path]
@@ -69,34 +60,39 @@
   [data-path]
   (str data-path "/o11ylite.ducklake"))
 
+(defn- -build-attach-sql
+  "Build the DuckLake ATTACH SQL with appropriate options.
+
+   Always includes AUTOMATIC_MIGRATION because DuckLake is pre-1.0 and its catalog
+   schema can change between extension versions. Without this flag, a DuckDB upgrade
+   that bundles a newer DuckLake extension would refuse to attach an older catalog.
+
+   DATA_INLINING_ROW_LIMIT is only included when data-inlining-row-limit > 0 (opt-in).
+   When 0, DuckLake writes all inserts directly to Parquet files. See core_config.clj
+   for the rationale behind disabling data inlining by default."
+  [ducklake-file data-inlining-row-limit]
+  (if (pos? data-inlining-row-limit)
+    (format "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s, AUTOMATIC_MIGRATION)"
+            ducklake-file data-inlining-row-limit)
+    (format "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT 0, AUTOMATIC_MIGRATION)"
+            ducklake-file)))
+
 (defn- init-root-connection!
   "Create the root DuckDB connection with DuckLake attached.
    This connection is used as the basis for duplicate() calls.
 
-   Note the use of DATA_INLINING_ROW_LIMIT this enables data inlining, this is our
-   main defence against fragmented parquets file.
-
-   AUTOMATIC_MIGRATION allows DuckLake to transparently upgrade its metadata catalog
-   when the extension version changes (e.g. 0.3 -> 0.4), avoiding version mismatch
-   errors on DuckDB upgrades.
-
    Note: USE o11ylite won't carry over to duplicate() connections since USE is
    session-level state. We add connectionInitSql to HikariCP to run USE on each
    pooled connection checkout."
-  [ducklake-file]
+  [ducklake-file data-inlining-row-limit]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
-        ;; AUTOMATIC_MIGRATION: DuckLake is pre-1.0 and its catalog schema can
-        ;; change between extension versions. Without this flag, a DuckDB upgrade
-        ;; that bundles a newer DuckLake extension will refuse to attach an older
-        ;; catalog. The flag tells DuckLake to migrate the catalog in-place.
-        attach-sql (format
-                     "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s, AUTOMATIC_MIGRATION)"
-                     ducklake-file
-                     data-inlining-row-limit)]
+        attach-sql (-build-attach-sql ducklake-file data-inlining-row-limit)]
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
-    (mulog/log ::root-connection-initialized :ducklake-file ducklake-file)
+    (mulog/log ::root-connection-initialized
+               :ducklake-file ducklake-file
+               :data-inlining-row-limit data-inlining-row-limit)
     conn))
 
 (defn- duplicating-datasource
@@ -133,10 +129,10 @@
 
 (defn- create-pool-datasource
   "Create a HikariCP-pooled datasource backed by DuckDB duplicate() connections."
-  [{:keys [data-path pool-size]
-    :or {pool-size 10}}]
+  [{:keys [data-path data-inlining-row-limit pool-size]
+    :or {data-inlining-row-limit 0 pool-size 10}}]
   (let [ducklake-file (ducklake-path data-path)
-        root-conn (init-root-connection! ducklake-file)
+        root-conn (init-root-connection! ducklake-file data-inlining-row-limit)
         ;; USE is session-level state that doesn't carry over from root to
         ;; duplicate() connections, so we run it on each connection checkout
         config (doto (HikariConfig.)
@@ -183,10 +179,14 @@
 
 (defmethod ig/init-key :db/duckdb
   [_ {:keys [core-config]}]
-  (let [data-path (:data-path core-config)]
-    (mulog/log ::duckdb-pool-starting :data-path data-path)
+  (let [data-path (:data-path core-config)
+        data-inlining-row-limit (:data-inlining-row-limit core-config 0)]
+    (mulog/log ::duckdb-pool-starting
+               :data-path data-path
+               :data-inlining-row-limit data-inlining-row-limit)
     (ensure-data-dir! data-path)
-    (let [datasource (create-pool-datasource {:data-path data-path})]
+    (let [datasource (create-pool-datasource {:data-path data-path
+                                              :data-inlining-row-limit data-inlining-row-limit})]
       ;; Validate pool by getting and closing a connection
       (.close (.getConnection datasource))
       (mulog/log ::duckdb-pool-started :data-path data-path)
