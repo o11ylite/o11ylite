@@ -43,6 +43,7 @@
     [javax.sql DataSource]
     [java.io File Closeable]))
 
+
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
@@ -75,13 +76,21 @@
    Note the use of DATA_INLINING_ROW_LIMIT this enables data inlining, this is our
    main defence against fragmented parquets file.
 
+   AUTOMATIC_MIGRATION allows DuckLake to transparently upgrade its metadata catalog
+   when the extension version changes (e.g. 0.3 -> 0.4), avoiding version mismatch
+   errors on DuckDB upgrades.
+
    Note: USE o11ylite won't carry over to duplicate() connections since USE is
    session-level state. We add connectionInitSql to HikariCP to run USE on each
    pooled connection checkout."
   [ducklake-file]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
+        ;; AUTOMATIC_MIGRATION: DuckLake is pre-1.0 and its catalog schema can
+        ;; change between extension versions. Without this flag, a DuckDB upgrade
+        ;; that bundles a newer DuckLake extension will refuse to attach an older
+        ;; catalog. The flag tells DuckLake to migrate the catalog in-place.
         attach-sql (format
-                     "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s)"
+                     "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT %s, AUTOMATIC_MIGRATION)"
                      ducklake-file
                      data-inlining-row-limit)]
     (jdbc/execute! conn ["INSTALL ducklake"])
