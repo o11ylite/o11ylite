@@ -128,36 +128,45 @@
   (partial * 60000))
 
 (defmethod ig/init-key :scheduler/registry
-  [_ {:keys [duckdb sqlite event-metadata app-config]}]
+  [_ {:keys [core-config duckdb sqlite event-metadata app-config]}]
   (mulog/log ::registry-initializing)
-  (let [inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
+  (let [data-inlining-row-limit (:data-inlining-row-limit core-config 0)
+        inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
         parquet-compaction-interval-minutes (app-config/get-setting-value app-config :parquet-compaction-interval-minutes)
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
         data-retention-days (app-config/get-setting-value app-config :data-retention-days)
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
-    {:inlined-data-flush
-     {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
-      :description "Flush DuckLake inlined data to Parquet"
-      :handler (fn [] (ducklake/flush-inlined-data! duckdb))}
+    (cond->
+      {;; Always registered: compaction handles small-file accumulation regardless
+       ;; of whether data inlining is enabled or not.
+       :parquet-compaction
+       {:interval-ms (minutes->ms parquet-compaction-interval-minutes)
+        :description "Merge small Parquet files for better query performance"
+        :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
 
-     :parquet-compaction
-     {:interval-ms (minutes->ms parquet-compaction-interval-minutes)
-      :description "Merge small Parquet files for better query performance"
-      :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
+       :daily-maintenance
+       {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
+        :description "Daily data retention and DuckLake maintenance"
+        :handler (fn []
+                   (ducklake/delete-old-data! duckdb data-retention-days)
+                   (ducklake/run-checkpoint! duckdb))}
 
-     :daily-maintenance
-     {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
-      :description "Daily data retention and DuckLake maintenance"
-      :handler (fn []
-                 (ducklake/delete-old-data! duckdb data-retention-days)
-                 (ducklake/run-checkpoint! duckdb))}
+       :alert-evaluation
+       {:interval-ms 30000
+        :description "Evaluate due alert rules and send webhook notifications"
+        :handler (fn []
+                   (alert-rule/run-evaluation-cycle!
+                     duckdb sqlite event-metadata webhook-url))}}
 
-     :alert-evaluation
-     {:interval-ms 30000
-      :description "Evaluate due alert rules and send webhook notifications"
-      :handler (fn []
-                 (alert-rule/run-evaluation-cycle!
-                   duckdb sqlite event-metadata webhook-url))}}))
+      ;; Only register the inlined-data-flush job when data inlining is enabled.
+      ;; When DATA_INLINING_ROW_LIMIT is 0, no data is ever inlined so flushing
+      ;; would be a no-op. Skipping the job avoids unnecessary scheduler overhead
+      ;; and makes it visible in the job status page that inlining is off.
+      (pos? data-inlining-row-limit)
+      (assoc :inlined-data-flush
+             {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
+              :description "Flush DuckLake inlined data to Parquet"
+              :handler (fn [] (ducklake/flush-inlined-data! duckdb))}))))
 
 ;; ---------------------------------------------------------
 ;; Scheduler Component
