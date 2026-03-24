@@ -63,33 +63,17 @@
 
 (defn test-config
   "Build test configuration for full system tests.
-   
-   Note: scheduler is excluded by default due to a known DuckLake
-   concurrency bug where flush_inlined_data + INSERT can cause data
-   duplication. See: https://github.com/duckdb/ducklake/issues/650
-   
-   Tests that specifically need the scheduler should use with-partial-system."
+
+   The scheduler runs normally. Data inlining is disabled by default
+   (DATA_INLINING_ROW_LIMIT=0), so the flush_inlined_data job that triggered
+   the DuckLake concurrency bug (duckdb/ducklake#650) is never registered."
   []
-  (-> (base-test-config)
-      (dissoc :scheduler/registry)
-      (dissoc :scheduler/executor)
-      (update :router/routes dissoc :scheduler-registry :scheduler-executor)))
+  (base-test-config))
 
 (defn start-system!
   "Start the full system with test configuration."
   []
   (ig/init (test-config)))
-
-(defn start-partial-system!
-  "Start only specified components (and their dependencies).
-   Uses base-test-config (with scheduler) so partial system tests can
-   request any component.
-   
-   Example:
-     (start-partial-system! [:discovery/services])
-     ;; Starts :discovery/services, :db/sqlite, :db/duckdb, :storage/init"
-  [keys]
-  (ig/init (base-test-config) keys))
 
 (defn stop-system!
   "Stop the test system."
@@ -109,19 +93,40 @@
       (finally
         (stop-system! sys)))))
 
+(defn start-partial-system!
+  "Start only specified components (and their dependencies).
+   Optional config-overrides map is deep-merged into the base test config,
+   keyed by integrant component (e.g. {:config/core {:data-inlining-row-limit 1000}}).
+   
+   Example:
+     (start-partial-system! [:discovery/services])
+     ;; Starts :discovery/services, :db/sqlite, :db/duckdb, :storage/init"
+  ([keys] (start-partial-system! keys {}))
+  ([keys config-overrides]
+   (let [config (reduce-kv (fn [cfg k overrides]
+                             (update cfg k merge overrides))
+                           (base-test-config)
+                           config-overrides)]
+     (ig/init config keys))))
+
 (defn with-partial-system
   "Create a test fixture that starts only specified components.
+   Optional config-overrides map is deep-merged into the base test config,
+   keyed by integrant component (e.g. {:config/core {:data-inlining-row-limit 1000}}).
    
    Usage:
-   (use-fixtures :each (h/with-partial-system [:discovery/services]))"
-  [keys]
-  (fn [f]
-    (let [sys (start-partial-system! keys)]
-      (try
-        (binding [*system* sys]
-          (f))
-        (finally
-          (stop-system! sys))))))
+   (use-fixtures :each (h/with-partial-system [:discovery/services]))
+   (use-fixtures :each (h/with-partial-system [:scheduler/executor]
+                                              {:config/core {:data-inlining-row-limit 1000}}))"
+  ([keys] (with-partial-system keys {}))
+  ([keys config-overrides]
+   (fn [f]
+     (let [sys (start-partial-system! keys config-overrides)]
+       (try
+         (binding [*system* sys]
+           (f))
+         (finally
+           (stop-system! sys)))))))
 
 ;; ---------------------------------------------------------
 ;; OIDC Test Support
