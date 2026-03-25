@@ -21,35 +21,65 @@
 
 (def ^:private app-config-defs
   "Configuration definitions: key, env var, default, parser."
-  [;; Service discovery scan interval in milliseconds
-   {:key :service-discovery-interval-ms :env-var "O11YLITE_SERVICE_DISCOVERY_INTERVAL_MS" :default 300000 :parser #(Long/parseLong %)}
+  [{:key         :service-discovery-interval-ms
+    :env-var     "O11YLITE_SERVICE_DISCOVERY_INTERVAL_MS"
+    :default     300000
+    :parser      #(Long/parseLong %)
+    :description "How often to scan for new services (ms)."}
 
-   ;; Ingest flush interval in milliseconds
-   {:key :ingest-flush-interval-ms :env-var "O11YLITE_INGEST_FLUSH_INTERVAL_MS" :default 1000 :parser #(Long/parseLong %)}
+   {:key         :ingest-flush-interval-ms
+    :env-var     "O11YLITE_INGEST_FLUSH_INTERVAL_MS"
+    :default     1000
+    :parser      #(Long/parseLong %)
+    :description "Interval between event batch flushes to storage (ms)."}
 
-   ;; TTL for metric normalizer series state in milliseconds
-   {:key :metric-normalizer-ttl-ms :env-var "O11YLITE_METRIC_NORMALIZER_TTL_MS" :default 1800000 :parser #(Long/parseLong %)}
+   {:key         :metric-normalizer-ttl-ms
+    :env-var     "O11YLITE_METRIC_NORMALIZER_TTL_MS"
+    :default     1800000
+    :parser      #(Long/parseLong %)
+    :description "TTL for metric normalizer series state (ms)."}
 
-   ;; Cleanup interval for metric normalizer in milliseconds
-   {:key :metric-normalizer-cleanup-ms :env-var "O11YLITE_METRIC_NORMALIZER_CLEANUP_MS" :default 60000 :parser #(Long/parseLong %)}
+   {:key         :metric-normalizer-cleanup-ms
+    :env-var     "O11YLITE_METRIC_NORMALIZER_CLEANUP_MS"
+    :default     60000
+    :parser      #(Long/parseLong %)
+    :description "Cleanup interval for expired metric normalizer entries (ms)."}
 
-   ;; Metric flush interval in milliseconds
-   {:key :metric-flush-interval-ms :env-var "O11YLITE_METRIC_FLUSH_INTERVAL_MS" :default 1000 :parser #(Long/parseLong %)}
+   {:key         :metric-flush-interval-ms
+    :env-var     "O11YLITE_METRIC_FLUSH_INTERVAL_MS"
+    :default     1000
+    :parser      #(Long/parseLong %)
+    :description "Interval between metric batch flushes to storage (ms)."}
 
-   ;; Interval for flushing inlined data to Parquet in minutes
-   {:key :inlined-data-flush-interval-minutes :env-var "O11YLITE_INLINED_DATA_FLUSH_INTERVAL_MINUTES" :default 15 :parser #(Long/parseLong %)}
+   {:key         :inlined-data-flush-interval-minutes
+    :env-var     "O11YLITE_INLINED_DATA_FLUSH_INTERVAL_MINUTES"
+    :default     15
+    :parser      #(Long/parseLong %)
+    :description "How often inlined data is flushed to Parquet files (min)."}
 
-   ;; Interval for Parquet compaction in minutes
-   {:key :parquet-compaction-interval-minutes :env-var "O11YLITE_PARQUET_COMPACTION_INTERVAL_MINUTES" :default 60 :parser #(Long/parseLong %)}
+   {:key         :parquet-compaction-interval-minutes
+    :env-var     "O11YLITE_PARQUET_COMPACTION_INTERVAL_MINUTES"
+    :default     60
+    :parser      #(Long/parseLong %)
+    :description "How often Parquet files are compacted (min)."}
 
-   ;; Interval for daily maintenance tasks in minutes
-   {:key :daily-maintenance-interval-minutes :env-var "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES" :default 1440 :parser #(Long/parseLong %)}
+   {:key         :daily-maintenance-interval-minutes
+    :env-var     "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES"
+    :default     1440
+    :parser      #(Long/parseLong %)
+    :description "Interval for daily maintenance tasks like retention cleanup (min)."}
 
-   ;; Data retention period in days
-   {:key :data-retention-days :env-var "O11YLITE_DATA_RETENTION_DAYS" :default 30 :parser #(Long/parseLong %)}
+   {:key         :data-retention-days
+    :env-var     "O11YLITE_DATA_RETENTION_DAYS"
+    :default     30
+    :parser      #(Long/parseLong %)
+    :description "Number of days to retain trace and metric data."}
 
-   ;; Webhook URL for alert notifications (Alertmanager-compatible)
-   {:key :webhook-url :env-var "O11YLITE_WEBHOOK_URL" :default nil :parser identity}])
+   {:key         :webhook-url
+    :env-var     "O11YLITE_WEBHOOK_URL"
+    :default     nil
+    :parser      identity
+    :description "Webhook URL for alert notifications (Alertmanager-compatible)."}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps
@@ -134,6 +164,19 @@
      Queries KV store at runtime (if enabled)."
   [app-config setting-key]
   (:value (get-setting app-config setting-key)))
+
+;; ---------------------------------------------------------
+;; Documentation Helper
+;; ---------------------------------------------------------
+
+(def ^:private list-config-keys
+  [:key :env-var :default :description])
+
+(defn list-config
+  "Returns a list of all app configuration options with their
+  defaults, environment variable names, and descriptions."
+  []
+  (mapv #(select-keys % list-config-keys) app-config-defs))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
