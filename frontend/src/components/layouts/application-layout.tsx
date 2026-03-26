@@ -8,6 +8,7 @@ import { TimeRangeSelector } from "@/components/time-range-selector"
 import { Button } from "@/components/ui/button"
 import { CollapsiblePanel } from "@/components/collapsible-panel"
 import { Separator } from "@/components/ui/separator"
+import { Toaster } from "@/components/ui/sonner"
 import {
   SidebarInset,
   SidebarProvider,
@@ -110,6 +111,7 @@ export default function ApplicationLayout({
           )}
         </div>
       </SidebarInset>
+      <Toaster />
     </SidebarProvider>
   )
 }

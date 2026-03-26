@@ -375,6 +375,34 @@ export interface ScheduledJob {
 }
 
 // ============================================================================
+// Data Management Types
+// ============================================================================
+
+export type FieldStatus = "active" | "blocked"
+
+export type FieldCategory = "system" | "attribute"
+
+export interface ManagedField {
+  name: string
+  type: FieldType
+  category: FieldCategory
+  status: FieldStatus
+}
+
+export interface ManagedMetric {
+  name: string
+  metric_type: MetricType
+  unit: string
+  description: string
+  attributes: string[]
+}
+
+export interface ManagedMetricAttribute {
+  name: string
+  status: FieldStatus
+}
+
+// ============================================================================
 // Auth Shared Data (from Inertia shared props)
 // ============================================================================
 

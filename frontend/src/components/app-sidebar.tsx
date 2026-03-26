@@ -62,7 +62,7 @@ const navigation: NavGroup[] = [
 const systemItems = [
   { title: "API Keys", url: "/system/api-keys", icon: KeyRound },
   { title: "Scheduled Jobs", url: "/system/jobs", icon: Clock },
-  { title: "Fields Management", url: "/system/fields", icon: Database },
+  { title: "Data Management", url: "/system/data-management", icon: Database },
   { title: "Settings", url: "/system/settings", icon: Settings },
 ]
 
