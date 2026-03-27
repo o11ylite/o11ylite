@@ -115,6 +115,17 @@
          (map #(keyword (:column_name %)))
          set)))
 
+(defn fetch-metric-attr-fields
+  "Fetch attr.* column names from the metrics table.
+   Returns a vector of field name strings, sorted alphabetically."
+  [duckdb-ds]
+  (let [rows (jdbc/execute! duckdb-ds ["DESCRIBE o11ylite.metrics"])]
+    (->> rows
+         (map :column_name)
+         (filter #(.startsWith ^String % "attr."))
+         sort
+         vec)))
+
 (defn add-event-fields!
   "Add new fields (columns) to the events table for schema evolution.
    Executes ALTER TABLE ADD COLUMN IF NOT EXISTS for each field.
@@ -160,6 +171,34 @@
                          (doseq [field-name fields]
                            (let [sql (format "ALTER TABLE o11ylite.metrics ADD COLUMN IF NOT EXISTS \"%s\" VARCHAR"
                                              (name field-name))]
+                             (jdbc/execute! tx [sql])))))
+
+(defn drop-event-fields!
+  "Drop columns from the events table.
+   DuckLake makes this a cheap metadata-only operation.
+
+   Arguments:
+     duckdb-ds   - DuckDB datasource
+     field-names - Collection of field name strings"
+  [duckdb-ds field-names]
+  (jdbc/with-transaction [tx duckdb-ds]
+                         (doseq [field-name field-names]
+                           (let [sql (format "ALTER TABLE o11ylite.events DROP COLUMN \"%s\""
+                                             field-name)]
+                             (jdbc/execute! tx [sql])))))
+
+(defn drop-metric-fields!
+  "Drop columns from the metrics table.
+   DuckLake makes this a cheap metadata-only operation.
+
+   Arguments:
+     duckdb-ds   - DuckDB datasource
+     field-names - Collection of field name strings"
+  [duckdb-ds field-names]
+  (jdbc/with-transaction [tx duckdb-ds]
+                         (doseq [field-name field-names]
+                           (let [sql (format "ALTER TABLE o11ylite.metrics DROP COLUMN \"%s\""
+                                             field-name)]
                              (jdbc/execute! tx [sql])))))
 
 ;; ---------------------------------------------------------
