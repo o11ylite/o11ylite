@@ -29,6 +29,7 @@
     [o11ylite.routes.notebooks :as notebooks]
     [o11ylite.routes.alert-rules :as alert-rules]
     [o11ylite.routes.api-keys :as api-keys]
+    [o11ylite.routes.data-management :as data-management]
     [o11ylite.routes.oauth :as oauth]
     [o11ylite.routes.scheduled-jobs :as scheduled-jobs]
     [o11ylite.routes.settings :as settings]
@@ -165,7 +166,7 @@
 (defn page-routes
   "Page routes - site defaults + Inertia middleware + auth.
    In open mode, no identity middleware (all pages accessible)."
-  [{:keys [inertia sqlite id-generator auth-config app-config core-config api-key-cache scheduler-registry scheduler-executor]}]
+  [{:keys [inertia sqlite duckdb event-metadata id-generator auth-config app-config core-config api-key-cache scheduler-registry scheduler-executor]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-site (make-wrap-site-defaults (:session-key auth-config))
         wrap-identity (when-not open-mode?
@@ -204,6 +205,11 @@
      (settings/routes {:core-config core-config
                        :app-config app-config
                        :auth-config auth-config})
+     ;; Data management — view/block/delete event fields and metric fields
+     (data-management/routes {:sqlite sqlite
+                              :duckdb duckdb
+                              :event-metadata event-metadata
+                              :auth-config auth-config})
      ;; Catch-all: render a proper 404 page for unmatched browser routes
      ["/*path" {:handler (fn [_] (response/inertia-error 404))}]]))
 

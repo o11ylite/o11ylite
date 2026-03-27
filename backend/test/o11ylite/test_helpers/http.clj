@@ -199,12 +199,19 @@
              :body (json/write-value-as-string body-map)}))
 
 (defn delete-mutation
-  "DELETE with CSRF session, no redirect following. Returns raw 303 response."
-  [path session]
-  (http/delete (url path)
-               {:client @no-redirect-client
-                :throw false
-                :headers (csrf-headers session)}))
+  "DELETE with CSRF session, no redirect following. Returns raw 303 response.
+   Optionally accepts a body map for endpoints that require a request body."
+  ([path session]
+   (http/delete (url path)
+                {:client @no-redirect-client
+                 :throw false
+                 :headers (csrf-headers session)}))
+  ([path session body-map]
+   (http/delete (url path)
+                {:client @no-redirect-client
+                 :throw false
+                 :headers (csrf-headers session)
+                 :body (json/write-value-as-string body-map)})))
 
 ;; ---------------------------------------------------------
 ;; Response Helpers
