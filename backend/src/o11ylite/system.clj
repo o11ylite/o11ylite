@@ -17,6 +17,7 @@
     [o11ylite.components.sqlite-pool]
     [o11ylite.components.id-gen]
     [o11ylite.components.storage-init]
+    [o11ylite.components.blocked-fields]
     [o11ylite.components.event-metadata]
     [o11ylite.components.service-discovery]
     [o11ylite.components.event-batcher]

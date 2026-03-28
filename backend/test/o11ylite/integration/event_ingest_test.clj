@@ -8,6 +8,7 @@
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
     [next.jdbc :as jdbc]
+    [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.test-helpers :as h]
     [o11ylite.store.events.ingest :as events.ingest])
   (:import
@@ -100,7 +101,7 @@
                   (make-event {:name "ingested-span-2"
                                :trace_id "trace-002"
                                :attr.http.status_code 200})]
-          {:keys [success rejected-count]} (events.ingest/ingest-events! (event-metadata) (event-batcher) (id-generator) events)]
+          {:keys [success rejected-count]} (events.ingest/ingest-events! (event-metadata) (:cache/blocked-fields h/*system*) (event-batcher) (id-generator) events)]
       (is (true? success) "ingest-events! should return success true")
       (is (= 0 rejected-count) "No events should be rejected")
       (let [rows (query-events)]
@@ -110,6 +111,24 @@
         (is (= "trace-001" (:trace_id (first rows))))
         (is (= "GET" (:attr.http.method (first rows))))
         (is (= 200 (:attr.http.status_code (second rows))))))))
+
+(deftest ingest-events-blocked-fields-stripped-test
+  (testing "Blocked event fields are stripped during ingestion"
+    (let [bf (:cache/blocked-fields h/*system*)
+          sqlite (:db/sqlite h/*system*)]
+      (blocked-fields/block-event-fields! bf sqlite ["attr.http.method"])
+      (let [events [(make-event {:name "blocked-field-span"
+                                 :attr.http.method "GET"
+                                 :attr.http.status_code 200})]
+            {:keys [success]} (events.ingest/ingest-events! (event-metadata) bf (event-batcher) (id-generator) events)]
+        (is (true? success))
+        (let [rows (query-events)
+              row (first rows)]
+          (is (= 1 (count rows)))
+          ;; attr.http.method should not be persisted (blocked)
+          (is (nil? (:attr.http.method row)) "Blocked field should not be persisted")
+          ;; attr.http.status_code should be persisted (not blocked)
+          (is (= 200 (:attr.http.status_code row)) "Non-blocked field should be persisted"))))))
 
 (deftest ingest-sample-events-helper-test
   (testing "ingest-sample-events! generates and persists random events"

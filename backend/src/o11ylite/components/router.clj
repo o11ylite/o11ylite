@@ -125,7 +125,7 @@
 (defn api-routes
   "API routes - no CSRF. Auth via API key header or session cookie.
    In open mode, no auth middleware. Otherwise: session + identity + scope check."
-  [{:keys [duckdb sqlite event-metadata auth-config api-key-cache]}]
+  [{:keys [duckdb sqlite event-metadata blocked-fields auth-config api-key-cache]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-session  (when-not open-mode? (make-wrap-api-session (:session-key auth-config)))
         wrap-identity (when-not open-mode? (auth-mw/make-wrap-identity {:api-key-cache api-key-cache
@@ -136,7 +136,7 @@
                                          wrap-identity
                                          wrap-scope
                                          -api-exception-middleware])}
-     (api.events/routes {:event-metadata event-metadata})
+     (api.events/routes {:event-metadata event-metadata :blocked-fields blocked-fields})
      (api.metrics/routes {:sqlite sqlite})
      (api.query/routes {:duckdb duckdb :sqlite sqlite :event-metadata event-metadata})
      (api.services/routes {:sqlite sqlite})]))
@@ -145,11 +145,12 @@
   "OTLP HTTP routes - raw body handling, no JSON parsing middleware.
    These routes handle their own protobuf/JSON parsing.
    Auth: API key required if any keys exist in DB."
-  [{:keys [event-metadata event-batcher id-generator metric-batcher metric-normalizer sqlite api-key-cache]}]
+  [{:keys [event-metadata blocked-fields event-batcher id-generator metric-batcher metric-normalizer sqlite api-key-cache]}]
   (let [wrap-otlp-auth (auth-mw/make-wrap-otlp-auth {:api-key-cache api-key-cache})]
     ["" {:middleware [wrap-otlp-auth
                       -api-exception-middleware]}
      (otel-http/routes {:event-metadata event-metadata
+                        :blocked-fields blocked-fields
                         :event-batcher event-batcher
                         :id-generator id-generator
                         :metric-batcher metric-batcher
@@ -166,7 +167,7 @@
 (defn page-routes
   "Page routes - site defaults + Inertia middleware + auth.
    In open mode, no identity middleware (all pages accessible)."
-  [{:keys [inertia sqlite duckdb event-metadata id-generator auth-config app-config core-config api-key-cache scheduler-registry scheduler-executor]}]
+  [{:keys [inertia sqlite duckdb event-metadata blocked-fields id-generator auth-config app-config core-config api-key-cache scheduler-registry scheduler-executor]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-site (make-wrap-site-defaults (:session-key auth-config))
         wrap-identity (when-not open-mode?
@@ -209,6 +210,7 @@
      (data-management/routes {:sqlite sqlite
                               :duckdb duckdb
                               :event-metadata event-metadata
+                              :blocked-fields blocked-fields
                               :auth-config auth-config})
      ;; Catch-all: render a proper 404 page for unmatched browser routes
      ["/*path" {:handler (fn [_] (response/inertia-error 404))}]]))

@@ -89,6 +89,7 @@
 
    Arguments:
      metric-batcher - The metric batcher component
+     blocked-fields - The blocked-fields cache component
      sqlite         - SQLite datasource
      norm           - Temporality normalizer component
      data-points    - Collection of metric data point maps
@@ -100,15 +101,16 @@
    Example:
      (let [dps (make-random-metric-data-points 10)
            meta (make-metrics-metadata dps)]
-       (ingest-metrics! batcher sqlite norm dps meta))"
-  [metric-batcher sqlite norm data-points metadata]
-  (metrics.ingest/ingest-metrics! metric-batcher sqlite norm data-points metadata))
+       (ingest-metrics! batcher blocked-fields sqlite norm dps meta))"
+  [metric-batcher blocked-fields sqlite norm data-points metadata]
+  (metrics.ingest/ingest-metrics! metric-batcher blocked-fields sqlite norm data-points metadata))
 
 (defn ingest-sample-metrics!
   "Generate and ingest n random metrics. Returns the ingested data points.
 
    Arguments:
      metric-batcher - The metric batcher component
+     blocked-fields - The blocked-fields cache component
      sqlite         - SQLite datasource
      norm           - Temporality normalizer component
      n              - Number of data points to generate and ingest
@@ -120,14 +122,14 @@
      Vector of the ingested data point maps (for verification)
 
    Example:
-     (ingest-sample-metrics! batcher sqlite norm 10)
-     (ingest-sample-metrics! batcher sqlite norm 5 {:service \"test-svc\"})"
-  ([metric-batcher sqlite norm n]
-   (ingest-sample-metrics! metric-batcher sqlite norm n {}))
-  ([metric-batcher sqlite norm n overrides]
+     (ingest-sample-metrics! batcher blocked-fields sqlite norm 10)
+     (ingest-sample-metrics! batcher blocked-fields sqlite norm 5 {:service \"test-svc\"})"
+  ([metric-batcher blocked-fields sqlite norm n]
+   (ingest-sample-metrics! metric-batcher blocked-fields sqlite norm n {}))
+  ([metric-batcher blocked-fields sqlite norm n overrides]
    (let [data-points (vec (make-random-metric-data-points n overrides))
          metadata (make-metrics-metadata data-points)]
-     (ingest-metrics! metric-batcher sqlite norm data-points metadata)
+     (ingest-metrics! metric-batcher blocked-fields sqlite norm data-points metadata)
      data-points)))
 
 ;; ---------------------------------------------------------

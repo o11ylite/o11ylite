@@ -36,6 +36,7 @@
     [clojure.set :as set]
     [clojure.string :as str]
     [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.components.metric-temporality-normalizer :as normalizer]
     [o11ylite.store.batcher :as batcher]
     [o11ylite.store.metrics.dedupe :as dedupe]
@@ -81,6 +82,14 @@
   "Filter to only attr.* fields."
   [fields]
   (into #{} (filter #(.startsWith (name %) "attr.")) fields))
+
+(defn- -strip-blocked-attrs
+  "Remove blocked attr.* keys from each data point.
+   blocked-kws is a pre-computed set of keyword keys (e.g. #{:attr.bad.field})."
+  [data-points blocked-kws]
+  (if (empty? blocked-kws)
+    data-points
+    (mapv (fn [dp] (apply dissoc dp blocked-kws)) data-points)))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers - Metadata
@@ -182,8 +191,9 @@
   "Ingest metrics into the observability store (hot path).
 
    Called by gRPC handlers to submit metrics. Performs CPU-bound work
-   (deduplication, metadata validation, temporality normalization, field extraction)
-   then submits to batcher. Blocks until the batch is flushed by persist-batch!.
+   (deduplication, metadata validation, blocked-field stripping, temporality
+   normalization, field extraction) then submits to batcher. Blocks until
+   the batch is flushed by persist-batch!.
 
    Design rationale - CPU vs IO split:
      The batcher exists to batch IO operations (one flush per second).
@@ -195,6 +205,7 @@
 
    Arguments:
      metric-batcher   - The metric batcher component
+     blocked-fields   - Blocked-fields cache component (atom deref, no I/O)
      sqlite           - SQLite datasource (for cached metadata lookups)
      norm             - Temporality normalizer component (for cumulative→delta)
      data-points      - Collection of data point maps (with attr.* keys)
@@ -204,8 +215,10 @@
      {:success true/false
       :rejected-count N
       :error-message \"...\" or nil}"
-  [metric-batcher sqlite norm data-points metrics-metadata]
-  (let [;; Step 1: Deduplicate by series (sums/histograms dedupe, gauges pass through)
+  [metric-batcher blocked-fields sqlite norm data-points metrics-metadata]
+  (let [;; Step 0: Read blocked metric fields as keywords (cached, no I/O, no conversion)
+        blocked-set (blocked-fields/get-blocked-metric-fields-kw blocked-fields)
+        ;; Step 1: Deduplicate by series (sums/histograms dedupe, gauges pass through)
         deduped (dedupe/dedupe-by-series data-points metrics-metadata)
         ;; Step 2: Categorize metadata into changed vs immutable-field-conflicts
         {:keys [changed-metadata invalid-metrics errors]} (-categorize-metadata sqlite metrics-metadata)
@@ -213,9 +226,13 @@
         {:keys [valid rejected-count error-message]} (-reject-invalid-data-points deduped invalid-metrics errors)
         ;; Step 4: Normalize temporality (cumulative → delta, with reset detection)
         {:keys [normalized cumulative-to-commit]} (temporality/normalize-temporality norm valid metrics-metadata)
-        ;; Step 5: Extract fields from normalized data points
+        ;; Step 5: Strip blocked attr.* fields from data points.
+        ;; Done before -extract-fields so blocked attrs are excluded from
+        ;; the fields set too (no need to filter fields separately).
+        normalized (-strip-blocked-attrs normalized blocked-set)
+        ;; Step 6: Extract fields from (already stripped) data points
         fields (-extract-fields normalized)
-        ;; Step 6: Send to batcher if we have data to persist or cumulative state to track
+        ;; Step 7: Send to batcher if we have data to persist or cumulative state to track
         success (if (or (seq normalized) (seq cumulative-to-commit))
                   (batcher/->batcher! metric-batcher {:data-points normalized
                                                       :fields fields
@@ -235,6 +252,10 @@
      3. Metadata upsert - UPSERT metric metadata to SQLite
      4. Staged insert - temp table + DuckDB Appender + INSERT FROM SELECT
      5. Update normalizer state - commit cumulative values for next delta calc
+
+   Blocked-field filtering is NOT done here. The hot path (ingest-metrics!)
+   strips blocked attr.* keys from data points before they reach the batcher,
+   so they never appear in the fields set.
 
    Arguments:
      duckdb               - DuckDB datasource

@@ -21,7 +21,7 @@
 (defn- -trace-handler
   "Handle incoming trace export request.
    Converts spans to unified events and persists them."
-  [event-metadata batcher id-generator ^ExportTraceServiceRequest request]
+  [event-metadata blocked-fields batcher id-generator ^ExportTraceServiceRequest request]
   (let [events (trace-events/trace-request->events request)
         span-count (count (filter #(= :span (:meta.signal_type %)) events))
         span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
@@ -29,7 +29,7 @@
                :span-count span-count
                :span-event-count span-event-count)
     (when (seq events)
-      (events.ingest/ingest-events! event-metadata batcher id-generator events))
+      (events.ingest/ingest-events! event-metadata blocked-fields batcher id-generator events))
     {:rejected-span-count 0}))
 
 ;; ---------------------------------------------------------
@@ -40,14 +40,15 @@
 
    Arguments:
      event-metadata - Event metadata cache component
+     blocked-fields - Blocked-fields cache component
      batcher        - Ingest batcher component
      id-generator   - ID generator component"
-  [event-metadata batcher id-generator]
+  [event-metadata blocked-fields batcher id-generator]
   (proxy [TraceServiceGrpc$TraceServiceImplBase] []
     (export
       [^ExportTraceServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-trace-handler event-metadata batcher id-generator request)
+        (let [response-map (-trace-handler event-metadata blocked-fields batcher id-generator request)
               response (trace-events/trace-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))
