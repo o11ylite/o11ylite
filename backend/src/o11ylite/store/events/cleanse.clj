@@ -4,10 +4,11 @@
 ;; Event field cleansing: sanitize events by removing fields that
 ;; violate schema constraints.
 ;;
-;; Cleansing rules:
-;;   1. Type conflicts - skip fields where incoming type differs from
+;; Cleansing rules (evaluated in order):
+;;   1. Blocked field - skip fields in the blocked set
+;;   2. Type conflicts - skip fields where incoming type differs from
 ;;      existing schema type
-;;   2. Field limit - skip new fields when event exceeds max-fields-per-event
+;;   3. Field limit - skip new fields when event exceeds max-fields-per-event
 ;;
 ;; Cleansing does NOT reject entire events; it only removes problematic
 ;; fields while preserving the event. For event-level rejection (e.g.,
@@ -44,25 +45,29 @@
 (defn- -cleanse-event
   "Cleanse a single event by removing fields that violate schema constraints.
    
-   Skips fields with:
+   Skips fields with (in order):
+   - Blocked fields (in the blocked set)
    - Type conflicts (incoming type differs from schema type)
    - Field limit exceeded (new field when event has >200 fields)
    
    Returns {:event cleansed-event :skipped-fields [...]}."
-  [known-fields event]
+  [known-fields blocked-event-fields event]
   (let [field-count (count event)]
     (reduce-kv
       (fn [acc field-key field-value]
         (let [kw-key (keyword field-key)
+              field-name (name kw-key)
               existing-meta (get known-fields kw-key)
               existing-type (:type existing-meta)
-              is-new-field? (nil? existing-meta)
-              has-type-conflict? (-field-type-conflict? existing-type field-value)
-              exceeds-limit? (and is-new-field?
-                                  (> field-count max-fields-per-event))]
+              is-new-field? (nil? existing-meta)]
           (cond
+            ;; Blocked field - skip before any other checks
+            (contains? blocked-event-fields field-name)
+            (update acc :skipped-fields conj
+                    {:field kw-key :reason :field-blocked})
+
             ;; Type conflict - skip field
-            has-type-conflict?
+            (-field-type-conflict? existing-type field-value)
             (update acc :skipped-fields conj
                     {:field kw-key
                      :reason :type-conflict
@@ -70,7 +75,7 @@
                      :incoming-type (schema/infer-type field-value)})
 
             ;; New field but over limit - skip field
-            exceeds-limit?
+            (and is-new-field? (> field-count max-fields-per-event))
             (update acc :skipped-fields conj
                     {:field kw-key
                      :reason :field-limit-exceeded})
@@ -88,21 +93,23 @@
   "Cleanse all events by removing fields that violate schema constraints.
    
    For each event:
+   - Skips blocked fields (in the blocked set)
    - Skips fields with type conflicts (incoming type differs from schema)
    - Skips new fields if event exceeds 200 field limit
    - Logs skipped fields for debugging
    
    Arguments:
-     event-metadata - The event metadata cache component
-     events         - Collection of event maps to cleanse
+     event-metadata      - The event metadata cache component
+     blocked-event-fields - Set of blocked field name strings (from cache, no I/O)
+     events              - Collection of event maps to cleanse
    
    Returns:
      {:events [...] :skipped-field-count N}"
-  [event-metadata events]
+  [event-metadata blocked-event-fields events]
   (let [known-fields (event-metadata/get-fields event-metadata)]
     (reduce
       (fn [acc event]
-        (let [{:keys [event skipped-fields]} (-cleanse-event known-fields event)]
+        (let [{:keys [event skipped-fields]} (-cleanse-event known-fields blocked-event-fields event)]
           ;; Log skipped fields if any
           (when (seq skipped-fields)
             (mulog/log ::fields-skipped
@@ -123,14 +130,24 @@
   ;; If schema has :attr.count as :integer, but incoming has string value
   (let [known-fields {:attr.count {:type :integer}
                       :service {:type :string}}
+        blocked #{}
         event {:service "test"
                :attr.count "not-a-number"}]  ; type conflict!
-    (-cleanse-event known-fields event))
+    (-cleanse-event known-fields blocked event))
   ;; => {:event {:service "test"}
   ;;     :skipped-fields [{:field :attr.count
   ;;                       :reason :type-conflict
   ;;                       :existing-type :integer
   ;;                       :incoming-type :string}]}
+
+  ;; Example: cleanse event with blocked field
+  (let [known-fields {:attr.http.method {:type :string}
+                      :service {:type :string}}
+        blocked #{"attr.http.method"}
+        event {:service "test" :attr.http.method "GET"}]
+    (-cleanse-event known-fields blocked event))
+  ;; => {:event {:service "test"}
+  ;;     :skipped-fields [{:field :attr.http.method :reason :field-blocked}]}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

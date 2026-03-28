@@ -11,8 +11,8 @@
   (:require
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.components.event-metadata :as event-metadata]
-    [o11ylite.store.blocked :as blocked]
     [o11ylite.store.schema :as schema]
     [o11ylite.test-helpers :as h]))
 
@@ -67,8 +67,9 @@
 
   (testing "event fields join blocked set to produce correct status"
     (-add-event-attr! "attr.test.render")
-    (let [blocked (:db/sqlite h/*system*)]
-      (blocked/block-event-fields! blocked ["attr.test.render"]))
+    (let [bf (:cache/blocked-fields h/*system*)
+          sqlite (:db/sqlite h/*system*)]
+      (blocked-fields/block-event-fields! bf sqlite ["attr.test.render"]))
     (let [{:keys [event_fields]} (-dm-props)
           service (-find-field event_fields "service")
           blocked-f (-find-field event_fields "attr.test.render")]
