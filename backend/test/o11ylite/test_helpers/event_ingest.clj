@@ -92,6 +92,7 @@
 
    Arguments:
      event-metadata - The event metadata cache component
+     blocked-fields - The blocked-fields cache component
      batcher        - The ingest batcher component
      id-generator   - The ID generator component
      events         - Collection of event maps to ingest
@@ -100,15 +101,16 @@
      true if all events were persisted successfully
 
    Example:
-     (ingest-events! (event-metadata) (batcher) (id-generator) (make-random-events 10))"
-  [event-metadata batcher id-generator events]
-  (events.ingest/ingest-events! event-metadata batcher id-generator events))
+     (ingest-events! (event-metadata) (blocked-fields) (batcher) (id-generator) (make-random-events 10))"
+  [event-metadata blocked-fields batcher id-generator events]
+  (events.ingest/ingest-events! event-metadata blocked-fields batcher id-generator events))
 
 (defn ingest-sample-events!
   "Generate and ingest n random events. Returns the ingested events.
 
    Arguments:
      event-metadata - The event metadata cache component
+     blocked-fields - The blocked-fields cache component
      batcher        - The ingest batcher component
      id-generator   - The ID generator component
      n              - Number of events to generate and ingest
@@ -120,13 +122,13 @@
      Vector of the ingested event maps (for verification)
 
    Example:
-     (ingest-sample-events! (event-metadata) (batcher) (id-gen) 10)
-     (ingest-sample-events! (event-metadata) (batcher) (id-gen) 5 {:service \"test-svc\"})"
-  ([event-metadata batcher id-generator n]
-   (ingest-sample-events! event-metadata batcher id-generator n {}))
-  ([event-metadata batcher id-generator n overrides]
+      (ingest-sample-events! (event-metadata) (blocked-fields) (batcher) (id-gen) 10)
+      (ingest-sample-events! (event-metadata) (blocked-fields) (batcher) (id-gen) 5 {:service \"test-svc\"})"
+  ([event-metadata blocked-fields batcher id-generator n]
+   (ingest-sample-events! event-metadata blocked-fields batcher id-generator n {}))
+  ([event-metadata blocked-fields batcher id-generator n overrides]
    (let [events (vec (make-random-events n overrides))]
-     (ingest-events! event-metadata batcher id-generator events)
+     (ingest-events! event-metadata blocked-fields batcher id-generator events)
      events)))
 
 ;; ---------------------------------------------------------

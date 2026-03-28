@@ -21,13 +21,13 @@
 (defn- -metric-handler
   "Handle incoming metrics export request.
    Parses metrics to internal format, ingests data, and returns rejection count."
-  [metric-batcher sqlite normalizer ^ExportMetricsServiceRequest request]
+  [metric-batcher blocked-fields sqlite normalizer ^ExportMetricsServiceRequest request]
   (let [{:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request request)]
     (mulog/log ::metrics-received
                :data-point-count (count data-points)
                :metadata-count (count metrics-metadata))
     (if (or (seq data-points) (seq metrics-metadata))
-      (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher sqlite normalizer data-points metrics-metadata)]
+      (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher blocked-fields sqlite normalizer data-points metrics-metadata)]
         {:rejected-data-point-count (or rejected-count 0)
          :error-message (or error-message "")})
       {})))
@@ -40,14 +40,15 @@
 
    Arguments:
      metric-batcher    - The metric batcher component for ingestion
+     blocked-fields    - Blocked-fields cache component
      sqlite            - SQLite datasource for cached metadata lookups
      metric-normalizer - Temporality normalizer for cumulative→delta conversion"
-  [metric-batcher sqlite metric-normalizer]
+  [metric-batcher blocked-fields sqlite metric-normalizer]
   (proxy [MetricsServiceGrpc$MetricsServiceImplBase] []
     (export
       [^ExportMetricsServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-metric-handler metric-batcher sqlite metric-normalizer request)
+        (let [response-map (-metric-handler metric-batcher blocked-fields sqlite metric-normalizer request)
               response (metric-proto/metric-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))

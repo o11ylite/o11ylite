@@ -163,11 +163,11 @@
 
 (def event-ingest-components
   "Components required for event ingestion."
-  [:cache/event-metadata :ingest/event-batcher :id/generator])
+  [:cache/event-metadata :cache/blocked-fields :ingest/event-batcher :id/generator])
 
 (def metric-ingest-components
   "Components required for metric ingestion."
-  [:ingest/metric-batcher :norm/metric-temporality])
+  [:cache/blocked-fields :ingest/metric-batcher :norm/metric-temporality])
 
 (def ingest-components
   "All components required for event and metric ingestion."
@@ -240,6 +240,7 @@
   ([n overrides]
    (event-ingest/ingest-sample-events!
      (:cache/event-metadata *system*)
+     (:cache/blocked-fields *system*)
      (:ingest/event-batcher *system*)
      (:id/generator *system*)
      n
@@ -259,6 +260,7 @@
   ([n overrides]
    (metric-ingest/ingest-sample-metrics!
      (:ingest/metric-batcher *system*)
+     (:cache/blocked-fields *system*)
      (:db/sqlite *system*)
      (:norm/metric-temporality *system*)
      n
