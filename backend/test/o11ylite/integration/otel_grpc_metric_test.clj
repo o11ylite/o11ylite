@@ -9,6 +9,7 @@
     [clojure.test :refer [deftest is testing use-fixtures]]
     [next.jdbc :as jdbc]
     [jsonista.core :as json]
+    [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
@@ -559,6 +560,38 @@
       ;; Only first data point should be persisted
       (is (= 1 (count rows)))
       (is (= 100.0 (:value (first rows)))))))
+
+;; ---------------------------------------------------------
+;; Blocked Field Tests
+
+(deftest metric-blocked-attr-stripped-during-ingestion-test
+  (testing "Blocked metric attributes are stripped during ingestion"
+    (let [bf (:cache/blocked-fields h/*system*)
+          sqlite (:db/sqlite h/*system*)
+          service-name "blocked-attr-test-service"
+          metric-name "blocked.test.metric"]
+      ;; Block attr.disk.device before ingesting
+      (blocked-fields/block-metric-fields! bf sqlite ["attr.disk.device"])
+      (h/export-metrics!
+        {:service-name service-name
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name metric-name
+                      :unit "ops"
+                      :data-points [{:value 42.0
+                                     :attributes {"disk.device" "sda1"
+                                                  "disk.type" "ssd"}}]})]})
+      (let [duckdb (:db/duckdb h/*system*)
+            rows (jdbc/execute! duckdb
+                                ["SELECT * FROM o11ylite.metrics WHERE name = ?"
+                                 metric-name])
+            row (first rows)]
+        (is (= 1 (count rows)))
+        (is (= 42.0 (:value row)))
+        ;; attr.disk.device should not be present (blocked)
+        (is (nil? (:attr.disk.device row)) "Blocked attr should not be persisted")
+        ;; attr.disk.type should be present (not blocked)
+        (is (= "ssd" (:attr.disk.type row)) "Non-blocked attr should be persisted")))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

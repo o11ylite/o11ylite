@@ -18,6 +18,10 @@
   :sqlite #ig/ref :db/sqlite
   :_storage #ig/ref :storage/init}
 
+ :cache/blocked-fields
+ {:sqlite #ig/ref :db/sqlite
+  :_storage #ig/ref :storage/init}
+
  :cache/event-metadata
  {:duckdb #ig/ref :db/duckdb
   ;; _storage is not consumed, but ensures storage/init runs first
@@ -75,6 +79,7 @@
  :server/otel-grpc
  {:core-config #ig/ref :config/core
   :event-metadata #ig/ref :cache/event-metadata
+  :blocked-fields #ig/ref :cache/blocked-fields
   :event-batcher #ig/ref :ingest/event-batcher
   :id-generator #ig/ref :id/generator
   :metric-batcher #ig/ref :ingest/metric-batcher
@@ -92,6 +97,7 @@
   :core-config #ig/ref :config/core
   :app-config #ig/ref :config/app
   :event-metadata #ig/ref :cache/event-metadata
+  :blocked-fields #ig/ref :cache/blocked-fields
   :event-batcher #ig/ref :ingest/event-batcher
   :id-generator #ig/ref :id/generator
   :metric-batcher #ig/ref :ingest/metric-batcher

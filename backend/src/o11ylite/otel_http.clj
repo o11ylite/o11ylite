@@ -173,7 +173,7 @@
 (defn trace-handler
   "Handle POST /v1/traces requests.
    Parses OTLP trace data and ingests into storage."
-  [{:keys [event-metadata event-batcher id-generator]} request]
+  [{:keys [event-metadata blocked-fields event-batcher id-generator]} request]
   (try
     (let [proto-request (-parse-trace-request request)
           events (trace-events/trace-request->events proto-request)
@@ -183,7 +183,7 @@
                  :span-count span-count
                  :span-event-count span-event-count)
       (when (seq events)
-        (events.ingest/ingest-events! event-metadata event-batcher id-generator events))
+        (events.ingest/ingest-events! event-metadata blocked-fields event-batcher id-generator events))
       (-trace-response request {:rejected-span-count 0}))
     (catch Exception e
       (mulog/log ::http-trace-error :error (.getMessage e))
@@ -192,14 +192,14 @@
 (defn log-handler
   "Handle POST /v1/logs requests.
    Parses OTLP log data and ingests into storage."
-  [{:keys [event-metadata event-batcher id-generator]} request]
+  [{:keys [event-metadata blocked-fields event-batcher id-generator]} request]
   (try
     (let [proto-request (-parse-log-request request)
           events (log-events/log-request->events proto-request)
           log-count (count events)]
       (mulog/log ::http-logs-received :log-count log-count)
       (when (seq events)
-        (events.ingest/ingest-events! event-metadata event-batcher id-generator events))
+        (events.ingest/ingest-events! event-metadata blocked-fields event-batcher id-generator events))
       (-log-response request {:rejected-log-count 0}))
     (catch Exception e
       (mulog/log ::http-log-error :error (.getMessage e))
@@ -208,13 +208,13 @@
 (defn metric-handler
   "Handle POST /v1/metrics requests.
    Parses OTLP metric data and ingests into storage."
-  [{:keys [metric-batcher metric-normalizer sqlite]} request]
+  [{:keys [metric-batcher blocked-fields metric-normalizer sqlite]} request]
   (try
     (let [proto-request (-parse-metric-request request)
           {:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request proto-request)]
       (mulog/log ::http-metrics-received :data-point-count (count data-points))
       (if (or (seq data-points) (seq metrics-metadata))
-        (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher sqlite metric-normalizer data-points metrics-metadata)]
+        (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher blocked-fields sqlite metric-normalizer data-points metrics-metadata)]
           (-metric-response request {:rejected-data-point-count (or rejected-count 0)
                                      :error-message (or error-message "")}))
         (-metric-response request {})))

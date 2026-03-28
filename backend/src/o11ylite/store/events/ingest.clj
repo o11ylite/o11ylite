@@ -31,6 +31,7 @@
 (ns o11ylite.store.events.ingest
   (:require
     [com.brunobonacci.mulog :as mulog]
+    [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.store.batcher :as batcher]
     [o11ylite.store.events.cleanse :as cleanse]
@@ -111,12 +112,13 @@
   "Ingest events into the observability store.
 
    Called by gRPC/HTTP handlers to submit events. Cleanses events (skipping
-   fields with type conflicts or exceeding field limit), enriches with derived
-   fields (including Snowflake ID), extracts fields with inferred types, then
-   submits events + fields to batcher. Blocks until the batch is flushed to storage.
+   blocked fields, type conflicts, or exceeding field limit), enriches with
+   derived fields (including Snowflake ID), extracts fields with inferred types,
+   then submits events + fields to batcher. Blocks until the batch is flushed.
 
    Arguments:
      event-metadata  - The event metadata cache component (for cleansing)
+     blocked-fields  - The blocked-fields cache component (atom deref, no I/O)
      event-batcher   - The event batcher component
      id-generator    - The ID generator component (for Snowflake IDs)
      events          - Collection of event maps to ingest
@@ -125,8 +127,9 @@
      {:success true/false
       :rejected-count N       ;; always 0 (we skip fields, not reject events)
       :error-message \"...\" or nil}"
-  [event-metadata event-batcher id-generator events]
-  (let [{:keys [events skipped-field-count]} (cleanse/cleanse-events event-metadata events)
+  [event-metadata blocked-fields event-batcher id-generator events]
+  (let [blocked-set (blocked-fields/get-blocked-event-fields blocked-fields)
+        {:keys [events skipped-field-count]} (cleanse/cleanse-events event-metadata blocked-set events)
         events (enrich/enrich-events id-generator events)
         fields (-extract-fields events)
         success (batcher/->batcher! event-batcher {:events events
@@ -145,6 +148,11 @@
      2. Schema evolution - ALTER TABLE ADD COLUMN for any new fields
      3. Staged insert - temp table + DuckDB Appender + INSERT FROM SELECT
      4. Cache refresh - update event-metadata if schema changed
+
+   Blocked-field filtering is NOT done here. The hot path (cleanse-events)
+   strips blocked fields before they reach the batcher, so they never appear
+   in the fields map. Filtering here would be redundant and could cause INSERT
+   failures in race conditions (field blocked between cleanse and flush).
 
    Arguments:
      duckdb         - DuckDB datasource
