@@ -15,6 +15,10 @@ spec:
       labels:
         {{- include "o11ylite.labels" . | nindent 8 }}
     spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: o11ylite
           image: {{ include "o11ylite.image" . }}

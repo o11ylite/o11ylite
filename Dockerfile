@@ -84,8 +84,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends xz-utils curl \
 RUN apt-get update && apt-get install -y --no-install-recommends caddy \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user and directories
-RUN groupadd -r o11ylite && useradd -r -g o11ylite o11ylite \
+# Create app user and directories (pin UID/GID so Helm fsGroup can reference a stable value)
+RUN groupadd -r -g 998 o11ylite && useradd -r -u 998 -g o11ylite o11ylite \
     && mkdir -p /app /data /config \
     && chown -R o11ylite:o11ylite /app /data /config
 
