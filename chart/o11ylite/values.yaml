@@ -13,6 +13,13 @@ persistence:
   size: 10Gi
   # storageClass: ""
 
+# Pod-level security context applied to the StatefulSet.
+# fsGroup ensures Kubernetes sets the volume's group ownership so the
+# o11ylite process (GID 998) can write to mounted PVCs.
+# Set to {} to disable.
+podSecurityContext:
+  fsGroup: 998
+
 resources: {}
   # limits:
   #   cpu: "2"
