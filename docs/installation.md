@@ -23,13 +23,13 @@ For Kubernetes deployments, O11yLite provides a Helm chart that deploys a single
 ### Install
 
 ```bash
-helm install o11ylite ./chart/o11ylite
+helm install o11ylite oci://ghcr.io/o11ylite/charts/o11ylite
 ```
 
 By default this runs without persistent storage, suitable for trying things out. For production use, enable persistence so data survives pod restarts:
 
 ```bash
-helm install o11ylite ./chart/o11ylite \
+helm install o11ylite oci://ghcr.io/o11ylite/charts/o11ylite \
   --set persistence.enabled=true
 ```
 
@@ -58,7 +58,7 @@ When `persistence.enabled=true`, the chart creates a `volumeClaimTemplate` that 
 Pass configuration through the `env` value:
 
 ```bash
-helm install o11ylite ./chart/o11ylite \
+helm install o11ylite oci://ghcr.io/o11ylite/charts/o11ylite \
   --set persistence.enabled=true \
   --set env[0].name=O11YLITE_OIDC_ISSUER_URL \
   --set env[0].value=https://auth.example.com
@@ -84,7 +84,7 @@ For sensitive values like `O11YLITE_OIDC_CLIENT_SECRET`, use `existingSecret` in
 kubectl create secret generic o11ylite-secrets \
   --from-literal=O11YLITE_OIDC_CLIENT_SECRET=secret
 
-helm install o11ylite ./chart/o11ylite \
+helm install o11ylite oci://ghcr.io/o11ylite/charts/o11ylite \
   --set existingSecret=o11ylite-secrets
 ```
 
