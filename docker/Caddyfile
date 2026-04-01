@@ -8,10 +8,13 @@
 	admin off
 	# No automatic HTTPS
 	auto_https off
+	# Enable HTTP/2 cleartext (h2c) for OTel Collector compatibility
+	servers :80 {
+		protocols h1 h2c
+	}
 }
 
 :80 {
-	protocols h2c h1
 	encode zstd gzip
 
 	# Serve frontend static assets directly from filesystem
