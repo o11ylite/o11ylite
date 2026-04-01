@@ -34,7 +34,8 @@
     [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest]
     [io.opentelemetry.proto.collector.logs.v1 ExportLogsServiceRequest]
     [io.opentelemetry.proto.collector.metrics.v1 ExportMetricsServiceRequest]
-    [java.io InputStream]))
+    [java.io InputStream]
+    [java.util.zip GZIPInputStream]))
 
 ;; ---------------------------------------------------------
 ;; Content-Type Detection
@@ -52,6 +53,21 @@
       ;; OTLP spec says default to protobuf, but mulog uses JSON
       :else :json)))
 
+(defn- -gzip-encoded?
+  "Check if request body is gzip-compressed via Content-Encoding header."
+  [request]
+  (when-let [ce (get-in request [:headers "content-encoding"])]
+    (.contains (.toLowerCase ^String ce) "gzip")))
+
+(defn- -request-body
+  "Return the request body InputStream, wrapping in GZIPInputStream if
+   Content-Encoding indicates gzip compression."
+  ^InputStream [request]
+  (let [body (:body request)]
+    (if (-gzip-encoded? request)
+      (GZIPInputStream. ^InputStream body)
+      body)))
+
 (defn- -accepts-protobuf?
   "Check if client accepts protobuf response."
   [request]
@@ -63,10 +79,10 @@
 
 (defn- -parse-trace-request
   "Parse request body into ExportTraceServiceRequest.
-   Supports both protobuf binary and JSON."
+   Supports both protobuf binary and JSON, with gzip decompression."
   [request]
   (let [content-type (-get-content-type request)
-        body (:body request)]
+        body (-request-body request)]
     (case content-type
       :protobuf
       (ExportTraceServiceRequest/parseFrom ^InputStream body)
@@ -79,10 +95,10 @@
 
 (defn- -parse-log-request
   "Parse request body into ExportLogsServiceRequest.
-   Supports both protobuf binary and JSON."
+   Supports both protobuf binary and JSON, with gzip decompression."
   [request]
   (let [content-type (-get-content-type request)
-        body (:body request)]
+        body (-request-body request)]
     (case content-type
       :protobuf
       (ExportLogsServiceRequest/parseFrom ^InputStream body)
@@ -95,10 +111,10 @@
 
 (defn- -parse-metric-request
   "Parse request body into ExportMetricsServiceRequest.
-   Supports both protobuf binary and JSON."
+   Supports both protobuf binary and JSON, with gzip decompression."
   [request]
   (let [content-type (-get-content-type request)
-        body (:body request)]
+        body (-request-body request)]
     (case content-type
       :protobuf
       (ExportMetricsServiceRequest/parseFrom ^InputStream body)
