@@ -11,6 +11,7 @@
 }
 
 :80 {
+	protocols h2c h1
 	encode zstd gzip
 
 	# Serve frontend static assets directly from filesystem
