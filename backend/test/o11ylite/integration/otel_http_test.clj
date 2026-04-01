@@ -11,7 +11,10 @@
     [next.jdbc :as jdbc]
     [o11ylite.test-helpers :as h]
     [o11ylite.test-helpers.http :as http]
-    [o11ylite.test-helpers.otlp :as otlp]))
+    [o11ylite.test-helpers.otlp :as otlp])
+  (:import
+    [java.io ByteArrayOutputStream]
+    [java.util.zip GZIPOutputStream]))
 
 (use-fixtures :each h/with-system)
 
@@ -227,6 +230,101 @@
       (is (= "application/x-protobuf" (get-in response [:headers "content-type"]))))))
 
 ;; ---------------------------------------------------------
+;; Gzip Compression Tests
+;;
+;; The OTLP spec requires servers to support gzip-compressed request bodies.
+;; The OTel Collector's otlphttp exporter sends gzip by default.
+
+(defn- gzip-bytes
+  "Gzip-compress a byte array."
+  ^bytes [^bytes data]
+  (let [baos (ByteArrayOutputStream.)]
+    (with-open [gzip (GZIPOutputStream. baos)]
+      (.write gzip data))
+    (.toByteArray baos)))
+
+(deftest otlp-gzip-protobuf-test
+  (testing "POST /v1/traces accepts gzip-compressed protobuf"
+    (let [service-name "http-gzip-trace-test"
+          proto-request (otlp/build-trace-request
+                          {:service-name service-name
+                           :tracer-name "test-tracer"
+                           :spans [{:trace-id "0af7651916cd43dd8448eb211c80319c"
+                                    :span-id "b7ad6b7169203331"
+                                    :name "gzip-proto-span"
+                                    :kind :server
+                                    :attributes {"http.method" "POST"}}]})
+          response (http/post "/v1/traces"
+                              {:headers {"Content-Type" "application/x-protobuf"
+                                         "Content-Encoding" "gzip"}
+                               :body (gzip-bytes (.toByteArray proto-request))})]
+      (is (= 200 (:status response)))
+      (let [rows (query-events-by-service service-name)]
+        (is (= 1 (count rows)))
+        (is (= "gzip-proto-span" (:name (first rows)))))))
+
+  (testing "POST /v1/logs accepts gzip-compressed protobuf"
+    (let [service-name "http-gzip-log-test"
+          proto-request (otlp/build-logs-request
+                          {:service-name service-name
+                           :logger-name "test-logger"
+                           :logs [{:body "Gzip log via protobuf"
+                                   :severity :info
+                                   :severity-text "INFO"
+                                   :attributes {"env" "test"}}]})
+          response (http/post "/v1/logs"
+                              {:headers {"Content-Type" "application/x-protobuf"
+                                         "Content-Encoding" "gzip"}
+                               :body (gzip-bytes (.toByteArray proto-request))})]
+      (is (= 200 (:status response)))
+      ;; Query without ORDER BY name — DuckLake has a known issue where
+      ;; ORDER BY on a column with NULLs can corrupt other projected columns.
+      (let [rows (jdbc/execute! (duckdb)
+                                ["SELECT * FROM o11ylite.events WHERE service = ?"
+                                 service-name])]
+        (is (= 1 (count rows)))
+        (is (= "Gzip log via protobuf" (:log.body (first rows)))))))
+
+  (testing "POST /v1/metrics accepts gzip-compressed protobuf"
+    (let [service-name "http-gzip-metric-test"
+          metric-name "http.gzip.cpu.usage"
+          proto-request (otlp/build-metrics-request
+                          {:service-name service-name
+                           :meter-name "test-meter"
+                           :metrics [(otlp/build-gauge-metric
+                                       {:name metric-name
+                                        :description "CPU usage via gzip protobuf"
+                                        :unit "%"
+                                        :data-points [{:value 77.3
+                                                       :attributes {"host.name" "gzip-test-server"}}]})]})
+          response (http/post "/v1/metrics"
+                              {:headers {"Content-Type" "application/x-protobuf"
+                                         "Content-Encoding" "gzip"}
+                               :body (gzip-bytes (.toByteArray proto-request))})]
+      (is (= 200 (:status response)))
+      (Thread/sleep 200)
+      (let [rows (query-metrics-by-name metric-name)]
+        (is (= 1 (count rows)))
+        (is (= 77.3 (:value (first rows))))))))
+
+(deftest otlp-gzip-json-test
+  (testing "POST /v1/traces accepts gzip-compressed JSON"
+    (let [trace-json "{\"resourceSpans\":[]}"
+          response (http/post "/v1/traces"
+                              {:headers {"Content-Type" "application/json"
+                                         "Content-Encoding" "gzip"}
+                               :body (gzip-bytes (.getBytes trace-json "UTF-8"))})]
+      (is (= 200 (:status response)))))
+
+  (testing "POST /v1/metrics accepts gzip-compressed JSON"
+    (let [metric-json "{\"resourceMetrics\":[]}"
+          response (http/post "/v1/metrics"
+                              {:headers {"Content-Type" "application/json"
+                                         "Content-Encoding" "gzip"}
+                               :body (gzip-bytes (.getBytes metric-json "UTF-8"))})]
+      (is (= 200 (:status response))))))
+
+;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
 
@@ -237,6 +335,8 @@
   (k/run #'otlp-metrics-json-test)
   (k/run #'otlp-metrics-protobuf-test)
   (k/run #'otlp-metrics-content-type-handling-test)
+  (k/run #'otlp-gzip-protobuf-test)
+  (k/run #'otlp-gzip-json-test)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
