@@ -1,4 +1,10 @@
 # This is dev only!
+{
+	servers {
+		protocols h1 h2 h2c h3
+	}
+}
+
 {$O11YLITE_DEV_HOSTNAME:o11ylite.localhost}:{$DEV_HTTPS_PORT:443} {
 	encode zstd gzip
 
