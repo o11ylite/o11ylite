@@ -77,6 +77,16 @@
     (format "ATTACH 'ducklake:%s' AS o11ylite (DATA_INLINING_ROW_LIMIT 0, AUTOMATIC_MIGRATION)"
             ducklake-file)))
 
+(defn- -temp-directory
+  "Build the DuckDB temp directory path under the data directory.
+
+   DuckDB in-memory databases default temp_directory to '.tmp' relative to cwd.
+   In production, s6-overlay sets cwd to /run/service (root-owned), so the
+   default location is not writable by the o11ylite process. Explicitly placing
+   temp files under the data directory avoids this."
+  [data-path]
+  (str data-path "/.tmp"))
+
 (defn- init-root-connection!
   "Create the root DuckDB connection with DuckLake attached.
    This connection is used as the basis for duplicate() calls.
@@ -84,15 +94,18 @@
    Note: USE o11ylite won't carry over to duplicate() connections since USE is
    session-level state. We add connectionInitSql to HikariCP to run USE on each
    pooled connection checkout."
-  [ducklake-file data-inlining-row-limit]
+  [data-path ducklake-file data-inlining-row-limit]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
-        attach-sql (-build-attach-sql ducklake-file data-inlining-row-limit)]
+        attach-sql (-build-attach-sql ducklake-file data-inlining-row-limit)
+        temp-dir (-temp-directory data-path)]
+    (jdbc/execute! conn [(str "SET temp_directory = '" temp-dir "'")])
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
     (mulog/log ::root-connection-initialized
                :ducklake-file ducklake-file
-               :data-inlining-row-limit data-inlining-row-limit)
+               :data-inlining-row-limit data-inlining-row-limit
+               :temp-directory temp-dir)
     conn))
 
 (defn- duplicating-datasource
@@ -132,7 +145,7 @@
   [{:keys [data-path data-inlining-row-limit pool-size]
     :or {data-inlining-row-limit 0 pool-size 10}}]
   (let [ducklake-file (ducklake-path data-path)
-        root-conn (init-root-connection! ducklake-file data-inlining-row-limit)
+        root-conn (init-root-connection! data-path ducklake-file data-inlining-row-limit)
         ;; USE is session-level state that doesn't carry over from root to
         ;; duplicate() connections, so we run it on each connection checkout
         config (doto (HikariConfig.)
