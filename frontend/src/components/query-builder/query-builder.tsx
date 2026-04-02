@@ -96,6 +96,7 @@ export function QueryBuilder({
       groupBy: [],
       metrics: [],
       having: undefined,
+      service: state.service,
     })
   }
 
@@ -127,12 +128,18 @@ export function QueryBuilder({
           </TabsList>
         </Tabs>
 
-        <Select defaultValue="all">
+        <Select
+          value={state.service ?? "__all__"}
+          onValueChange={(v) => {
+            const service = v === "__all__" ? undefined : v
+            updateState({ ...state, service })
+          }}
+        >
           <SelectTrigger size="sm" className="w-auto min-w-[120px]">
             <SelectValue placeholder="All services" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All services</SelectItem>
+            <SelectItem value="__all__">All services</SelectItem>
             {services.map((service) => (
               <SelectItem key={service.name} value={service.name}>
                 {service.name}

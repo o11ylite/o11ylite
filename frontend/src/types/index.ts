@@ -212,6 +212,7 @@ export type QueryMode = "events" | "metrics"
 
 export interface QueryBuilderState {
   mode: QueryMode
+  service?: string // selected service name, undefined means no filter
   // Events mode fields
   filters: SimpleFilter[]
   aggregations: Aggregation[]
