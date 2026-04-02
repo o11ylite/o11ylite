@@ -312,7 +312,12 @@
                             scope-version (:version scope)]
                       ^Metric metric (.getMetricsList scope-metrics)
                       :let [data-points (-metric->data-points metric resource-attrs scope-name scope-version service-name observed-time)
-                            metadata (-metric->metadata metric)]
+                            metadata (-metric->metadata metric)
+                            ;; Merge resource attribute names into metadata so the
+                            ;; attributes set reflects all attr.* columns that will
+                            ;; exist on the data points (not just data-point-level attrs).
+                            metadata (when metadata
+                                       (update metadata :attributes into (keys resource-attrs)))]
                       :when (and data-points metadata)]
                   {:data-points data-points
                    :metadata metadata})
