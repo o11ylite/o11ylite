@@ -148,12 +148,13 @@
               :attributes #{"method" "status"}}
              (get metrics-metadata "http.requests"))))))
 
-(deftest rejects-metrics-without-service-test
-  (testing "Rejects metrics without service.name"
+(deftest defaults-service-name-when-missing-test
+  (testing "Defaults to unknown_service when service.name is absent"
     (let [{:keys [data-points metrics-metadata]}
           (metric-proto/parse-metrics-request (build-request-without-service))]
-      (is (= [] data-points))
-      (is (= {} metrics-metadata)))))
+      (is (= 1 (count data-points)))
+      (is (= "unknown_service" (:service (first data-points))))
+      (is (contains? metrics-metadata "orphan.metric")))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
