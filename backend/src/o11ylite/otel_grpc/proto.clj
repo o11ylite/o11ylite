@@ -154,14 +154,22 @@
 ;; ---------------------------------------------------------
 ;; Resource helpers
 
+(def ^:private default-service-name
+  "Default service name when resource lacks service.name.
+   Matches the OpenTelemetry SDK spec default."
+  "unknown_service")
+
 (defn extract-service-name
-  "Extract service.name from Resource protobuf."
+  "Extract service.name from Resource protobuf.
+   Returns \"unknown_service\" when the attribute is absent, matching the OTel SDK spec."
   [^Resource resource]
-  (when resource
-    (some (fn [^KeyValue kv]
-            (when (= "service.name" (.getKey kv))
-              (any-value->clj (.getValue kv))))
-          (.getAttributesList resource))))
+  (if resource
+    (or (some (fn [^KeyValue kv]
+                (when (= "service.name" (.getKey kv))
+                  (any-value->clj (.getValue kv))))
+              (.getAttributesList resource))
+        default-service-name)
+    default-service-name))
 
 ;; ---------------------------------------------------------
 ;; Scope helpers
