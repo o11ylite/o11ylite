@@ -17,8 +17,8 @@
 ;; ---------------------------------------------------------
 ;; Tests
 
-(deftest metric-export-without-service-drops-silently-test
-  (testing "MetricsService/Export silently drops metrics without service.name"
+(deftest metric-export-without-service-defaults-service-name-test
+  (testing "MetricsService/Export defaults to unknown_service when service.name is absent"
     (let [metric-name "orphan.metric.no.service"
           _response (h/export-metrics!
                       {:meter-name "test-meter"
@@ -29,8 +29,8 @@
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
-      ;; Metrics without service.name are filtered at parse time - nothing persisted
-      (is (= 0 (count rows)) "Metrics without service.name should not be persisted"))))
+      (is (= 1 (count rows)) "Metrics without service.name should be persisted with default")
+      (is (= "unknown_service" (:service (first rows)))))))
 
 (deftest metric-ingestion-persists-to-duckdb-test
   (testing "Metrics are persisted to DuckDB after flush"

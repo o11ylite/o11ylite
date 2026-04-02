@@ -104,10 +104,11 @@
       (is (= "GET" (:attr.http.method span-event)))
       (is (= "event-value" (:attr.event.attr span-event))))))
 
-(deftest trace-request->events-rejects-without-service-test
-  (testing "Rejects spans without service.name"
+(deftest trace-request->events-defaults-service-name-test
+  (testing "Defaults to unknown_service when service.name is absent"
     (let [events (trace-events/trace-request->events (build-request-without-service))]
-      (is (empty? events)))))
+      (is (seq events))
+      (is (every? #(= "unknown_service" (:service %)) events)))))
 
 
 ;; ---------------------------------------------------------
