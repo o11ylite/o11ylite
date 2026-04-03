@@ -61,7 +61,7 @@
     :env-var     "O11YLITE_COMPACTION_MAX_FILES_PER_BATCH"
     :default     10
     :parser      #(Long/parseLong %)
-    :description "Max output files per compaction batch (bounds peak memory)."}
+    :description "Max output files per compaction batch for medium/large tiers."}
 
    {:key         :compaction-small-interval-minutes
     :env-var     "O11YLITE_COMPACTION_SMALL_INTERVAL_MINUTES"
@@ -79,7 +79,7 @@
     :env-var     "O11YLITE_COMPACTION_LARGE_INTERVAL_MINUTES"
     :default     60
     :parser      #(Long/parseLong %)
-    :description "How often to compact large files (10-128MB) into ~256MB targets (min)."}
+    :description "How often to compact large files (10–128MB) into ~256MB targets (min)."}
 
    {:key         :daily-maintenance-interval-minutes
     :env-var     "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES"

@@ -126,12 +126,18 @@
         (is (= large-before (tier-last-run :large)))))))
 
 (deftest manual-merge-adjacent-files-test
-  (testing "Individual tier via merge-adjacent-files! returns 0 when nothing to compact"
+  (testing "Bounded merge returns 0 when nothing to compact"
     (is (zero? (ducklake/merge-adjacent-files!
                  (duckdb)
                  {:max-compacted-files 5
                   :target-file-size    "5MB"
-                  :max-file-size       1048576})))))
+                  :max-file-size       1048576}))))
+
+  (testing "Unbounded merge (no max-compacted-files) returns 0 when nothing to compact"
+    (is (zero? (ducklake/merge-adjacent-files!
+                 (duckdb)
+                 {:target-file-size "5MB"
+                  :max-file-size    1048576})))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
