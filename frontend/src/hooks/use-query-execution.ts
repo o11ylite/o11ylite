@@ -104,6 +104,13 @@ interface UseQueryExecutionOptions {
   refetchInterval?: number
   /** Cursor for events pagination. */
   cursor?: string | null
+  /**
+   * Opaque value included in the query key to force a re-fetch.
+   * Bump this (e.g. a counter) when the user clicks "Run" with an
+   * unchanged query + relative time range, so TanStack Query treats
+   * it as a new query instead of returning the cached result.
+   */
+  runId?: number
 }
 
 /**
@@ -124,22 +131,19 @@ export function useQueryExecution({
   live = false,
   refetchInterval,
   cursor,
+  runId,
 }: UseQueryExecutionOptions) {
   const isEventsMode = state.mode === "events"
 
   const eventsBase = buildEventsPayload(state)
   const metricsBase = buildMetricsPayload(state)
 
-  // For query key stability: in live mode, use the relative time strings
-  // so only refetchInterval triggers refetches. In non-live mode, resolve
-  // to epoch ms (second precision) so the key changes on each "Run" click.
-  const resolved = resolveTimeRange({ from, to })
-  const timeKey = live
-    ? { from, to }
-    : {
-        start: Math.floor(resolved.from.getTime() / 1000) * 1000,
-        end: Math.floor(resolved.to.getTime() / 1000) * 1000,
-      }
+  // Use raw time-range strings as the query key. Relative strings like
+  // "now-15m" stay stable across renders so the key doesn't change every
+  // second (which would cause duplicate in-flight queries). Absolute
+  // strings change only when the user picks a new range. The actual
+  // epoch-ms timestamps are resolved inside queryFn at execution time.
+  const timeKey = { from, to }
 
   const prefix = Array.isArray(queryKeyPrefix)
     ? queryKeyPrefix
@@ -153,7 +157,7 @@ export function useQueryExecution({
     isLoading: eventsLoading,
     error: eventsError,
   } = useQuery({
-    queryKey: [...prefix, "events", timeKey, eventsBase, cursor],
+    queryKey: [...prefix, "events", timeKey, eventsBase, cursor, runId],
     queryFn: () => {
       const timeRange = resolveMs(from, to)
       const payload = cursor
@@ -170,7 +174,7 @@ export function useQueryExecution({
     isLoading: metricsLoading,
     error: metricsError,
   } = useQuery({
-    queryKey: [...prefix, "metrics", timeKey, metricsBase],
+    queryKey: [...prefix, "metrics", timeKey, metricsBase, runId],
     queryFn: () => {
       const timeRange = resolveMs(from, to)
       return fetchMetricsQuery({

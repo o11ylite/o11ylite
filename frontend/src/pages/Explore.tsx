@@ -29,6 +29,7 @@ import type { TableVisualization, SortConfig } from "@/types"
 export default function Explore() {
   const { state, setState, hasQuery } = useQueryState()
   const { from, to, live } = useTimeRange()
+  const [runId, setRunId] = useState(0)
 
   const mode = state.mode ?? "events"
   const isEventsMode = mode === "events"
@@ -74,6 +75,7 @@ export default function Explore() {
     live,
     refetchInterval: LIVE_REFRESH_INTERVAL,
     cursor: paginationEnabled ? currentCursor : undefined,
+    runId,
   })
 
   // Pagination handlers
@@ -116,6 +118,10 @@ export default function Explore() {
   // Called when user clicks "Run" - updates URL which triggers refetch
   // Clear sort when aggregations change (fields change between raw and aggregated)
   const handleSubmit = (newState: typeof state) => {
+    // Bump runId so the query key changes even when the query and time
+    // range strings are identical (e.g. re-running "now-15m" to "now").
+    setRunId(r => r + 1)
+
     const aggregationsChanged =
       JSON.stringify(state.aggregations) !== JSON.stringify(newState.aggregations)
 
