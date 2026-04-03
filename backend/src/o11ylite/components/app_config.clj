@@ -57,11 +57,29 @@
     :parser      #(Long/parseLong %)
     :description "How often inlined data is flushed to Parquet files (min)."}
 
-   {:key         :parquet-compaction-interval-minutes
-    :env-var     "O11YLITE_PARQUET_COMPACTION_INTERVAL_MINUTES"
+   {:key         :compaction-max-files-per-batch
+    :env-var     "O11YLITE_COMPACTION_MAX_FILES_PER_BATCH"
+    :default     10
+    :parser      #(Long/parseLong %)
+    :description "Max output files per compaction batch (bounds peak memory)."}
+
+   {:key         :compaction-small-interval-minutes
+    :env-var     "O11YLITE_COMPACTION_SMALL_INTERVAL_MINUTES"
+    :default     5
+    :parser      #(Long/parseLong %)
+    :description "How often to compact small files (<1MB) into ~5MB targets (min)."}
+
+   {:key         :compaction-medium-interval-minutes
+    :env-var     "O11YLITE_COMPACTION_MEDIUM_INTERVAL_MINUTES"
+    :default     15
+    :parser      #(Long/parseLong %)
+    :description "How often to compact medium files (1-10MB) into ~32MB targets (min)."}
+
+   {:key         :compaction-large-interval-minutes
+    :env-var     "O11YLITE_COMPACTION_LARGE_INTERVAL_MINUTES"
     :default     60
     :parser      #(Long/parseLong %)
-    :description "How often Parquet files are compacted (min)."}
+    :description "How often to compact large files (10-128MB) into ~256MB targets (min)."}
 
    {:key         :daily-maintenance-interval-minutes
     :env-var     "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES"
