@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
-import { buildFilterExpr } from "@/lib/query-helpers"
+import { buildFilterExpr, withServiceFilter } from "@/lib/query-helpers"
 import { resolveTimeRange } from "@/hooks/use-time-range"
 import { extractSimpleHaving } from "@/lib/metric-query-helpers"
 import type {
@@ -49,7 +49,7 @@ async function fetchMetricsQuery(query: MetricsQuery): Promise<QueryResponse> {
 export function buildEventsPayload(state: QueryBuilderState) {
   if (state.mode !== "events") return null
   return {
-    filter: buildFilterExpr(state.filters),
+    filter: withServiceFilter(buildFilterExpr(state.filters), state.service),
     aggregations:
       state.aggregations.length > 0 ? state.aggregations : undefined,
     group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
@@ -67,7 +67,7 @@ export function buildMetricsPayload(state: QueryBuilderState) {
   )
   if (validMetrics.length === 0) return null
   return {
-    filter: buildFilterExpr(state.filters),
+    filter: withServiceFilter(buildFilterExpr(state.filters), state.service),
     group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
     ...(state.having ? { having: extractSimpleHaving(state.having) } : {}),
     metrics: validMetrics,

@@ -40,6 +40,18 @@ export function buildFilterExpr(
   return { and: valid }
 }
 
+/** Wrap a filter expression with a service equality constraint. */
+export function withServiceFilter(
+  filter: FilterExpr | undefined,
+  service: string | undefined,
+): FilterExpr | undefined {
+  if (!service) return filter
+  const serviceFilter: SimpleFilter = { field: "service", op: "=", value: service }
+  if (!filter) return serviceFilter
+  if ("and" in filter) return { and: [...filter.and, serviceFilter] }
+  return { and: [filter as SimpleFilter, serviceFilter] }
+}
+
 // ============================================================================
 // State <-> Payload conversion
 // ============================================================================
@@ -48,10 +60,11 @@ export function buildFilterExpr(
 export function queryStateToPayload(
   state: QueryBuilderState,
 ): Record<string, FormDataConvertible> {
+  const filter = withServiceFilter(buildFilterExpr(state.filters), state.service)
   const full: Record<string, unknown> =
     state.mode === "events"
       ? {
-          filter: buildFilterExpr(state.filters),
+          filter,
           aggregations: state.aggregations,
           group_by: state.groupBy,
           having: state.having,
@@ -59,7 +72,7 @@ export function queryStateToPayload(
           visualization: state.visualization,
         }
       : {
-          filter: buildFilterExpr(state.filters),
+          filter,
           metrics: state.metrics,
           group_by: state.groupBy,
           having: state.having,
