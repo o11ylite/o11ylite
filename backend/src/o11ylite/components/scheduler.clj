@@ -142,13 +142,11 @@
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
     (cond->
       {;; Tiered compaction: runs small → medium → large tiers sequentially.
-       ;; Uses max_compacted_files to bound peak memory per batch and loops
-       ;; each tier until its backlog is drained. Per-tier cadence is tracked
-       ;; in the KV store; the scheduler fires at the smallest tier's interval
-       ;; and each tier decides independently whether it's due to run.
-       ;;
-       ;; Tiers run sequentially because target_file_size is a catalog-level
-       ;; setting that must not be mutated concurrently.
+       ;; Small tier runs a single unbounded merge to compact all new small
+       ;; files. Medium/large tiers use max_compacted_files and loop until
+       ;; drained. Per-tier cadence is tracked in the KV store; the scheduler
+       ;; fires at the smallest tier's interval and each tier decides
+       ;; independently whether it's due to run.
        ;;
        ;; See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files
        :parquet-compaction
