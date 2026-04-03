@@ -132,17 +132,29 @@
   (mulog/log ::registry-initializing)
   (let [data-inlining-row-limit (:data-inlining-row-limit core-config 0)
         inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
-        parquet-compaction-interval-minutes (app-config/get-setting-value app-config :parquet-compaction-interval-minutes)
+        compaction-max-files (app-config/get-setting-value app-config :compaction-max-files-per-batch)
+        compaction-small-interval (app-config/get-setting-value app-config :compaction-small-interval-minutes)
+        tier-intervals {:compaction-small-interval-minutes  compaction-small-interval
+                        :compaction-medium-interval-minutes (app-config/get-setting-value app-config :compaction-medium-interval-minutes)
+                        :compaction-large-interval-minutes  (app-config/get-setting-value app-config :compaction-large-interval-minutes)}
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
         data-retention-days (app-config/get-setting-value app-config :data-retention-days)
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
     (cond->
-      {;; Always registered: compaction handles small-file accumulation regardless
-       ;; of whether data inlining is enabled or not.
+      {;; Tiered compaction: runs small → medium → large tiers sequentially.
+       ;; Uses max_compacted_files to bound peak memory per batch and loops
+       ;; each tier until its backlog is drained. Per-tier cadence is tracked
+       ;; in the KV store; the scheduler fires at the smallest tier's interval
+       ;; and each tier decides independently whether it's due to run.
+       ;;
+       ;; Tiers run sequentially because target_file_size is a catalog-level
+       ;; setting that must not be mutated concurrently.
+       ;;
+       ;; See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files
        :parquet-compaction
-       {:interval-ms (minutes->ms parquet-compaction-interval-minutes)
-        :description "Merge small Parquet files for better query performance"
-        :handler (fn [] (ducklake/merge-adjacent-files! duckdb))}
+       {:interval-ms (minutes->ms compaction-small-interval)
+        :description "Tiered compaction of small Parquet files"
+        :handler (fn [] (ducklake/run-tiered-compaction! duckdb sqlite compaction-max-files tier-intervals))}
 
        :daily-maintenance
        {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
