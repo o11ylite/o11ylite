@@ -106,6 +106,12 @@
     :description  "Encryption key for session cookies (16-byte hex)."
     :credential?  true}
 
+   {:key         :duckdb-memory-limit-pct
+    :env-var     "O11YLITE_DUCKDB_MEMORY_LIMIT_PCT"
+    :default     0
+    :parser      #(Long/parseLong %)
+    :description "DuckDB memory limit as percentage of system RAM (1-100). 0 = unlimited (DuckDB default: ~80%)."}
+
    ;; DuckLake data inlining row limit (opt-in, default 0 = disabled).
    ;;
    ;; Data inlining stores small writes directly in the metadata catalog (SQLite)
@@ -131,12 +137,6 @@
    ;; Set to a positive integer (e.g., 1000) to opt in. Inserts with fewer rows
    ;; than this limit will be inlined; larger inserts go directly to Parquet.
    ;; When enabled, a scheduled flush job periodically materializes inlined data.
-   {:key         :duckdb-memory-limit-pct
-    :env-var     "O11YLITE_DUCKDB_MEMORY_LIMIT_PCT"
-    :default     0
-    :parser      #(Long/parseLong %)
-    :description "DuckDB memory limit as percentage of system RAM (1-100). 0 = unlimited (DuckDB default: ~80%)."}
-
    {:key         :data-inlining-row-limit
     :env-var     "O11YLITE_DATA_INLINING_ROW_LIMIT"
     :default     0
