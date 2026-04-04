@@ -94,8 +94,6 @@
   (if (seq aggregations)
     (let [agg-exprs (map -build-aggregation-expr aggregations)
           group-cols (map -field->col group_by)
-          ;; Build select clause: [col alias] for each group column
-          ;; The alias is the original field name as a keyword
           group-select (map (fn [field col] [col (keyword field)]) group_by group-cols)
           select-clause (concat group-select agg-exprs)]
       (cond-> (assoc hsql-query :select (vec select-clause))
