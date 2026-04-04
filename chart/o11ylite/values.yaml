@@ -4,6 +4,14 @@ image:
   # Defaults to .Chart.AppVersion if not set
   tag: ""
 
+# Additional labels to apply to the pod template.
+podLabels: {}
+
+# Additional annotations to apply to the pod template.
+# Example – enable OpenTelemetry auto-instrumentation via the OTel Operator:
+#   instrumentation.opentelemetry.io/inject-java: "true"
+podAnnotations: {}
+
 service:
   type: ClusterIP
   port: 80
