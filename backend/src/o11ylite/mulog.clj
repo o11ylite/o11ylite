@@ -8,7 +8,8 @@
 (ns o11ylite.mulog
   (:require
     [com.brunobonacci.mulog :as mulog]
-    ;; Require to register :open-telemetry publisher multimethod
+    ;; Require to register publisher multimethods
+    [com.brunobonacci.mulog.publishers.console-json]
     [com.brunobonacci.mulog.publishers.open-telemetry]
     [o11ylite.version :as version]))
 
@@ -35,11 +36,17 @@
      ;; Delay to allow system to start before sending logs
      :publish-delay 5000}]})
 
+(def ^:private -strip-internal-keys
+  "Remove mulog internal keys that add noise to production logs."
+  (fn [events]
+    (map #(dissoc % :mulog/trace-id :mulog/timestamp :mulog/namespace :app-name) events)))
+
 (defn- -prod-publisher
   "Publisher config for prod mode.
    Console (JSON) for log collectors."
   []
-  {:type :console})
+  {:type :console-json
+   :transform -strip-internal-keys})
 
 ;; ---------------------------------------------------------
 ;; Public API
