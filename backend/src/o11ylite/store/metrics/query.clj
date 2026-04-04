@@ -102,10 +102,12 @@
 (defn- -build-metric-query
   "Build HoneySQL query for a single metric.
    Returns a query that produces time-bucketed, aggregated results.
-   
-   Group by columns use numbered aliases (g0, g1, ...) to avoid DuckDB's
-   alias resolution issues with dotted column names that don't exist yet.
-   
+
+   Group by columns use the original field name as alias and GROUP BY
+   references the raw column directly (matching the events query approach).
+   This avoids DuckLake query planner issues with alias-based GROUP BY
+   on dotted column names.
+
    Supports HAVING for post-aggregation filtering (applied only when the
    having clause references this metric's ID)."
   [{:keys [time_range filter group_by having]} metric metric-type bucket-ms]
@@ -119,16 +121,14 @@
         bucket-epoch-expr [:epoch_ms time-bucket-expr]
         bucket-expr [bucket-epoch-expr :bucket]
         agg-expr [(-build-agg-expr metric-type agg bucket-ms) :value]
-        ;; Group by columns with numbered aliases to avoid DuckDB alias issues
-        ;; When column doesn't exist, DuckDB confuses column ref with alias
+        ;; Group by columns with field name as alias (matches events query approach)
         group-by-fields (or group_by [])
         group-cols (map query-util/field->col group-by-fields)
-        group-aliases (map #(keyword (str "g" %)) (range (count group-by-fields)))
-        group-select (map (fn [col alias] [col alias]) group-cols group-aliases)
+        group-select (map (fn [field col] [col (keyword field)]) group-by-fields group-cols)
         ;; Select: bucket, group_by fields, aggregation
         select-clause (into [bucket-expr] (concat group-select [agg-expr]))
-        ;; Group by: numbered aliases (which DuckDB allows)
-        group-by-clause (into [:bucket] group-aliases)
+        ;; Group by: raw column references (not aliases)
+        group-by-clause (into [:bucket] group-cols)
         ;; Base query
         base-query {:select (vec select-clause)
                     :from [:o11ylite.metrics]
@@ -153,27 +153,21 @@
 (defn- -rows->series
   "Transform query result rows into series format for a single metric.
    Creates one series per unique label combination.
-   
-   Rows have numbered aliases (g0, g1, ...) that need to be mapped back
-   to the original field names for the labels map."
+
+   Rows use the original field names as column aliases (e.g., :attr.k8s.pod.name),
+   matching the events query approach."
   [rows metric-id metric-name metric-agg group-by-fields]
-  (let [;; Build mapping from numbered alias to original field name
-        alias-keys (map #(keyword (str "g" %)) (range (count group-by-fields)))
-        field-keys (map keyword group-by-fields)
-        alias->field (zipmap alias-keys field-keys)
-        ;; Group rows by their label values (using alias keys)
-        grouped (group-by #(select-keys % alias-keys) rows)
+  (let [label-keys (map keyword group-by-fields)
+        grouped (group-by #(select-keys % label-keys) rows)
         series-name (-format-series-name metric-agg metric-name)]
-    (for [[alias-labels rows-for-series] grouped]
-      (let [;; Convert alias-keyed labels to field-keyed labels
-            labels (into {} (map (fn [[alias val]] [(alias->field alias) val]) alias-labels))]
-        {:id metric-id
-         :metric metric-name
-         :name series-name
-         :labels labels
-         :data (vec (for [row rows-for-series]
-                      {:timestamp (:bucket row)
-                       :value (:value row)}))}))))
+    (for [[labels rows-for-series] grouped]
+      {:id metric-id
+       :metric metric-name
+       :name series-name
+       :labels labels
+       :data (vec (for [row rows-for-series]
+                    {:timestamp (:bucket row)
+                     :value (:value row)}))})))
 
 (defn- -column-not-found?
   "Check if exception is a DuckDB column-not-found error."
