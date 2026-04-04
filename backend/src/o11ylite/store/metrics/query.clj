@@ -103,11 +103,6 @@
   "Build HoneySQL query for a single metric.
    Returns a query that produces time-bucketed, aggregated results.
 
-   Group by columns use the original field name as alias and GROUP BY
-   references the raw column directly (matching the events query approach).
-   This avoids DuckLake query planner issues with alias-based GROUP BY
-   on dotted column names.
-
    Supports HAVING for post-aggregation filtering (applied only when the
    having clause references this metric's ID)."
   [{:keys [time_range filter group_by having]} metric metric-type bucket-ms]
@@ -121,13 +116,11 @@
         bucket-epoch-expr [:epoch_ms time-bucket-expr]
         bucket-expr [bucket-epoch-expr :bucket]
         agg-expr [(-build-agg-expr metric-type agg bucket-ms) :value]
-        ;; Group by columns with field name as alias (matches events query approach)
         group-by-fields (or group_by [])
         group-cols (map query-util/field->col group-by-fields)
         group-select (map (fn [field col] [col (keyword field)]) group-by-fields group-cols)
         ;; Select: bucket, group_by fields, aggregation
         select-clause (into [bucket-expr] (concat group-select [agg-expr]))
-        ;; Group by: raw column references (not aliases)
         group-by-clause (into [:bucket] group-cols)
         ;; Base query
         base-query {:select (vec select-clause)
