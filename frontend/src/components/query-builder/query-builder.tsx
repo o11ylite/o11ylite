@@ -237,8 +237,8 @@ export function QueryBuilder({
             onChange={(groupBy) => updateState({ ...state, groupBy })}
           />
 
-          {/* Having - only in embedded mode (alert rules, notebooks) */}
-          {embeddedMode && state.metrics.length > 0 && (
+          {/* Having - filter results by aggregation thresholds */}
+          {state.metrics.length > 0 && (
             <HavingSection
               having={state.having}
               refs={availableRefs}
