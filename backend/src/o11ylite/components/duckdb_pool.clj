@@ -88,9 +88,15 @@
   (str data-path "/.tmp"))
 
 (defn- -system-memory-bytes
-  "Total physical memory in bytes, via the JMX OperatingSystemMXBean."
+  "Total physical memory in bytes, via the JMX OperatingSystemMXBean.
+   In containers with cgroup limits (Java 10+), returns the container limit."
   []
   (.getTotalMemorySize (java.lang.management.ManagementFactory/getOperatingSystemMXBean)))
+
+(defn- -jvm-max-heap-bytes
+  "JVM maximum heap size in bytes (i.e. -Xmx or the ergonomic default)."
+  []
+  (.maxMemory (Runtime/getRuntime)))
 
 (defn- -memory-limit-bytes
   "Compute the DuckDB memory_limit in bytes from a percentage of system RAM.
@@ -98,6 +104,25 @@
   [pct]
   (when (pos? pct)
     (quot (* (-system-memory-bytes) (min pct 100)) 100)))
+
+(def ^:private ^:const overhead-buffer-bytes
+  "Conservative estimate for non-heap JVM overhead (metaspace, thread stacks,
+   code cache) plus sidecar processes (e.g. Caddy reverse proxy)."
+  (* 512 1024 1024))
+
+(defn- -check-memory-budget
+  "Log the memory budget breakdown at startup. Flags :overcommit? true when
+   DuckDB + JVM heap + overhead exceeds 90% of system RAM."
+  [system-bytes duckdb-bytes]
+  (let [jvm-heap    (-jvm-max-heap-bytes)
+        committed   (+ duckdb-bytes jvm-heap overhead-buffer-bytes)
+        pct-used    (Math/round (double (/ (* committed 100) system-bytes)))]
+    (mulog/log ::memory-budget
+               :system-bytes system-bytes
+               :jvm-heap-bytes jvm-heap
+               :duckdb-limit-bytes duckdb-bytes
+               :committed-pct pct-used
+               :overcommit? (> pct-used 90))))
 
 (defn- init-root-connection!
   "Create the root DuckDB connection with DuckLake attached.
@@ -110,6 +135,7 @@
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
         attach-sql (-build-attach-sql ducklake-file data-inlining-row-limit)
         temp-dir (-temp-directory data-path)
+        system-bytes (-system-memory-bytes)
         mem-bytes (-memory-limit-bytes memory-limit-pct)]
     (jdbc/execute! conn [(str "SET temp_directory = '" temp-dir "'")])
     (when mem-bytes
@@ -122,7 +148,10 @@
                :data-inlining-row-limit data-inlining-row-limit
                :memory-limit-pct memory-limit-pct
                :memory-limit-bytes mem-bytes
+               :system-memory-bytes system-bytes
                :temp-directory temp-dir)
+    (when mem-bytes
+      (-check-memory-budget system-bytes mem-bytes))
     conn))
 
 (defn- duplicating-datasource
