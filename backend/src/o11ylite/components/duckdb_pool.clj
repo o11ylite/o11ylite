@@ -117,6 +117,13 @@
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
+    ;; Set zstd compression for Parquet files written by DuckLake.
+    ;; Default is Snappy.
+    ;; These are persisted in the DuckLake metadata table, so they only need
+    ;; to be set once per catalog. Re-setting is idempotent and ensures the
+    ;; desired compression even after a DuckLake migration or fresh attach.
+    (jdbc/execute! conn ["CALL o11ylite.set_option('parquet_compression', 'zstd')"])
+    (jdbc/execute! conn ["CALL o11ylite.set_option('parquet_compression_level', '3')"])
     (mulog/log ::root-connection-initialized
                :ducklake-file ducklake-file
                :data-inlining-row-limit data-inlining-row-limit
