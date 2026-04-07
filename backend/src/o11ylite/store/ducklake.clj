@@ -254,6 +254,19 @@
                    (jdbc/with-transaction [tx duckdb-ds]
                                           (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
 
+(defn run-snapshot-cleanup!
+  "Expire old snapshots and remove superseded files on a shorter cadence
+   than daily maintenance. Keeps the DuckLake catalog lean between daily
+   runs, preventing unbounded metadata growth."
+  [duckdb-ds]
+  (span/with-span! [::run-snapshot-cleanup]
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
+                   (jdbc/with-transaction [tx duckdb-ds]
+                                          (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
