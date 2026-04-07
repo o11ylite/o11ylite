@@ -81,6 +81,12 @@
     :parser      #(Long/parseLong %)
     :description "How often to compact large files (10–128MB) into ~256MB targets (min)."}
 
+   {:key         :snapshot-cleanup-interval-minutes
+    :env-var     "O11YLITE_SNAPSHOT_CLEANUP_INTERVAL_MINUTES"
+    :default     30
+    :parser      #(Long/parseLong %)
+    :description "How often to expire old snapshots and clean up superseded files (min)."}
+
    {:key         :daily-maintenance-interval-minutes
     :env-var     "O11YLITE_DAILY_MAINTENANCE_INTERVAL_MINUTES"
     :default     1440

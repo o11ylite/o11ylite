@@ -137,6 +137,7 @@
         tier-intervals {:compaction-small-interval-minutes  compaction-small-interval
                         :compaction-medium-interval-minutes (app-config/get-setting-value app-config :compaction-medium-interval-minutes)
                         :compaction-large-interval-minutes  (app-config/get-setting-value app-config :compaction-large-interval-minutes)}
+        snapshot-cleanup-interval-minutes (app-config/get-setting-value app-config :snapshot-cleanup-interval-minutes)
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
         data-retention-days (app-config/get-setting-value app-config :data-retention-days)
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
@@ -153,6 +154,15 @@
        {:interval-ms (minutes->ms compaction-small-interval)
         :description "Tiered compaction of small Parquet files"
         :handler (fn [] (ducklake/run-tiered-compaction! duckdb sqlite compaction-max-files tier-intervals))}
+
+       ;; Snapshot cleanup: expire old snapshots and remove superseded file
+       ;; entries on a shorter cadence than daily maintenance.  Keeps the
+       ;; DuckLake catalog lean between daily runs, preventing unbounded
+       ;; metadata growth that can contribute to memory pressure.
+       :snapshot-cleanup
+       {:interval-ms (minutes->ms snapshot-cleanup-interval-minutes)
+        :description "Expire old snapshots and clean up superseded files"
+        :handler (fn [] (ducklake/run-snapshot-cleanup! duckdb))}
 
        :daily-maintenance
        {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
