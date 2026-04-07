@@ -41,6 +41,7 @@ Then:
 ## Documentation
 
 - [Installation](docs/installation.md) — Docker and Helm chart setup
+- [Kubernetes OpenTelemetry Setup](docs/kubernetes-otel-setup.md) — Collect logs, traces, and metrics from your Kubernetes cluster
 - [Authentication](docs/authentication.md) — OIDC setup, API keys, and scopes
 - [Agent Native](docs/agent-native.md) — Let LLM agents operate O11yLite
 
