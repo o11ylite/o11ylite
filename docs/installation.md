@@ -106,3 +106,7 @@ The chart creates a `ClusterIP` Service by default. To expose O11yLite externall
 ```bash
 kubectl port-forward svc/o11ylite 8080:80
 ```
+
+### Collecting telemetry
+
+To collect logs, metrics, and traces from your cluster workloads into O11yLite, see the [Kubernetes OpenTelemetry Setup](kubernetes-otel-setup.md) guide.
