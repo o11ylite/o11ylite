@@ -151,21 +151,26 @@
 (defn- -sum->metadata
   "Extract metadata from a Sum metric.
 
-   Note on monotonicity: Monotonic sums can only increase (counters).
-   Non-monotonic sums can increase or decrease."
+   Cumulative non-monotonic sums (Async UpDownCounter) are treated as gauges:
+   they report absolute values via callback and cumulative→delta conversion is
+   semantically broken for non-monotonic data (can't distinguish decrease from reset).
+   Delta non-monotonic sums remain as :sum since no conversion is needed."
   [^Metric metric]
   (let [^Sum sum (.getSum metric)
-        ;; Collect all attribute names across all data points
+        is-monotonic (.getIsMonotonic sum)
+        temporality (-temporality->keyword (.getAggregationTemporality sum))
         all-attr-names (->> (.getDataPointsList sum)
                             (mapcat -extract-attribute-names)
-                            set)]
-    {:name (.getName metric)
-     :description (.getDescription metric)
-     :unit (.getUnit metric)
-     :metric_type :sum
-     :temporality (-temporality->keyword (.getAggregationTemporality sum))
-     :is_monotonic (.getIsMonotonic sum)
-     :attributes all-attr-names}))
+                            set)
+        as-gauge? (and (not is-monotonic) (= :cumulative temporality))]
+    (cond-> {:name (.getName metric)
+             :description (.getDescription metric)
+             :unit (.getUnit metric)
+             :attributes all-attr-names}
+      as-gauge? (assoc :metric_type :gauge)
+      (not as-gauge?) (assoc :metric_type :sum
+                             :temporality temporality
+                             :is_monotonic is-monotonic))))
 
 ;; ---------------------------------------------------------
 ;; Histogram metric extraction
