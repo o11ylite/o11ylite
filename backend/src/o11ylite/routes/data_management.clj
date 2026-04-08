@@ -151,6 +151,15 @@
       (schema/drop-metric-fields! duckdb fields)
       (-flash-message (str "Deleted " (-pluralize n "metric attribute"))))))
 
+(defn- -make-metrics-remove-handler
+  "DELETE /system/data-management/metrics — remove metric metadata so it can be re-created."
+  [{:keys [sqlite]}]
+  (fn [request]
+    (let [names (get-in request [:body :names])
+          n (count names)]
+      (metrics-metadata/delete-metrics! sqlite names)
+      (-flash-message (str "Removed " (-pluralize n "metric"))))))
+
 ;; ---------------------------------------------------------
 ;; Routes
 
@@ -163,5 +172,6 @@
      ["" {:get {:handler (-make-page-handler opts)}}]
      ["/event-fields/status" {:put {:handler (-make-event-fields-status-handler opts)}}]
      ["/event-fields" {:delete {:handler (-make-event-fields-delete-handler opts)}}]
+     ["/metrics" {:delete {:handler (-make-metrics-remove-handler opts)}}]
      ["/metric-attributes/status" {:put {:handler (-make-metric-attrs-status-handler opts)}}]
      ["/metric-attributes" {:delete {:handler (-make-metric-attrs-delete-handler opts)}}]]))
