@@ -310,6 +310,55 @@
       (is (= 20.0 (:value (first rows))) "Should keep the later timestamp (value 20)"))))
 
 ;; ---------------------------------------------------------
+;; Cumulative Non-Monotonic Sum (Async UpDownCounter) Tests
+
+(deftest cumulative-non-monotonic-sum-treated-as-gauge-test
+  (testing "Cumulative non-monotonic sum (Async UpDownCounter) is treated as gauge"
+    (let [service-name "async-updowncounter-test-service"
+          metric-name "process.open.file.descriptors"
+          ;; Two exports with decreasing value - a normal pattern for UpDownCounter.
+          ;; With cumulative→delta conversion, the second would produce a negative delta
+          ;; and lose the actual absolute value. As gauge, raw values are stored.
+          _ (h/export-metrics!
+              {:service-name service-name
+               :meter-name "process-meter"
+               :metrics [(h/build-sum-metric
+                           {:name metric-name
+                            :description "Open file descriptors"
+                            :unit "count"
+                            :temporality :cumulative
+                            :monotonic? false
+                            :data-points [{:value 100
+                                           :attributes {"pid" "1234"}}]})]})
+          _ (h/export-metrics!
+              {:service-name service-name
+               :meter-name "process-meter"
+               :metrics [(h/build-sum-metric
+                           {:name metric-name
+                            :description "Open file descriptors"
+                            :unit "count"
+                            :temporality :cumulative
+                            :monotonic? false
+                            :data-points [{:value 75
+                                           :attributes {"pid" "1234"}}]})]})
+          duckdb (:db/duckdb h/*system*)
+          rows (jdbc/execute! duckdb
+                              ["SELECT value FROM o11ylite.metrics WHERE name = ? ORDER BY timestamp"
+                               metric-name])
+          sqlite (:db/sqlite h/*system*)
+          meta-rows (jdbc/execute! sqlite
+                                   ["SELECT metric_type, original_temporality FROM metrics_metadata WHERE name = ?"
+                                    metric-name])]
+      (is (= 2 (count rows)) "Both observations should be persisted (no first-seen drop)")
+      (is (= 100.0 (:value (first rows))) "First value should be 100")
+      (is (= 75.0 (:value (second rows))) "Second value should be 75 (raw, not -25 delta)")
+      (is (= 1 (count meta-rows)))
+      (is (= "gauge" (:metrics_metadata/metric_type (first meta-rows)))
+          "Metadata should record metric_type as gauge")
+      (is (nil? (:metrics_metadata/original_temporality (first meta-rows)))
+          "Metadata should have no temporality (gauge)"))))
+
+;; ---------------------------------------------------------
 ;; Histogram Metric Tests
 
 (deftest histogram-metric-delta-export-test
