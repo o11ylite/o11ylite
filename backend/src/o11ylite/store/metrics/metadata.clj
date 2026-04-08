@@ -135,6 +135,14 @@
   (doseq [[metric-name meta-entry] metrics-metadata]
     (-upsert-metric! sqlite metric-name meta-entry)))
 
+(defn delete-metrics!
+  "Delete metric metadata entries from SQLite by name.
+   Invalidates the get-metric cache for each deleted metric."
+  [sqlite metric-names]
+  (doseq [metric-name metric-names]
+    (jdbc/execute! sqlite ["DELETE FROM metrics_metadata WHERE name = ?" metric-name])
+    (memo/memo-clear! get-metric [sqlite metric-name])))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
