@@ -80,9 +80,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends xz-utils curl \
     && rm /tmp/s6-overlay-*.tar.xz \
     && apt-get purge -y xz-utils curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
-# Install Caddy
-RUN apt-get update && apt-get install -y --no-install-recommends caddy \
-    && rm -rf /var/lib/apt/lists/*
+# Install Caddy and jemalloc
+# jemalloc replaces glibc malloc via LD_PRELOAD for the Java backend.
+# DuckDB's JNI library links against glibc malloc, which fragments the heap
+# on large alloc/free cycles (e.g., DuckLake compaction) and never returns
+# pages to the OS. jemalloc aggressively returns freed pages, preventing
+# the RSS-only "leak" that caused OOM kills in production.
+RUN apt-get update && apt-get install -y --no-install-recommends caddy libjemalloc2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/lib/*/libjemalloc.so.2 /usr/lib/libjemalloc.so.2
 
 # Create app user and directories (pin UID/GID so Helm fsGroup can reference a stable value)
 RUN groupadd -r -g 998 o11ylite && useradd -r -u 998 -g o11ylite o11ylite \

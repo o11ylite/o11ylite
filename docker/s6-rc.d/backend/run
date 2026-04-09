@@ -2,9 +2,13 @@
 # O11yLite Backend Service
 #
 # Runs the Clojure backend with Java virtual threads
+#
+# LD_PRELOAD jemalloc: DuckDB's JNI lib uses glibc malloc, which fragments
+# the heap and never returns pages to the OS. jemalloc fixes this.
 
 with-contenv
 s6-env HOME=/data
+s6-env LD_PRELOAD=/usr/lib/libjemalloc.so.2
 s6-setuidgid o11ylite
 
 exec java -jar /app/o11ylite.jar
