@@ -50,6 +50,9 @@
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
 
+ :metrics/duckdb
+ {:duckdb #ig/ref :db/duckdb}
+
  :scheduler/registry
  {:core-config #ig/ref :config/core
   :duckdb #ig/ref :db/duckdb
