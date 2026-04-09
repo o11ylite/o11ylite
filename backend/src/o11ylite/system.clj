@@ -27,6 +27,7 @@
     [o11ylite.components.inertia]
     [o11ylite.components.auth-config]
     [o11ylite.components.api-key-cache]
+    [o11ylite.components.duckdb-metrics]
     [o11ylite.components.router]
     [o11ylite.components.web-server])
   (:import
