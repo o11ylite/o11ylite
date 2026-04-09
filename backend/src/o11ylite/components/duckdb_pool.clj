@@ -114,6 +114,15 @@
     (jdbc/execute! conn [(str "SET temp_directory = '" temp-dir "'")])
     (when mem-bytes
       (jdbc/execute! conn [(format "SET memory_limit = '%d bytes'" mem-bytes)]))
+    ;; Disable the external file cache (enabled by default in DuckDB 1.5+).
+    ;; This cache keeps decompressed Parquet pages in memory after reads, but
+    ;; it ignores memory_limit, has no eviction policy, and grows monotonically
+    ;; on write-heavy workloads -- likely a DuckDB bug. Each DuckLake INSERT
+    ;; writes a new Parquet file whose pages get cached but rarely re-read,
+    ;; causing unbounded native memory growth that led to OOM kills in prod.
+    ;; Disabling this reduced RSS by ~80% in load testing (3.1 GB -> 1.0 GB
+    ;; over 500K events).
+    (jdbc/execute! conn ["SET enable_external_file_cache = false"])
     (jdbc/execute! conn ["INSTALL ducklake"])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
