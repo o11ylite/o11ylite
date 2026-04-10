@@ -30,7 +30,7 @@ export function ResultsTimeSeries({
       </div>
 
       {overlay ? (
-        <TimeSeriesChart data={result} connectNulls={connectNulls} />
+        <TimeSeriesChart data={result} connectNulls={connectNulls} units={result.units} />
       ) : (
         <div className="flex flex-col gap-4">
           {metricGroups.map(([name, subset]) => (
@@ -40,6 +40,7 @@ export function ResultsTimeSeries({
               title={name}
               connectNulls={connectNulls}
               shortLegendLabels
+              units={result.units}
             />
           ))}
         </div>
