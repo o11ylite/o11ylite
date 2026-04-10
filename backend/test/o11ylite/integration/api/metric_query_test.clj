@@ -138,7 +138,8 @@
                           :metric "cpu.utilization"
                           :name "avg(cpu.utilization)"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 20.0}]}]}
+                          :data [{:timestamp bucket-ms :value 20.0}]}]
+                :units {:cpu.utilization "%"}}
                data))))))
 
 (deftest metrics-query-gauge-with-group-by-test
@@ -186,7 +187,8 @@
                           :metric "memory.usage.grouped"
                           :name "sum(memory.usage.grouped)"
                           :labels {:service "grouped-service-2"}
-                          :data [{:timestamp bucket-ms :value 200.0}]}]}
+                          :data [{:timestamp bucket-ms :value 200.0}]}]
+                :units {:memory.usage.grouped "bytes"}}
                (update data :series
                        (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
 
@@ -228,7 +230,8 @@
                           :name "avg(disk.usage)"
                           :labels {}
                           :data [{:timestamp bucket-1-ms :value 55.0}
-                                 {:timestamp bucket-2-ms :value 90.0}]}]}
+                                 {:timestamp bucket-2-ms :value 90.0}]}]
+                :units {:disk.usage "bytes"}}
                data))))))
 
 ;; ---------------------------------------------------------
@@ -269,7 +272,8 @@
                           :metric "http.requests.count"
                           :name "rate(http.requests.count)"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 10.0}]}]}
+                          :data [{:timestamp bucket-ms :value 10.0}]}]
+                :units {:http.requests.count "1"}}
                data))))))
 
 (deftest metrics-query-sum-aggregation-test
@@ -305,7 +309,8 @@
                           :metric "http.errors.count"
                           :name "sum(http.errors.count)"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 18.0}]}]}
+                          :data [{:timestamp bucket-ms :value 18.0}]}]
+                :units {:http.errors.count "1"}}
                data))))))
 
 ;; ---------------------------------------------------------
@@ -351,7 +356,8 @@
                           :metric "error.rate.filter"
                           :name "avg(error.rate.filter)"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 5.0}]}]}
+                          :data [{:timestamp bucket-ms :value 5.0}]}]
+                :units {:error.rate.filter "%"}}
                data))))))
 
 (deftest metrics-query-with-per-metric-filter-test
@@ -398,7 +404,8 @@
                           :metric "http.responses.permetric"
                           :name "sum(http.responses.permetric)"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 50.0}]}]}
+                          :data [{:timestamp bucket-ms :value 50.0}]}]
+                :units {:http.responses.permetric "1"}}
                data))))))
 
 ;; ---------------------------------------------------------
@@ -451,7 +458,9 @@
                           :metric "http.server.requests"
                           :name "sum(http.server.requests)"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 1000.0}]}]}
+                          :data [{:timestamp bucket-ms :value 1000.0}]}]
+                :units {:http.server.errors "1"
+                        :http.server.requests "1"}}
                (update data :series (fn [s] (vec (sort-by :id s))))))))))
 
 ;; ---------------------------------------------------------
@@ -526,7 +535,9 @@
                           :metric "latency.complex"
                           :name "avg(latency.complex)"
                           :labels {:service "complex-web"}
-                          :data [{:timestamp bucket-ms :value 30.0}]}]}
+                          :data [{:timestamp bucket-ms :value 30.0}]}]
+                :units {:requests.complex "1"
+                        :latency.complex "ms"}}
                (update data :series
                        (fn [s] (vec (sort-by (juxt :id #(get-in % [:labels :service])) s))))))))))
 
@@ -640,7 +651,8 @@
                           :metric "db.query.duration.grouped"
                           :name "count(db.query.duration.grouped)"
                           :labels {:service "histogram-grouped-web"}
-                          :data [{:timestamp bucket-ms :value 185}]}]}
+                          :data [{:timestamp bucket-ms :value 185}]}]
+                :units {:db.query.duration.grouped "s"}}
                (update data :series
                        (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
 

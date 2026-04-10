@@ -263,6 +263,9 @@ export interface TimeSeriesQueryResult {
   start_ms: number
   end_ms: number
   series: TimeSeriesSeries[]
+  // Metric name -> OTel unit string (e.g., "By" for bytes, "%" for percent)
+  // Only present in metrics query responses.
+  units?: Record<string, string | null>
 }
 
 // Trace data - a single span or span_event in a trace waterfall
