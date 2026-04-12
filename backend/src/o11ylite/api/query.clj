@@ -8,8 +8,10 @@
 
 (ns o11ylite.api.query
   (:require
+    [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.store.events.query :as events.query]
     [o11ylite.store.metrics.query :as metrics.query]
+    [o11ylite.store.query-util :as query-util]
     [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
@@ -17,12 +19,14 @@
 
 (defn- -make-events-handler
   "Create the events query handler with duckdb and event-metadata dependencies."
-  [duckdb event-metadata]
+  [duckdb event-metadata-component]
   (fn [request]
     (let [query (:body request)]
-      (if-let [error (events.query/validate event-metadata query)]
+      (if-let [error (events.query/validate event-metadata-component query)]
         (response/json 400 error)
-        (response/json 200 (events.query/execute duckdb query))))))
+        (let [fields (event-metadata/get-fields event-metadata-component)
+              query (query-util/coerce-filter-values fields query)]
+          (response/json 200 (events.query/execute duckdb query)))))))
 
 (defn- -make-metrics-handler
   "Create the metrics query handler with duckdb and sqlite dependencies."
