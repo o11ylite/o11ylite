@@ -13,6 +13,31 @@ import {
 import { type Field, type SimpleFilter, type FilterOp, type FieldType } from "@/types"
 import { FieldPicker } from "./field-picker"
 
+function coerceFilterValue(
+  raw: string,
+  fieldType: FieldType | undefined,
+): string | number | boolean {
+  if (!fieldType) return raw
+  switch (fieldType) {
+    case "boolean": {
+      const lower = raw.toLowerCase()
+      if (lower === "true") return true
+      if (lower === "false") return false
+      return raw
+    }
+    case "integer": {
+      const n = parseInt(raw, 10)
+      return isNaN(n) ? 0 : n
+    }
+    case "float": {
+      const n = parseFloat(raw)
+      return isNaN(n) ? 0 : n
+    }
+    default:
+      return raw
+  }
+}
+
 const FILTER_OPERATORS: { value: FilterOp; label: string }[] = [
   { value: "=", label: "=" },
   { value: "!=", label: "!=" },
@@ -51,6 +76,11 @@ export function FilterChip({
   const [localValue, setLocalValue] = useState(String(filter.value ?? ""))
   const [prevValue, setPrevValue] = useState(filter.value)
 
+  const selectedField = fields.find((f) => f.name === filter.field)
+  const valueLess = filter.op === "exists"
+  const isBoolean = selectedField?.type === "boolean"
+  const isNumeric = selectedField?.type === "integer" || selectedField?.type === "float"
+
   // Sync when parent changes (e.g., browser back/forward)
   if (prevValue !== filter.value) {
     setPrevValue(filter.value)
@@ -59,7 +89,7 @@ export function FilterChip({
 
   const commitValue = () => {
     if (localValue !== String(filter.value ?? "")) {
-      onUpdate({ ...filter, value: localValue })
+      onUpdate({ ...filter, value: coerceFilterValue(localValue, selectedField?.type) })
     }
   }
 
@@ -69,9 +99,6 @@ export function FilterChip({
       commitValue()
     }
   }
-
-  const selectedField = fields.find((f) => f.name === filter.field)
-  const valueLess = filter.op === "exists"
 
   const handleFieldSelect = (fieldName: string) => {
     const newField = fields.find((f) => f.name === fieldName)
@@ -118,9 +145,24 @@ export function FilterChip({
           ))}
         </SelectContent>
       </Select>
-      {!valueLess && (
+      {!valueLess && isBoolean && (
+        <Select
+          value={String(filter.value ?? "")}
+          onValueChange={(v) => onUpdate({ ...filter, value: v === "true" })}
+        >
+          <SelectTrigger size="sm" className="w-auto min-w-[80px]">
+            <SelectValue placeholder="value" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">true</SelectItem>
+            <SelectItem value="false">false</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      {!valueLess && !isBoolean && (
         <Input
-          type="text"
+          type={isNumeric ? "number" : "text"}
+          step={selectedField?.type === "float" ? "any" : undefined}
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
           onBlur={commitValue}
