@@ -11,6 +11,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
+import { createUnitFormatter, resolveChartUnit } from "@/lib/format-metric-value"
 import { transformData, createTimestampFormatter } from "./utils"
 
 interface TimeSeriesChartProps {
@@ -19,6 +20,8 @@ interface TimeSeriesChartProps {
   connectNulls?: boolean
   // Use shorter legend labels (omit metric name) when charts are split by metric
   shortLegendLabels?: boolean
+  // Metric name -> OTel unit string, from the query response
+  units?: Record<string, string | null>
 }
 
 export function TimeSeriesChart({
@@ -26,6 +29,7 @@ export function TimeSeriesChart({
   title,
   connectNulls = false,
   shortLegendLabels = false,
+  units,
 }: TimeSeriesChartProps) {
   const { chartData, seriesMeta } = useMemo(
     () => transformData(data, { shortLegendLabels }),
@@ -84,6 +88,10 @@ export function TimeSeriesChart({
   const rangeMs = data.end_ms - data.start_ms
   const formatTimestamp = useMemo(() => createTimestampFormatter(rangeMs), [rangeMs])
 
+  // Unit-aware value formatting for Y-axis ticks and tooltip values
+  const chartUnit = useMemo(() => resolveChartUnit(data.series, units), [data.series, units])
+  const unitFormatter = useMemo(() => createUnitFormatter(chartUnit), [chartUnit])
+
   return (
     <div className="flex flex-col">
       {title && (
@@ -108,7 +116,13 @@ export function TimeSeriesChart({
             tickMargin={8}
             tickFormatter={formatTimestamp}
           />
-          <YAxis tickLine={false} axisLine={false} tickMargin={8} width={50} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            width={60}
+            tickFormatter={unitFormatter.formatTick}
+          />
           <ChartTooltip
             content={
               <ChartTooltipContent
@@ -119,6 +133,22 @@ export function TimeSeriesChart({
                   }
                   return ""
                 }}
+                formatter={(value, name, item) => (
+                  <>
+                    <div
+                      className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)"
+                      style={{ "--color-bg": item.color, "--color-border": item.color } as React.CSSProperties}
+                    />
+                    <div className="flex flex-1 justify-between gap-4 leading-none items-center">
+                      <span className="text-muted-foreground truncate">
+                        {chartConfig[name as string]?.label || name}
+                      </span>
+                      <span className="text-foreground font-mono font-medium tabular-nums shrink-0">
+                        {unitFormatter.format(value as number)}
+                      </span>
+                    </div>
+                  </>
+                )}
               />
             }
           />

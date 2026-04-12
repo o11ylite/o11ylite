@@ -169,24 +169,27 @@
        (some-> (.getMessage e) (.contains "not found in FROM clause"))))
 
 (defn- -execute-metric
-  "Execute query for a single metric and return series.
+  "Execute query for a single metric and return its series and unit.
    Looks up metric type from metadata to select appropriate aggregation columns.
-   Returns empty series if referenced columns don't exist (graceful degradation)."
+   Returns empty series if referenced columns don't exist (graceful degradation).
+
+   Returns {:series [...] :unit \"By\"|nil}"
   [duckdb sqlite query metric bucket-ms]
   (let [{:keys [id name agg]} metric
-        ;; Lookup metric type; default to :gauge for unknown metrics (graceful degradation)
-        metric-type (or (some-> (metadata/get-metric sqlite name) :metric_type)
-                        :gauge)
+        ;; Lookup metric metadata; default to :gauge for unknown metrics (graceful degradation)
+        metric-meta (metadata/get-metric sqlite name)
+        metric-type (or (:metric_type metric-meta) :gauge)
         hsql-query (-build-metric-query query metric metric-type bucket-ms)
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         group-by-fields (or (:group_by query) [])]
     (try
       (let [rows (jdbc/execute! duckdb (into [sql-str] params))]
-        (-rows->series rows id name agg group-by-fields))
+        {:series (-rows->series rows id name agg group-by-fields)
+         :unit (:unit metric-meta)})
       (catch java.sql.SQLException e
         (if (-column-not-found? e)
           ;; Return empty series for non-existent columns
-          []
+          {:series [] :unit (:unit metric-meta)}
           (throw e))))))
 
 ;; ---------------------------------------------------------
@@ -201,7 +204,7 @@
      sqlite - SQLite datasource (for metric metadata lookups to determine type)
      query  - Validated query map
 
-   Returns:
+    Returns:
      {:data {:bucket_ms N
              :start_ms N
              :end_ms N
@@ -210,7 +213,9 @@
                        :name \"avg(cpu.utilization)\"
                        :labels {:attr.host.name \"server-1\"}
                        :data [{:timestamp N :value N} ...]}
-                      ...]}
+                      ...]
+             :units {\"cpu.utilization\" \"%\"
+                     \"network.io\" \"By\"}}
       :metadata {:query_time_ms N}}"
   [duckdb sqlite query]
   (let [start-time (System/currentTimeMillis)
@@ -219,13 +224,18 @@
         resolved-bucket-ms (or bucket_ms (query-util/select-bucket-ms range-ms))
         start-ms (query-util/align-to-bucket (:start time_range) resolved-bucket-ms)
         end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
-        ;; Execute query for each metric and collect all series
-        all-series (mapcat #(-execute-metric duckdb sqlite query % resolved-bucket-ms) metrics)
+        ;; Execute query for each metric, collecting series and units
+        results (map #(-execute-metric duckdb sqlite query % resolved-bucket-ms) metrics)
+        all-series (vec (mapcat :series results))
+        units (into {} (map (fn [metric result]
+                              [(:name metric) (:unit result)])
+                            metrics results))
         query-time-ms (- (System/currentTimeMillis) start-time)]
     {:data {:bucket_ms resolved-bucket-ms
             :start_ms start-ms
             :end_ms end-ms
-            :series (vec all-series)}
+            :series all-series
+            :units units}
      :metadata {:query_time_ms query-time-ms}}))
 
 ;; ---------------------------------------------------------
