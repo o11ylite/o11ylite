@@ -8,6 +8,7 @@
 (ns o11ylite.integration.api.event-query-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.test-helpers :as h]
     [tick.core :as t]))
 
@@ -538,3 +539,37 @@
         (let [rows (get-in response [:body :data :rows])]
           (is (= 1 (count rows)))
           (is (= "having-and-svc-x" (:service (first rows)))))))))
+
+;; ---------------------------------------------------------
+;; Boolean Filter Coercion
+
+(deftest events-query-boolean-filter-coercion-test
+  (testing "POST /api/query/events coerces string boolean values for boolean fields"
+    (let [now-ms (current-epoch-ms)]
+
+      ;; Ingest error spans (span.status_code :error -> enrichment sets error=true)
+      (h/ingest-sample-events! 2 {:service "bool-test-svc" :span.status_code :error})
+      ;; Ingest ok spans (span.status_code :ok -> enrichment sets error=false)
+      (h/ingest-sample-events! 3 {:service "bool-test-svc" :span.status_code :ok})
+
+      ;; Ensure event-metadata cache has the error field's boolean type
+      @(event-metadata/refresh! (:cache/event-metadata h/*system*))
+
+      (let [time-range {:start (- now-ms 3600000) :end (+ now-ms 60000)}
+            query-bool (fn [value]
+                         (h/post-json "/api/query/events"
+                                      {:time_range time-range
+                                       :filter {:and [{:field "service" :op "=" :value "bool-test-svc"}
+                                                      {:field "error" :op "=" :value value}]}
+                                       :limit 10
+                                       :visualization {:type "table"}}))]
+
+        ;; String "true" — simulates what the frontend sends
+        (let [rows (get-in (query-bool "true") [:body :data :rows])]
+          (is (= 2 (count rows)) "Should return only the 2 error spans")
+          (is (every? #(true? (:error %)) rows)))
+
+        ;; String "false"
+        (let [rows (get-in (query-bool "false") [:body :data :rows])]
+          (is (= 3 (count rows)) "Should return only the 3 non-error spans")
+          (is (every? #(false? (:error %)) rows)))))))

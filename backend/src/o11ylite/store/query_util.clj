@@ -83,6 +83,57 @@
     [:raw (str "INTERVAL '" seconds " seconds'")]))
 
 ;; ---------------------------------------------------------
+;; Filter Value Coercion
+
+(defn- -coerce-value
+  "Coerce a filter value to match the expected field type.
+   Handles string values coming from JSON where the frontend sent e.g. \"true\"
+   instead of the boolean true. Returns the coerced value, or the original
+   if coercion is not needed or not possible."
+  [value field-type]
+  (cond
+    (nil? field-type) value
+    (not (string? value)) value
+
+    (= :boolean field-type)
+    (case (str/lower-case value)
+      "true" true
+      "false" false
+      value)
+
+    (= :integer field-type)
+    (try (Long/parseLong value) (catch NumberFormatException _ value))
+
+    (= :float field-type)
+    (try (Double/parseDouble value) (catch NumberFormatException _ value))
+
+    :else value))
+
+(defn- -coerce-filter-expr
+  "Recursively walk a filter expression and coerce values based on field metadata."
+  [field-metadata filter-expr]
+  (cond
+    (:and filter-expr)
+    (update filter-expr :and (partial mapv #(-coerce-filter-expr field-metadata %)))
+
+    (:or filter-expr)
+    (update filter-expr :or (partial mapv #(-coerce-filter-expr field-metadata %)))
+
+    :else
+    (if-let [field-meta (get field-metadata (keyword (:field filter-expr)))]
+      (update filter-expr :value -coerce-value (:type field-meta))
+      filter-expr)))
+
+(defn coerce-filter-values
+  "Coerce filter values in a query to match their field types.
+   field-metadata is a map of keyword -> {:type app-type}.
+   Returns the query with coerced filter values."
+  [field-metadata query]
+  (if (:filter query)
+    (update query :filter (partial -coerce-filter-expr field-metadata))
+    query))
+
+;; ---------------------------------------------------------
 ;; Filter Building
 
 (defn- -filter-op->sql
@@ -100,15 +151,20 @@
     "exists" :is-not))
 
 (defn- -build-simple-filter
-  "Build a HoneySQL clause from a simple filter."
+  "Build a HoneySQL clause from a simple filter.
+   Boolean values use IS/IS NOT instead of =/!= to work around
+   a DuckLake JDBC bug where parameterized `col = ?` with boolean
+   returns no results (confirmed on duckdb_jdbc 1.5.1.0)."
   [{:keys [field op value]}]
   (let [sql-op (-filter-op->sql op)
         col (field->col field)]
-    (case op
-      "contains" [sql-op col (str "%" value "%")]
-      "starts-with" [sql-op col (str value "%")]
-      "exists" [sql-op col nil]
-      [sql-op col value])))
+    (cond
+      (= op "contains") [sql-op col (str "%" value "%")]
+      (= op "starts-with") [sql-op col (str value "%")]
+      (= op "exists") [sql-op col nil]
+      (and (boolean? value) (= op "=")) [:is col value]
+      (and (boolean? value) (= op "!=")) [:is-not col value]
+      :else [sql-op col value])))
 
 (defn build-filter-clause
   "Recursively build HoneySQL WHERE clause from filter expression.
