@@ -29,6 +29,7 @@ export default function AlertRuleEdit() {
     queryState: initialQueryState,
     evalWindowMs: alert_rule?.eval_window_ms ?? 300000,
     evalIntervalMs: alert_rule?.eval_interval_ms ?? 60000,
+    alertOn: alert_rule?.alert_on ?? "result" as const,
   }
 
   const handleSubmit: React.ComponentProps<typeof AlertRuleForm>["onSubmit"] = (data) => {

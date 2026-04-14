@@ -5,10 +5,18 @@
 ;; Executes a rule's stored query against the existing query
 ;; infrastructure and determines the resulting alert state.
 ;;
-;; State determination:
-;;   - Query returns non-empty results -> :firing
-;;   - Query returns empty results     -> :ok
-;;   - Query fails (error/exception)   -> :no_data
+;; State determination (controlled by alert_on mode):
+;;   alert_on = "result" (default):
+;;     - Query returns non-empty results -> :firing
+;;     - Query returns empty results     -> :ok
+;;   alert_on = "no_result" (absence detection):
+;;     - Query returns non-empty results -> :ok
+;;     - Query returns empty results     -> :firing
+;;
+;; On evaluation failure (validation error, exception), the rule
+;; keeps its previous state. The error is recorded in last_eval_error.
+;; A broken evaluation is
+;; an operational problem, not an alert condition.
 
 ;; Scaling note (see eval namespace for implementation details):
 ;; Current implementation fetches all due rules and evaluates them
@@ -67,15 +75,30 @@
   (some #(pos? (count (:data %)))
         (get-in result [:data :series])))
 
+(defn- -resolve-state
+  "Determine alert state from query result emptiness and alert_on mode.
+   In 'result' mode (default), non-empty results mean firing.
+   In 'no_result' mode, empty results mean firing (absence detection)."
+  [has-data? alert-on]
+  (case alert-on
+    "no_result" (if has-data? :ok :firing)
+    ;; default: "result"
+    (if has-data? :firing :ok)))
+
 ;; ---------------------------------------------------------
 ;; Public API
 
 (defn evaluate-rule
   "Evaluate a single alert rule.
    Executes the stored query and determines the resulting state.
+   The alert_on field controls interpretation: 'result' (default) fires on
+   non-empty results, 'no_result' fires on empty results (absence detection).
 
-   Returns {:state :ok|:firing|:no_data, :error nil|string}."
-  [duckdb sqlite event-metadata {qmode :query_mode query :query eval-win :eval_window_ms}]
+   Returns {:state :ok|:firing, :error nil} on success,
+   or {:state nil, :error string} on failure (caller preserves prev state)."
+  [duckdb sqlite event-metadata {qmode :query_mode query :query
+                                 eval-win :eval_window_ms
+                                 alert-on :alert_on}]
   (try
     (let [full-query (-> query
                          (-inject-time-range eval-win)
@@ -83,9 +106,9 @@
       (case qmode
         "events"
         (if-let [validation-error (events.query/validate event-metadata full-query)]
-          {:state :no_data :error (str "Validation error: " (:error validation-error))}
+          {:state nil :error (str "Validation error: " (:error validation-error))}
           (let [result (events.query/execute duckdb full-query)]
-            {:state (if (-events-result-firing? result) :firing :ok)
+            {:state (-resolve-state (-events-result-firing? result) alert-on)
              :error nil}))
 
         "metrics"
@@ -93,33 +116,34 @@
               metrics-query (-> query
                                 (-inject-time-range eval-win))]
           (if-let [validation-error (metrics.query/validate sqlite metrics-query)]
-            {:state :no_data :error (str "Validation error: " (:error validation-error))}
+            {:state nil :error (str "Validation error: " (:error validation-error))}
             (let [result (metrics.query/execute duckdb sqlite metrics-query)]
-              {:state (if (-metrics-result-firing? result) :firing :ok)
+              {:state (-resolve-state (-metrics-result-firing? result) alert-on)
                :error nil})))
 
         ;; Unknown mode
-        {:state :no_data :error (str "Unknown query_mode: " qmode)}))
+        {:state nil :error (str "Unknown query_mode: " qmode)}))
     (catch Exception e
       (mulog/log ::evaluation-error :error (.getMessage e))
-      {:state :no_data :error (.getMessage e)})))
+      {:state nil :error (.getMessage e)})))
 
 ;; ---------------------------------------------------------
 ;; Evaluation Cycle Orchestration
 
 (defn- -evaluate-and-notify!
-  "Evaluate a single rule and send notification if appropriate."
+  "Evaluate a single rule and send notification if appropriate.
+   On evaluation failure (state is nil), preserves previous state."
   [duckdb sqlite event-metadata webhook-url rule]
   (let [{:keys [id state]} rule
         prev-state (keyword state)
         {:keys [state error]} (evaluate-rule duckdb sqlite event-metadata rule)
-        new-state state]
+        new-state (or state prev-state)]
     (mulog/log ::rule-evaluated
                :rule-id id
                :prev-state prev-state
                :new-state new-state
                :error error)
-    ;; Update DB state
+    ;; Update DB state (records last_eval_at and error even on failure)
     (store/update-eval-result! sqlite id new-state error prev-state)
     ;; Send webhook notification
     (notify/maybe-send-webhook! webhook-url rule new-state prev-state)))
