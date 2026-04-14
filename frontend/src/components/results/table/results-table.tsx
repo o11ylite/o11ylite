@@ -5,7 +5,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 
-import type { QueryResponse, TableQueryResult, SortConfig, ColumnMetadata } from "@/types"
+import type { QueryResponse, TableQueryResult, SortConfig, ColumnMetadata, Visualization, TableVisualization } from "@/types"
 import { useDisplayedFields } from "@/hooks/use-displayed-fields"
 
 import { buildColumns, isErrorRow, type RowData } from "./columns"
@@ -39,10 +39,8 @@ export function ResultsTable({
   onPrevPage,
   onNextPage,
   sortable = false,
-  sort,
-  onSortChange,
-  displayedFields,
-  onDisplayedFieldsChange,
+  visualization,
+  onVisualizationChange,
 }: {
   data: QueryResponse
   live?: boolean
@@ -50,12 +48,33 @@ export function ResultsTable({
   onPrevPage?: () => void
   onNextPage?: (cursor: string) => void
   sortable?: boolean
-  sort?: SortConfig
-  onSortChange?: (sort: SortConfig) => void
-  displayedFields?: string[] | null
-  onDisplayedFieldsChange?: (fields: string[] | null) => void
+  visualization: Visualization
+  onVisualizationChange?: (viz: Visualization) => void
 }) {
   const { rows, total_count, has_more, next_cursor, columns: responseColumns } = data.data as TableQueryResult
+
+  const sort = visualization.type === "table" ? visualization.sort : undefined
+  const displayedFields = visualization.type === "table"
+    ? visualization.displayed_fields ?? null
+    : null
+
+  const onSortChange = (newSort: SortConfig) => {
+    if (visualization.type !== "table") return
+    const viz: TableVisualization = { ...visualization, sort: newSort }
+    onVisualizationChange?.(viz)
+  }
+
+  const onDisplayedFieldsChange = (fields: string[] | null) => {
+    if (visualization.type !== "table") return
+    const viz: TableVisualization = fields
+      ? { ...visualization, displayed_fields: fields }
+      : (() => {
+        const { displayed_fields, ...rest } = visualization
+        void displayed_fields
+        return rest
+      })()
+    onVisualizationChange?.(viz)
+  }
 
   const [detailRow, setDetailRow] = useState<RowData | null>(null)
 
@@ -131,7 +150,7 @@ export function ResultsTable({
       <div className="flex items-center justify-end px-3 py-2 border-b bg-muted/30">
         <DisplayedFieldsSelector
           table={table}
-          onReset={onDisplayedFieldsChange ? () => onDisplayedFieldsChange(null) : undefined}
+          onReset={onVisualizationChange ? () => onDisplayedFieldsChange(null) : undefined}
         />
       </div>
       <div className="overflow-auto flex-1">
@@ -184,9 +203,9 @@ export function ResultsTable({
                   style={
                     isNew
                       ? {
-                          backgroundColor: NEW_ROW_HIGHLIGHT,
-                          transition: "background-color 1s ease-out",
-                        }
+                        backgroundColor: NEW_ROW_HIGHLIGHT,
+                        transition: "background-color 1s ease-out",
+                      }
                       : undefined
                   }
                 >
