@@ -83,7 +83,8 @@
    [:query_mode [:enum "events" "metrics"]]
    [:query :any]
    [:eval_window_ms eval-window-ms]
-   [:eval_interval_ms eval-interval-ms]])
+   [:eval_interval_ms eval-interval-ms]
+   [:alert_on [:enum "result" "no_result"]]])
 
 ;; ---------------------------------------------------------
 ;; Validation

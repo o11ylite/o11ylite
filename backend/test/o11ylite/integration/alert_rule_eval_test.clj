@@ -135,6 +135,51 @@
             "last_eval_at should be a numeric timestamp")))))
 
 ;; ---------------------------------------------------------
+;; Absence Detection (no_result mode)
+
+(deftest no-result-mode-fires-on-empty-events-test
+  (testing "no_result mode: alert fires when no matching events exist"
+    (let [rule-id (create-alert-rule! {:name "Silence Detection"
+                                       :query {:filter {:field "service" :op "=" :value "silent-service"}
+                                               :visualization {:type "table"}}
+                                       :eval_window_ms 7200000
+                                       :alert_on "no_result"})]
+      ;; Ingest events for a different service (no match)
+      (h/ingest-sample-events! 3 {:service "other-service"})
+
+      ;; Evaluate
+      (alert-rule/run-evaluation-cycle!
+        (duckdb)
+        (sqlite)
+        (event-metadata)
+        nil)
+
+      ;; no_result + empty results = firing
+      (is (= "firing" (get-rule-state rule-id))
+          "Rule with alert_on=no_result should fire when query returns empty"))))
+
+(deftest no-result-mode-ok-on-non-empty-events-test
+  (testing "no_result mode: alert stays ok when matching events exist"
+    (let [rule-id (create-alert-rule! {:name "Silence Detection (OK)"
+                                       :query {:filter {:field "service" :op "=" :value "alive-service"}
+                                               :visualization {:type "table"}}
+                                       :eval_window_ms 7200000
+                                       :alert_on "no_result"})]
+      ;; Ingest matching events
+      (h/ingest-sample-events! 5 {:service "alive-service"})
+
+      ;; Evaluate
+      (alert-rule/run-evaluation-cycle!
+        (duckdb)
+        (sqlite)
+        (event-metadata)
+        nil)
+
+      ;; no_result + non-empty results = ok
+      (is (= "ok" (get-rule-state rule-id))
+          "Rule with alert_on=no_result should stay ok when query returns results"))))
+
+;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
 

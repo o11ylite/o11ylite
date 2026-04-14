@@ -20,7 +20,7 @@ import {
   EVAL_INTERVAL_PRESETS,
 } from "@/components/alert-rules/eval-presets"
 import { queryStateToPayload } from "@/lib/query-helpers"
-import type { QueryBuilderState } from "@/types"
+import type { AlertOn, QueryBuilderState } from "@/types"
 
 interface AlertRuleFormPayload {
   name: string
@@ -30,6 +30,7 @@ interface AlertRuleFormPayload {
   query: Record<string, FormDataConvertible>
   eval_window_ms: number
   eval_interval_ms: number
+  alert_on: AlertOn
 }
 
 interface AlertRuleFormProps {
@@ -40,6 +41,7 @@ interface AlertRuleFormProps {
     queryState: QueryBuilderState
     evalWindowMs: number
     evalIntervalMs: number
+    alertOn: AlertOn
   }
   errors?: Partial<Record<string, string>>
   submitting?: boolean
@@ -59,6 +61,7 @@ export function AlertRuleForm({
   const [enabled, setEnabled] = useState(initialValues.enabled)
   const [evalWindowMs, setEvalWindowMs] = useState(initialValues.evalWindowMs)
   const [evalIntervalMs, setEvalIntervalMs] = useState(initialValues.evalIntervalMs)
+  const [alertOn, setAlertOn] = useState<AlertOn>(initialValues.alertOn)
   const [queryState, setQueryState] = useState(initialValues.queryState)
 
   const nameError = errors.name
@@ -73,6 +76,7 @@ export function AlertRuleForm({
       query: queryStateToPayload(queryState),
       eval_window_ms: evalWindowMs,
       eval_interval_ms: evalIntervalMs,
+      alert_on: alertOn,
     })
   }
 
@@ -105,7 +109,27 @@ export function AlertRuleForm({
       </div>
 
       {/* Evaluation settings */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="space-y-2">
+          <Label>Alert fires when</Label>
+          <Select
+            value={alertOn}
+            onValueChange={(v) => setAlertOn(v as AlertOn)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="result">Query returns results</SelectItem>
+              <SelectItem value="no_result">Query returns no results</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {alertOn === "no_result"
+              ? "Fires when the query finds nothing (absence detection)"
+              : "Fires when the query finds matching data"}
+          </p>
+        </div>
         <div className="space-y-2">
           <Label>Evaluation Window</Label>
           <Select
@@ -162,8 +186,9 @@ export function AlertRuleForm({
       <div className="space-y-2">
         <Label>Query</Label>
         <p className="text-xs text-muted-foreground">
-          Define the query condition. The alert fires when the query returns
-          non-empty results.
+          {alertOn === "no_result"
+            ? "Define the query condition. The alert fires when the query returns no results (absence detection)."
+            : "Define the query condition. The alert fires when the query returns non-empty results."}
         </p>
         {queryError && (
           <div className="rounded-md bg-destructive/10 border border-destructive/50 p-3 flex items-start gap-2">

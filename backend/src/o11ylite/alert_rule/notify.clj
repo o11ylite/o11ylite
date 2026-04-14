@@ -9,7 +9,6 @@
 ;;     (Alertmanager expects repeated alerts to know they're still active)
 ;;   - Sends once when transitioning from :firing to :ok (resolved)
 ;;   - Silent when state is :ok and was already :ok
-;;   - Silent when state is :no_data (evaluation error)
 ;; ---------------------------------------------------------
 
 (ns o11ylite.alert-rule.notify

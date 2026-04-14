@@ -66,7 +66,12 @@ export function AlertRuleList({ alertRules }: { alertRules: AlertRule[] }) {
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
-                {rule.query_mode}
+                <span>{rule.query_mode}</span>
+                {rule.alert_on === "no_result" && (
+                  <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
+                    absence
+                  </span>
+                )}
               </TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {formatMs(rule.eval_window_ms)}

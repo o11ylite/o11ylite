@@ -29,7 +29,8 @@
    :query_mode (:query_mode body)
    :query (:query body)
    :eval_window_ms (some-> (:eval_window_ms body) long)
-   :eval_interval_ms (some-> (:eval_interval_ms body) long)})
+   :eval_interval_ms (some-> (:eval_interval_ms body) long)
+   :alert_on (:alert_on body)})
 
 ;; ---------------------------------------------------------
 ;; Handlers
