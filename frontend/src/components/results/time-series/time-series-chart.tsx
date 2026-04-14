@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react"
+import { useMemo, useState, useCallback, useRef } from "react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, ReferenceArea } from "recharts"
 
 import type { TimeSeriesQueryResult } from "@/types"
@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/chart"
 import { createUnitFormatter, resolveChartUnit } from "@/lib/format-metric-value"
 import { transformData, createTimestampFormatter } from "./utils"
+
+// Minimum horizontal pixel distance before a pointer gesture becomes a drag selection.
+// Prevents clicks/taps and small jitters from accidentally entering time-range selection mode.
+const DRAG_THRESHOLD_PX = 8
 
 interface TimeSeriesChartProps {
   data: TimeSeriesQueryResult
@@ -38,22 +42,39 @@ export function TimeSeriesChart({
   const showLegend = seriesMeta.length > 1
   const { setRange } = useTimeRange()
 
-  // Drag selection state
+  // Drag-to-zoom selection state.
+  //
+  // Recharts' onMouseMove fires spuriously (via its throttled tooltip handler)
+  // with wrong coordinates even when the pointer hasn't moved.  We gate the
+  // selection behind a pixel-distance threshold checked via a native
+  // onPointerMove on the container, which only fires on real movement.
   const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null)
   const [refAreaRight, setRefAreaRight] = useState<number | null>(null)
 
-  const handleMouseDown = useCallback((e: { activeLabel?: string } | null) => {
-    if (e?.activeLabel) {
-      setRefAreaLeft(Number(e.activeLabel))
-      setRefAreaRight(null)
+  const dragRef = useRef<{ startX: number; label: number; confirmed: boolean } | null>(null)
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current
+    if (!drag || drag.confirmed) return
+    if (Math.abs(e.clientX - drag.startX) >= DRAG_THRESHOLD_PX) {
+      drag.confirmed = true
+      setRefAreaLeft(drag.label)
     }
   }, [])
 
-  const handleMouseMove = useCallback((e: { activeLabel?: string } | null) => {
-    if (refAreaLeft !== null && e?.activeLabel) {
+  type RechartsMouseEvent = { activeLabel?: string } | null
+
+  // Recharts passes (chartState, nativeEvent) -- we read both.
+  const handleMouseDown = useCallback((e: RechartsMouseEvent, nativeEvent?: React.MouseEvent) => {
+    if (!e?.activeLabel || !nativeEvent) return
+    dragRef.current = { startX: nativeEvent.clientX, label: Number(e.activeLabel), confirmed: false }
+  }, [])
+
+  const handleMouseMove = useCallback((e: RechartsMouseEvent) => {
+    if (e?.activeLabel && dragRef.current?.confirmed) {
       setRefAreaRight(Number(e.activeLabel))
     }
-  }, [refAreaLeft])
+  }, [])
 
   const handleMouseUp = useCallback(() => {
     if (refAreaLeft !== null && refAreaRight !== null) {
@@ -67,6 +88,7 @@ export function TimeSeriesChart({
         })
       }
     }
+    dragRef.current = null
     setRefAreaLeft(null)
     setRefAreaRight(null)
   }, [refAreaLeft, refAreaRight, setRange])
@@ -97,7 +119,11 @@ export function TimeSeriesChart({
       {title && (
         <div className="px-3 py-2 text-sm font-medium text-muted-foreground">{title}</div>
       )}
-      <ChartContainer config={chartConfig} className="h-[240px] w-full py-2 px-2">
+      <ChartContainer
+        config={chartConfig}
+        className="h-[240px] w-full py-2 px-2 touch-pan-y"
+        onPointerMove={handlePointerMove}
+      >
         <LineChart
           accessibilityLayer
           data={chartData}
