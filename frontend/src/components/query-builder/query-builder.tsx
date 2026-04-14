@@ -114,7 +114,7 @@ export function QueryBuilder({
   return (
     <div className="space-y-2">
       {/* Top Bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Tabs value={mode} onValueChange={(v) => handleModeChange(v as QueryMode)}>
           <TabsList>
             <TabsTrigger value="events">Events</TabsTrigger>
@@ -142,7 +142,7 @@ export function QueryBuilder({
           </SelectContent>
         </Select>
 
-        <div className="flex-1" />
+        <div className="hidden sm:block flex-1" />
 
         {/* Visualization toggle - only show for events mode when enabled */}
         {mode === "events" && vizToggle && (
@@ -150,9 +150,11 @@ export function QueryBuilder({
             <TabsList>
               <TabsTrigger value="table" title="Table">
                 <Table size={14} />
+                <span className="text-xs">Table</span>
               </TabsTrigger>
               <TabsTrigger value="time_series" title="Time series">
                 <LineChart size={14} />
+                <span className="text-xs">Series</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
