@@ -27,7 +27,8 @@ import { resolveTimeRange } from "@/hooks/use-time-range"
 import type {
   NotebookCell as NotebookCellType,
   QueryBuilderState,
-  TableVisualization,
+  TimeSeriesVisualization,
+  Visualization,
 } from "@/types"
 
 // ============================================================================
@@ -130,19 +131,8 @@ export function NotebookCell({
     saveCell(buildCellPayload(cell, queryState, { pinnedFrom, pinnedTo }))
   }
 
-  const handleDisplayedFieldsChange = (fields: string[] | null) => {
-    if (queryState.visualization.type !== "table") return
-
-    const viz: TableVisualization = fields
-      ? { ...queryState.visualization, displayed_fields: fields }
-      : (() => {
-          const { displayed_fields, ...rest } = queryState.visualization
-          void displayed_fields
-          return rest
-        })()
-
-    const newQueryState = { ...queryState, visualization: viz }
-    saveCell(buildCellPayload(cell, newQueryState))
+  const handleVisualizationChange = (viz: Visualization) => {
+    saveCell(buildCellPayload(cell, { ...queryState, visualization: viz }))
   }
 
   const handleDelete = () => {
@@ -161,30 +151,32 @@ export function NotebookCell({
   const hasQuery = eventsPayload !== null || metricsPayload !== null
   const isEventsMode = cell.query_mode === "events"
 
-  const currentDisplayedFields =
-    queryState.visualization.type === "table"
-      ? queryState.visualization.displayed_fields ?? null
-      : null
-
   const renderResults = () => {
     if (!hasQuery) return <ResultsPlaceholder />
     if (isLoading) return <ResultsLoading />
     if (error instanceof Error) return <ResultsError message={error.message} />
     if (!data) return <ResultsPlaceholder />
 
-    if (!isEventsMode) {
-      return <ResultsTimeSeries data={data} connectNulls />
-    }
-
-    if (queryState.visualization.type === "time_series") {
-      return <ResultsTimeSeries data={data} />
+    const showTimeSeries = !isEventsMode || queryState.visualization.type === "time_series"
+    if (showTimeSeries) {
+      const tsViz: TimeSeriesVisualization = queryState.visualization.type === "time_series"
+        ? queryState.visualization
+        : { type: "time_series" }
+      return (
+        <ResultsTimeSeries
+          data={data}
+          connectNulls={!isEventsMode}
+          visualization={tsViz}
+          onVisualizationChange={handleVisualizationChange}
+        />
+      )
     }
 
     return (
       <ResultsTable
         data={data}
-        displayedFields={currentDisplayedFields}
-        onDisplayedFieldsChange={handleDisplayedFieldsChange}
+        visualization={queryState.visualization}
+        onVisualizationChange={handleVisualizationChange}
       />
     )
   }

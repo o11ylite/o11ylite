@@ -101,15 +101,9 @@ export function QueryBuilder({
   }
 
   const handleVizTypeChange = (type: VisualizationType) => {
-    let visualization: Visualization
-    switch (type) {
-      case "table":
-        visualization = { type: "table" }
-        break
-      case "time_series":
-        visualization = { type: "time_series" }
-        break
-    }
+    const visualization: Visualization = type === "table"
+      ? { type: "table" }
+      : { type: "time_series" }
     updateState({ ...state, visualization })
   }
 
