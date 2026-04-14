@@ -96,6 +96,7 @@ export interface TableVisualization {
 export interface TimeSeriesVisualization {
   type: "time_series"
   bucket_ms?: number
+  overlay?: boolean
 }
 
 export interface TraceVisualization {

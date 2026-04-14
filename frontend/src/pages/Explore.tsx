@@ -20,7 +20,7 @@ import {
   useQueryExecution,
   buildEventsPayload,
 } from "@/hooks/use-query-execution"
-import type { TableVisualization, SortConfig } from "@/types"
+import type { TableVisualization, TimeSeriesVisualization, Visualization } from "@/types"
 
 // ============================================================================
 // Page
@@ -89,29 +89,7 @@ export default function Explore() {
     setPagination(p => ({ ...p, cursorStack: [...p.cursorStack, nextCursor] }))
   }
 
-  // Displayed fields from visualization config
-  const currentDisplayedFields = state.visualization.type === "table"
-    ? state.visualization.displayed_fields ?? null
-    : null
-
-  // Sort handler - updates visualization config which resets pagination via queryResetKey
-  const handleSortChange = (newSort: SortConfig) => {
-    setState({
-      ...state,
-      visualization: { ...state.visualization, sort: newSort } as TableVisualization,
-    })
-  }
-
-  // Displayed fields handler - updates visualization config
-  const handleDisplayedFieldsChange = (fields: string[] | null) => {
-    if (state.visualization.type !== "table") return
-    const viz = fields
-      ? { ...state.visualization, displayed_fields: fields }
-      : (() => {
-          const { displayed_fields, ...rest } = state.visualization
-          void displayed_fields
-          return rest
-        })()
+  const handleVisualizationChange = (viz: Visualization) => {
     setState({ ...state, visualization: viz })
   }
 
@@ -146,32 +124,35 @@ export default function Explore() {
     if (error instanceof Error) return <ResultsError message={error.message} />
     if (!queryResult) return <ResultsPlaceholder />
 
-    // Metrics mode always shows time series with connected lines
-    if (isMetricsMode) {
-      return <ResultsTimeSeries data={queryResult} connectNulls />
+    // Time series: metrics mode always, events mode when explicitly selected
+    const showTimeSeries = isMetricsMode || state.visualization.type === "time_series"
+    if (showTimeSeries) {
+      const tsViz: TimeSeriesVisualization = state.visualization.type === "time_series"
+        ? state.visualization
+        : { type: "time_series" }
+      return (
+        <ResultsTimeSeries
+          data={queryResult}
+          connectNulls={isMetricsMode}
+          visualization={tsViz}
+          onVisualizationChange={handleVisualizationChange}
+        />
+      )
     }
 
-    // Events mode respects visualization setting
-    switch (state.visualization.type) {
-      case "time_series":
-        return <ResultsTimeSeries data={queryResult} />
-      case "table":
-      default:
-        return (
-          <ResultsTable
-            data={queryResult}
-            live={live}
-            canGoPrev={paginationEnabled && cursorStack.length > 1}
-            onPrevPage={paginationEnabled ? handlePrevPage : undefined}
-            onNextPage={paginationEnabled ? handleNextPage : undefined}
-            sortable={sortingEnabled}
-            sort={currentSort}
-            onSortChange={sortingEnabled ? handleSortChange : undefined}
-            displayedFields={currentDisplayedFields}
-            onDisplayedFieldsChange={handleDisplayedFieldsChange}
-          />
-        )
-    }
+    // Table (default for events mode)
+    return (
+      <ResultsTable
+        data={queryResult}
+        live={live}
+        canGoPrev={paginationEnabled && cursorStack.length > 1}
+        onPrevPage={paginationEnabled ? handlePrevPage : undefined}
+        onNextPage={paginationEnabled ? handleNextPage : undefined}
+        sortable={sortingEnabled}
+        visualization={state.visualization}
+        onVisualizationChange={handleVisualizationChange}
+      />
+    )
   }
 
   return (
