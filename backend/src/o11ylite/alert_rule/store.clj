@@ -43,23 +43,23 @@
   "Insert a new alert rule.
    id should be a string representation of the snowflake ID."
   [sqlite id {:keys [name description query_mode query
-                     eval_window_ms eval_interval_ms]}]
+                     eval_window_ms eval_interval_ms alert_on]}]
   (let [now (-now-ms)]
     (jdbc/execute!
       sqlite
       ["INSERT INTO alert_rules
         (id, name, description, enabled, query_mode, query,
-         eval_window_ms, eval_interval_ms, state, created_at, updated_at)
-        VALUES (?, ?, ?, 1, ?, ?, ?, ?, 'ok', ?, ?)"
+         eval_window_ms, eval_interval_ms, alert_on, state, created_at, updated_at)
+        VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'ok', ?, ?)"
        id name description query_mode (-serialize-query query)
-       eval_window_ms eval_interval_ms now now])
+       eval_window_ms eval_interval_ms (or alert_on "result") now now])
     id))
 
 (defn update!
   "Update an alert rule by ID.
    Only updates the provided fields."
   [sqlite id {:keys [name description enabled query_mode query
-                     eval_window_ms eval_interval_ms]}]
+                     eval_window_ms eval_interval_ms alert_on]}]
   (let [now (-now-ms)]
     (jdbc/execute!
       sqlite
@@ -67,10 +67,11 @@
         SET name = ?, description = ?, enabled = ?,
             query_mode = ?, query = ?,
             eval_window_ms = ?, eval_interval_ms = ?,
+            alert_on = ?,
             updated_at = ?
         WHERE id = ?"
        name description (if enabled 1 0) query_mode (-serialize-query query)
-       eval_window_ms eval_interval_ms now id])))
+       eval_window_ms eval_interval_ms (or alert_on "result") now id])))
 
 (defn delete!
   "Delete an alert rule by ID."
