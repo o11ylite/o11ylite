@@ -300,7 +300,9 @@ export interface QueryResponse {
 // Alert Rule Types
 // ============================================================================
 
-export type AlertState = "ok" | "firing" | "no_data"
+export type AlertState = "ok" | "firing"
+
+export type AlertOn = "result" | "no_result"
 
 export interface AlertRule {
   id: string
@@ -311,6 +313,7 @@ export interface AlertRule {
   query: Record<string, unknown>
   eval_window_ms: number
   eval_interval_ms: number
+  alert_on: AlertOn
   state: AlertState
   state_changed_at: number | null
   last_eval_at: number | null

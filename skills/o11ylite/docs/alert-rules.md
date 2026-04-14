@@ -8,13 +8,21 @@ Alert rules use **Inertia page routes** — see SKILL.md for the read/write prot
 
 ## Evaluation model
 
-O11ylite uses a simple "non-empty result = firing" model. The query itself encodes the alert condition — use `filter` and `having` to define what "bad" looks like. Every `eval_interval_ms`, the engine runs the query over the trailing `eval_window_ms` window:
+The `alert_on` field controls how query results map to alert state. Every `eval_interval_ms`, the engine runs the query over the trailing `eval_window_ms` window:
 
-- **Query returns any rows** (events) or **any data points** (metrics) → state becomes `firing`
-- **Query returns empty results** → state becomes `ok`
-- **Query fails** (validation error, exception) → state becomes `no_data`
+**`alert_on: "result"`** (default — presence detection):
+- Query returns any rows/data points → `firing`
+- Query returns empty → `ok`
+
+**`alert_on: "no_result"`** (absence detection):
+- Query returns empty → `firing`
+- Query returns any rows/data points → `ok`
+
+On evaluation failure (validation error, exception), the rule keeps its previous state. The error is recorded in `last_eval_error`.
 
 There is no separate threshold field. To alert when error count exceeds 100, write a query with `having: {ref: "A", op: ">", value: 100}` — the having clause filters out sub-threshold groups, so a non-empty result means the threshold was breached.
+
+For absence/silence detection (e.g., "service stopped sending events"), use `alert_on: "no_result"`. For threshold-based absence (e.g., "QPS dropped below 10"), invert the query to evidence of health (`having count >= 10`) and use `alert_on: "no_result"` — silence fires because there's no evidence of health.
 
 ## Endpoints
 
@@ -45,6 +53,7 @@ There is no separate threshold field. To alert when error count exceeds 100, wri
       "query": { ... },
       "eval_window_ms": 300000,
       "eval_interval_ms": 60000,
+      "alert_on": "result",
       "state": "ok",
       "last_eval_at": 1700003500000,
       "last_eval_error": null,
@@ -56,7 +65,7 @@ There is no separate threshold field. To alert when error count exceeds 100, wri
 }
 ```
 
-`state` is `"ok"`, `"firing"`, or `"no_data"`.
+`state` is `"ok"` or `"firing"`. Evaluation errors are surfaced via `last_eval_error`.
 
 ---
 
@@ -94,7 +103,8 @@ Same shape as a list item. `errors` is populated only after a failed mutation re
     "visualization": {"type": "table"}
   },
   "eval_window_ms": 300000,
-  "eval_interval_ms": 60000
+  "eval_interval_ms": 60000,
+  "alert_on": "result"
 }
 ```
 
@@ -111,6 +121,7 @@ Same shape as a list item. `errors` is populated only after a failed mutation re
 | `query`            | Yes      | object   | Query definition (see below)                     |
 | `eval_window_ms`   | Yes      | enum     | Evaluation window: 60000, 300000, 900000, 1800000, 3600000 |
 | `eval_interval_ms` | Yes      | enum     | Evaluation interval: 60000, 300000, 900000, 1800000, 3600000 |
+| `alert_on`         | Yes      | enum     | `"result"` (fire on match) or `"no_result"` (fire on absence) |
 
 ### Query object
 
@@ -182,7 +193,8 @@ POST /alert-rules
     "visualization": {"type": "table"}
   },
   "eval_window_ms": 300000,
-  "eval_interval_ms": 60000
+  "eval_interval_ms": 60000,
+  "alert_on": "result"
 }
 ```
 
@@ -201,7 +213,32 @@ POST /alert-rules
     "having": {"ref": "A", "op": ">", "value": 90}
   },
   "eval_window_ms": 300000,
-  "eval_interval_ms": 60000
+  "eval_interval_ms": 60000,
+  "alert_on": "result"
+}
+```
+
+### Create an absence detection alert (QPS too low)
+
+The query looks for evidence of health (QPS >= 10). When the query returns nothing — either because traffic dropped below threshold or the service stopped entirely — `no_result` fires the alert.
+
+```
+POST /alert-rules
+```
+```json
+{
+  "name": "Payment service QPS too low",
+  "enabled": true,
+  "query_mode": "events",
+  "query": {
+    "filter": {"field": "service", "op": "=", "value": "payment-service"},
+    "aggregations": [{"id": "A", "function": "count", "field": "*"}],
+    "having": {"ref": "A", "op": ">=", "value": 10},
+    "visualization": {"type": "table"}
+  },
+  "eval_window_ms": 300000,
+  "eval_interval_ms": 60000,
+  "alert_on": "no_result"
 }
 ```
 

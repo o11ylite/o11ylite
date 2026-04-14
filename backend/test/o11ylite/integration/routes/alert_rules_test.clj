@@ -23,7 +23,8 @@
    :query_mode "events"
    :query {:visualization {:type "table"}}
    :eval_window_ms 300000
-   :eval_interval_ms 60000})
+   :eval_interval_ms 60000
+   :alert_on "result"})
 
 (def ^:private rich-query
   "A query with filters, aggregations, group_by, having, and visualization."
@@ -97,7 +98,17 @@
             "query should be deserialized as a map")
         ;; Verify enabled is a boolean
         (is (true? (:enabled rule))
-            "enabled should be true (boolean), not 1 (integer)")))))
+            "enabled should be true (boolean), not 1 (integer)")
+        ;; Verify alert_on round-trips
+        (is (= "result" (:alert_on rule))))))
+
+  (testing "POST /alert-rules with alert_on=no_result persists correctly"
+    (let [session (h/csrf-session)
+          response (-create-rule! session {:name "Absence Alert"
+                                           :alert_on "no_result"})]
+      (is (= 303 (h/status response)))
+      (let [rule (->> (-list-rules) (filter #(= "Absence Alert" (:name %))) first)]
+        (is (= "no_result" (:alert_on rule)))))))
 
 ;; ---------------------------------------------------------
 ;; Edit Page
@@ -122,7 +133,9 @@
         (is (= {:type "table"} (:visualization (:query alert-rule))))
         ;; Verify enabled is a boolean
         (is (boolean? (:enabled alert-rule))
-            "enabled should be a boolean, not an integer")))))
+            "enabled should be a boolean, not an integer")
+        ;; Verify alert_on round-trips
+        (is (= "result" (:alert_on alert-rule)))))))
 
 (deftest edit-returns-rich-query-data-test
   (testing "Edit page returns full query data (filters, aggregations, group_by, having)"
@@ -160,13 +173,15 @@
                               {:name "Updated Alert"
                                :description "Updated description"
                                :eval_window_ms 900000
-                               :eval_interval_ms 300000}))]
+                               :eval_interval_ms 300000
+                               :alert_on "no_result"}))]
         (is (= 303 (h/status response)))
         (is (= "/alert-rules" (h/header response "location")))
         ;; Verify the update
         (let [rule (first (-list-rules))]
           (is (= "Updated Alert" (:name rule)))
-          (is (= 900000 (:eval_window_ms rule))))))))
+          (is (= 900000 (:eval_window_ms rule)))
+          (is (= "no_result" (:alert_on rule))))))))
 
 ;; ---------------------------------------------------------
 ;; Delete
