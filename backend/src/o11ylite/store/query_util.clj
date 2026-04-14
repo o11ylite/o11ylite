@@ -152,9 +152,10 @@
 
 (defn- -build-simple-filter
   "Build a HoneySQL clause from a simple filter.
-   Boolean values use IS/IS NOT instead of =/!= to work around
-   a DuckLake JDBC bug where parameterized `col = ?` with boolean
-   returns no results (confirmed on duckdb_jdbc 1.5.1.0)."
+   Boolean values use IS/IS NOT instead of =/!= to work around a DuckLake
+   Parquet filter-pushdown bug where `col = TRUE` returns 0 rows on
+   partitioned tables with DATA_INLINING_ROW_LIMIT 0 (all data in Parquet).
+   See: https://github.com/duckdb/ducklake/issues/1010"
   [{:keys [field op value]}]
   (let [sql-op (-filter-op->sql op)
         col (field->col field)]
