@@ -60,6 +60,9 @@
 (def ^:private set-events-partition-sql
   "ALTER TABLE o11ylite.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), service)")
 
+(def ^:private set-events-sorted-sql
+  "ALTER TABLE o11ylite.events SET SORTED BY (timestamp DESC)")
+
 (def ^:private create-metrics-table-sql
   "CREATE TABLE IF NOT EXISTS o11ylite.metrics (
      -- Core identity
@@ -88,6 +91,9 @@
 (def ^:private set-metrics-partition-sql
   "ALTER TABLE o11ylite.metrics SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), name, service)")
 
+(def ^:private set-metrics-sorted-sql
+  "ALTER TABLE o11ylite.metrics SET SORTED BY (timestamp DESC)")
+
 ;; ---------------------------------------------------------
 ;; Public API
 
@@ -98,8 +104,10 @@
   (mulog/log ::init-store-starting)
   (jdbc/execute! duckdb-ds [create-events-table-sql])
   (jdbc/execute! duckdb-ds [set-events-partition-sql])
+  (jdbc/execute! duckdb-ds [set-events-sorted-sql])
   (jdbc/execute! duckdb-ds [create-metrics-table-sql])
   (jdbc/execute! duckdb-ds [set-metrics-partition-sql])
+  (jdbc/execute! duckdb-ds [set-metrics-sorted-sql])
   (mulog/log ::init-store-completed))
 
 ;; ---------------------------------------------------------
