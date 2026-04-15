@@ -133,6 +133,10 @@
     ;; desired compression even after a DuckLake migration or fresh attach.
     (jdbc/execute! conn ["CALL o11ylite.set_option('parquet_compression', 'zstd')"])
     (jdbc/execute! conn ["CALL o11ylite.set_option('parquet_compression_level', '3')"])
+    ;; Disable sorting on INSERT for ingestion throughput. Tables are configured
+    ;; with SET SORTED BY in store/init, so compaction and inlined-data flushes
+    ;; still sort data into optimal Parquet layout for time-range queries.
+    (jdbc/execute! conn ["CALL o11ylite.set_option('sort_on_insert', 'false')"])
     (mulog/log ::root-connection-initialized
                :ducklake-file ducklake-file
                :data-inlining-row-limit data-inlining-row-limit
