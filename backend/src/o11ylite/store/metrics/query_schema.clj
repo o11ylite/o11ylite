@@ -113,6 +113,19 @@
    [:value number?]])
 
 ;; ---------------------------------------------------------
+;; Visualization Schemas
+
+(def time-series-visualization
+  [:map {:closed true}
+   [:type [:= "time_series"]]
+   [:bucket_ms {:optional true} [:int {:min 1}]]
+   [:overlay {:optional true} :boolean]])
+
+(def visualization
+  "Visualization config for metrics queries. Currently only time_series is supported."
+  time-series-visualization)
+
+;; ---------------------------------------------------------
 ;; Main Query Schema
 
 (def ^:private base-query
@@ -123,7 +136,8 @@
    [:filter {:optional true} filter-expr]
    [:group_by {:optional true} [:vector field-name]]
    [:having {:optional true} having-expr]
-   [:metrics [:vector {:min 1} metric-definition]]])
+   [:metrics [:vector {:min 1} metric-definition]]
+   [:visualization {:optional true} visualization]])
 
 (defn- -unique-metric-ids?
   "All metric IDs must be unique (no duplicate A, B, etc.)."

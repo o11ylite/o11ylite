@@ -76,6 +76,7 @@ export function queryStateToPayload(
           metrics: state.metrics,
           group_by: state.groupBy,
           having: state.having,
+          visualization: state.visualization,
         }
 
   const isPresent = (v: unknown) =>
