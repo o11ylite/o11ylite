@@ -9,13 +9,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  ResultsTable,
-  ResultsTimeSeries,
-  ResultsLoading,
-  ResultsError,
-  ResultsPlaceholder,
-} from "@/components/results"
+import { TelemetryResult } from "@/components/results"
 import { CellTimeBadge } from "@/components/notebook/cell-time-badge"
 import { CellQueryDrawer } from "@/components/notebook/cell-query-drawer"
 import {
@@ -27,7 +21,6 @@ import { resolveTimeRange } from "@/hooks/use-time-range"
 import type {
   NotebookCell as NotebookCellType,
   QueryBuilderState,
-  TimeSeriesVisualization,
   Visualization,
 } from "@/types"
 
@@ -149,37 +142,6 @@ export function NotebookCell({
   // ------------------------------------------------------------------
 
   const hasQuery = eventsPayload !== null || metricsPayload !== null
-  const isEventsMode = cell.query_mode === "events"
-
-  const renderResults = () => {
-    if (!hasQuery) return <ResultsPlaceholder />
-    if (isLoading) return <ResultsLoading />
-    if (error instanceof Error) return <ResultsError message={error.message} />
-    if (!data) return <ResultsPlaceholder />
-
-    const showTimeSeries = !isEventsMode || queryState.visualization.type === "time_series"
-    if (showTimeSeries) {
-      const tsViz: TimeSeriesVisualization = queryState.visualization.type === "time_series"
-        ? queryState.visualization
-        : { type: "time_series" }
-      return (
-        <ResultsTimeSeries
-          data={data}
-          connectNulls={!isEventsMode}
-          visualization={tsViz}
-          onVisualizationChange={handleVisualizationChange}
-        />
-      )
-    }
-
-    return (
-      <ResultsTable
-        data={data}
-        visualization={queryState.visualization}
-        onVisualizationChange={handleVisualizationChange}
-      />
-    )
-  }
 
   const cellTitle = cell.title || "Untitled"
   const modeBadge = (
@@ -234,7 +196,15 @@ export function NotebookCell({
           </p>
         )}
         <div className="min-h-[200px]">
-          {renderResults()}
+          <TelemetryResult
+            mode={cell.query_mode}
+            hasQuery={hasQuery}
+            data={data}
+            isLoading={isLoading}
+            error={error}
+            visualization={queryState.visualization}
+            onVisualizationChange={handleVisualizationChange}
+          />
         </div>
       </div>
 
