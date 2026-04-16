@@ -2,13 +2,7 @@ import { useState } from "react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { QueryBuilder } from "@/components/query-builder"
-import {
-  ResultsTable,
-  ResultsTimeSeries,
-  ResultsPlaceholder,
-  ResultsLoading,
-  ResultsError,
-} from "@/components/results"
+import { TelemetryResult } from "@/components/results"
 import { EventsSidePanel } from "@/components/events-side-panel"
 import { MetricSidePanel } from "@/components/metric-side-panel"
 import { useQueryState } from "@/hooks/use-query-state"
@@ -20,7 +14,7 @@ import {
   useQueryExecution,
   buildEventsPayload,
 } from "@/hooks/use-query-execution"
-import type { TableVisualization, TimeSeriesVisualization, Visualization } from "@/types"
+import type { TableVisualization, Visualization } from "@/types"
 
 // ============================================================================
 // Page
@@ -33,7 +27,6 @@ export default function Explore() {
 
   const mode = state.mode ?? "events"
   const isEventsMode = mode === "events"
-  const isMetricsMode = mode === "metrics"
 
   // Sorting is enabled for all table queries (including aggregated)
   const sortingEnabled = state.visualization.type === "table"
@@ -118,43 +111,6 @@ export default function Explore() {
     <MetricSidePanel />
   )
 
-  const renderResults = () => {
-    if (isMetricsMode && !hasQuery) return <ResultsPlaceholder />
-    if (isLoading) return <ResultsLoading />
-    if (error instanceof Error) return <ResultsError message={error.message} />
-    if (!queryResult) return <ResultsPlaceholder />
-
-    // Time series: metrics mode always, events mode when explicitly selected
-    const showTimeSeries = isMetricsMode || state.visualization.type === "time_series"
-    if (showTimeSeries) {
-      const tsViz: TimeSeriesVisualization = state.visualization.type === "time_series"
-        ? state.visualization
-        : { type: "time_series" }
-      return (
-        <ResultsTimeSeries
-          data={queryResult}
-          connectNulls={isMetricsMode}
-          visualization={tsViz}
-          onVisualizationChange={handleVisualizationChange}
-        />
-      )
-    }
-
-    // Table (default for events mode)
-    return (
-      <ResultsTable
-        data={queryResult}
-        live={live}
-        canGoPrev={paginationEnabled && cursorStack.length > 1}
-        onPrevPage={paginationEnabled ? handlePrevPage : undefined}
-        onNextPage={paginationEnabled ? handleNextPage : undefined}
-        sortable={sortingEnabled}
-        visualization={state.visualization}
-        onVisualizationChange={handleVisualizationChange}
-      />
-    )
-  }
-
   return (
     <ApplicationLayout title="Explore" showTimeRange rightPanel={rightPanel}>
       <div className="flex flex-col h-full gap-3">
@@ -162,7 +118,20 @@ export default function Explore() {
           initialState={state}
           onSubmit={handleSubmit}
         />
-        {renderResults()}
+        <TelemetryResult
+          mode={mode}
+          hasQuery={isEventsMode || hasQuery}
+          data={queryResult}
+          isLoading={isLoading}
+          error={error}
+          visualization={state.visualization}
+          onVisualizationChange={handleVisualizationChange}
+          live={live}
+          canGoPrev={paginationEnabled && cursorStack.length > 1}
+          onPrevPage={paginationEnabled ? handlePrevPage : undefined}
+          onNextPage={paginationEnabled ? handleNextPage : undefined}
+          sortable={sortingEnabled}
+        />
       </div>
     </ApplicationLayout>
   )
