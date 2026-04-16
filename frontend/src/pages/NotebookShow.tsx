@@ -1,4 +1,6 @@
+import { useEffect } from "react"
 import { usePage } from "@inertiajs/react"
+import { toast } from "sonner"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { NotebookCell } from "@/components/notebook/notebook-cell"
@@ -7,9 +9,17 @@ import { useTimeRange } from "@/hooks/use-time-range"
 import type { Notebook } from "@/types"
 
 export default function NotebookShow() {
-  const { notebook } = usePage<{
+  const { notebook, errors } = usePage<{
     notebook: Notebook
+    errors?: Record<string, string>
   }>().props
+
+  useEffect(() => {
+    if (errors && Object.keys(errors).length > 0) {
+      const messages = Object.values(errors).join(", ")
+      toast.error(`Failed to save cell: ${messages}`)
+    }
+  }, [errors])
 
   const cells = notebook.cells ?? []
 
