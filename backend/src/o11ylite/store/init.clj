@@ -88,8 +88,12 @@
      \"meta.observed_time\" TIMESTAMP NOT NULL
    )")
 
-(def ^:private set-metrics-partition-sql
-  "ALTER TABLE o11ylite.metrics SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), name, service)")
+(defn- -set-metrics-partition-sql
+  "Build the ALTER TABLE partition SQL using DuckLake's native bucket() transform.
+   bucket(N, name) distributes rows into N buckets via Murmur3 hash on metric name."
+  [num-buckets]
+  (format "ALTER TABLE o11ylite.metrics SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), bucket(%d, name))"
+          num-buckets))
 
 (def ^:private set-metrics-sorted-sql
   "ALTER TABLE o11ylite.metrics SET SORTED BY (timestamp DESC)")
@@ -99,14 +103,16 @@
 
 (defn init-store!
   "Initialize DuckLake database schema.
-   Creates the events and metrics tables if they don't exist, partitioned by day."
-  [duckdb-ds]
-  (mulog/log ::init-store-starting)
+   Creates the events and metrics tables if they don't exist.
+   Events are partitioned by day + service.
+   Metrics are partitioned by day + bucket(N, name) where N comes from core config."
+  [duckdb-ds {:keys [metrics-partition-buckets]}]
+  (mulog/log ::init-store-starting :metrics-partition-buckets metrics-partition-buckets)
   (jdbc/execute! duckdb-ds [create-events-table-sql])
   (jdbc/execute! duckdb-ds [set-events-partition-sql])
   (jdbc/execute! duckdb-ds [set-events-sorted-sql])
   (jdbc/execute! duckdb-ds [create-metrics-table-sql])
-  (jdbc/execute! duckdb-ds [set-metrics-partition-sql])
+  (jdbc/execute! duckdb-ds [(-set-metrics-partition-sql metrics-partition-buckets)])
   (jdbc/execute! duckdb-ds [set-metrics-sorted-sql])
   (mulog/log ::init-store-completed))
 

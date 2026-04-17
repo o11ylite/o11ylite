@@ -141,7 +141,13 @@
     :env-var     "O11YLITE_DATA_INLINING_ROW_LIMIT"
     :default     0
     :parser      #(Long/parseLong %)
-    :description "DuckLake data inlining row limit (0 = disabled). Keep low if enabled."}])
+    :description "DuckLake data inlining row limit (0 = disabled). Keep low if enabled."}
+
+   {:key         :metrics-partition-buckets
+    :env-var     "O11YLITE_METRICS_PARTITION_BUCKETS"
+    :default     20
+    :parser      #(Long/parseLong %)
+    :description "Number of buckets for metrics table partitioning via DuckLake bucket(N, name) transform."}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps

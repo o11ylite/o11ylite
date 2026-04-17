@@ -44,17 +44,17 @@
 
 (defn- -init-duckdb
   "Initialize DuckDB schema (idempotent)."
-  [duckdb-ds]
-  (store/init-store! duckdb-ds))
+  [duckdb-ds core-config]
+  (store/init-store! duckdb-ds core-config))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
 
 (defmethod ig/init-key :storage/init
-  [_ {:keys [sqlite duckdb]}]
+  [_ {:keys [sqlite duckdb core-config]}]
   (mulog/log ::storage-init-starting)
   (-run-migrations sqlite)
-  (-init-duckdb duckdb)
+  (-init-duckdb duckdb core-config)
   (mulog/log ::storage-init-completed)
   nil)
 

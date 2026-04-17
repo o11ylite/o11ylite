@@ -8,7 +8,8 @@
 
  :storage/init
  {:sqlite #ig/ref :db/sqlite
-  :duckdb #ig/ref :db/duckdb}
+  :duckdb #ig/ref :db/duckdb
+  :core-config #ig/ref :config/core}
 
  :id/generator
  {:core-config #ig/ref :config/core}
