@@ -52,8 +52,6 @@
         ;; Fast flush interval for tests (100ms)
         (assoc-in [:config/app :ingest-flush-interval-ms] 100)
         (assoc-in [:config/app :metric-flush-interval-ms] 100)
-        ;; Fast service discovery for tests (100ms)
-        (assoc-in [:config/app :service-discovery-interval-ms] 100)
         ;; Fast scheduler intervals for tests (in minutes for job intervals)
         (assoc-in [:config/app :inlined-data-flush-interval-minutes] 1)
         (assoc-in [:config/app :compaction-small-interval-minutes] 1)
@@ -101,8 +99,8 @@
    keyed by integrant component (e.g. {:config/core {:data-inlining-row-limit 1000}}).
    
    Example:
-     (start-partial-system! [:discovery/services])
-     ;; Starts :discovery/services, :db/sqlite, :db/duckdb, :storage/init"
+     (start-partial-system! [:discovery/telemetry-catalog-buffer])
+     ;; Starts :discovery/telemetry-catalog-buffer and its dependencies"
   ([keys] (start-partial-system! keys {}))
   ([keys config-overrides]
    (let [config (reduce-kv (fn [cfg k overrides]
@@ -117,7 +115,7 @@
    keyed by integrant component (e.g. {:config/core {:data-inlining-row-limit 1000}}).
    
    Usage:
-   (use-fixtures :each (h/with-partial-system [:discovery/services]))
+   (use-fixtures :each (h/with-partial-system [:discovery/telemetry-catalog-buffer]))
    (use-fixtures :each (h/with-partial-system [:scheduler/executor]
                                               {:config/core {:data-inlining-row-limit 1000}}))"
   ([keys] (with-partial-system keys {}))
