@@ -13,6 +13,7 @@
     [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
+    [o11ylite.store.services :as services]
     [o11ylite.util.response :as response]
     [ring.util.response :as rr]))
 
@@ -72,6 +73,13 @@
                        "active")})
           attr-fields)))
 
+(defn- -build-services
+  "Build the services prop from service_metadata joined with per-service
+   counts from the telemetry catalog. Returns a vector of
+   {:name :last_seen_at :metric_count :event_field_count}."
+  [sqlite]
+  (vec (services/get-services-with-counts sqlite)))
+
 ;; ---------------------------------------------------------
 ;; Flash helpers
 
@@ -97,7 +105,8 @@
     (response/inertia "DataManagement"
                       {:event_fields (-build-event-fields event-metadata blocked-fields)
                        :metrics (-build-metrics sqlite)
-                       :metric_attributes (-build-metric-attributes duckdb blocked-fields)})))
+                       :metric_attributes (-build-metric-attributes duckdb blocked-fields)
+                       :services (-build-services sqlite)})))
 
 (defn- -make-event-fields-status-handler
   "PUT /system/data-management/event-fields/status — block or unblock event fields."
