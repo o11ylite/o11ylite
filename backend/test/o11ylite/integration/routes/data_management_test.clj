@@ -14,6 +14,8 @@
     [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.components.event-metadata :as event-metadata]
     [o11ylite.store.schema :as schema]
+    [o11ylite.store.services :as services]
+    [o11ylite.store.telemetry-catalog :as telemetry-catalog]
     [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each (h/with-partial-system [:server/web]))
@@ -63,7 +65,30 @@
       (is (= "DataManagement" (:component body)))
       (is (vector? (get-in body [:props :event_fields])))
       (is (vector? (get-in body [:props :metrics])))
-      (is (vector? (get-in body [:props :metric_attributes])))))
+      (is (vector? (get-in body [:props :metric_attributes])))
+      (is (vector? (get-in body [:props :services])))))
+
+  (testing "services prop joins service_metadata with catalog counts"
+    ;; svc-a has metrics + fields; svc-b has nothing in the catalog tables
+    (let [sqlite (:db/sqlite h/*system*)
+          now (System/currentTimeMillis)]
+      (services/upsert-services! sqlite ["svc-a" "svc-b"] now)
+      (telemetry-catalog/upsert-service-metrics!
+        sqlite
+        [{:service "svc-a" :metric-name "cpu.util" :last-seen-at now}
+         {:service "svc-a" :metric-name "mem.rss" :last-seen-at now}])
+      (telemetry-catalog/upsert-service-event-fields!
+        sqlite
+        [{:service "svc-a" :field "attr.http.method" :last-seen-at now}]))
+    (let [{:keys [services]} (-dm-props)
+          svc-a (-find-field services "svc-a")
+          svc-b (-find-field services "svc-b")]
+      (is (= 2 (:metric_count svc-a)))
+      (is (= 1 (:event_field_count svc-a)))
+      (is (some? (:last_seen_at svc-a)))
+      ;; svc-b exists in service_metadata but has no catalog rows yet
+      (is (= 0 (:metric_count svc-b)))
+      (is (= 0 (:event_field_count svc-b)))))
 
   (testing "event fields join blocked set to produce correct status"
     (-add-event-attr! "attr.test.render")

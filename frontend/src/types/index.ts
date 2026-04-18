@@ -410,6 +410,13 @@ export interface ManagedMetricAttribute {
   status: FieldStatus
 }
 
+export interface ManagedService {
+  name: string
+  last_seen_at: number | null
+  metric_count: number
+  event_field_count: number
+}
+
 // ============================================================================
 // Auth Shared Data (from Inertia shared props)
 // ============================================================================
