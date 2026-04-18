@@ -21,13 +21,7 @@
 
 (def ^:private app-config-defs
   "Configuration definitions: key, env var, default, parser."
-  [{:key         :service-discovery-interval-ms
-    :env-var     "O11YLITE_SERVICE_DISCOVERY_INTERVAL_MS"
-    :default     300000
-    :parser      #(Long/parseLong %)
-    :description "How often to scan for new services (ms)."}
-
-   {:key         :ingest-flush-interval-ms
+  [{:key         :ingest-flush-interval-ms
     :env-var     "O11YLITE_INGEST_FLUSH_INTERVAL_MS"
     :default     1000
     :parser      #(Long/parseLong %)
