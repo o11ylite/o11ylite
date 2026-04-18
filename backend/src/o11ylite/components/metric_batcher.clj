@@ -18,6 +18,7 @@
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
     [o11ylite.components.app-config :as app-config]
+    [o11ylite.components.telemetry-catalog-buffer :as catalog-buffer]
     [o11ylite.store.metrics.ingest :as metrics.ingest]
     [o11ylite.util.ticker :as ticker]))
 
@@ -31,7 +32,7 @@
   "Flush the batch to storage. Returns true on success, false on failure.
    On success, all pending promises are delivered true.
    On failure, all pending promises are delivered false."
-  [duckdb sqlite norm batch]
+  [{:keys [duckdb sqlite norm catalog-buffer]} batch]
   (let [{:keys [data-points fields metadata promises cumulative-to-commit]} @batch]
     (vreset! batch {:data-points [] :fields #{} :metadata {} :promises [] :cumulative-to-commit []})
     (if (and (empty? data-points) (empty? metadata) (empty? cumulative-to-commit))
@@ -39,6 +40,8 @@
       (try
         ;; persist-batch! handles both persistence and normalizer state update
         (metrics.ingest/persist-batch! duckdb sqlite norm data-points fields metadata cumulative-to-commit)
+        ;; Fire-and-forget: buffer extracts per-service metric names internally.
+        (catalog-buffer/track-data-points! catalog-buffer data-points)
         (mulog/log ::batch-flushed
                    :data-point-count (count data-points)
                    :field-count (count fields)
@@ -82,7 +85,7 @@
   "Start the event loop that handles both ingest and periodic flush.
    Single thread owns the batch - no contention.
    Returns component state map."
-  [duckdb sqlite norm flush-interval-ms]
+  [{:keys [flush-interval-ms] :as deps}]
   (let [ingest-ch (a/chan ingest-channel-size-limit)
         ticker (ticker/ticker flush-interval-ms)
         ticker-ch (:ch ticker)
@@ -104,7 +107,7 @@
             ;; Ticker fired - flush batch
             (= port ticker-ch)
             (do
-              (-flush! duckdb sqlite norm batch)
+              (-flush! deps batch)
               (recur))
 
             ;; Ingest message - accumulate into batch
@@ -126,7 +129,7 @@
                   (do
                     ;; Loop exited cleanly - drain and flush remaining
                     (-drain-channel! ingest-ch batch)
-                    (-flush! duckdb sqlite norm batch)
+                    (-flush! deps batch)
                     (mulog/log ::metric-batcher-stopped))
                   ;; Loop did not exit in time - log error
                   (mulog/log ::metric-batcher-stop-timeout
@@ -144,10 +147,14 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/metric-batcher
-  [_ {:keys [duckdb sqlite normalizer app-config]}]
+  [_ {:keys [duckdb sqlite normalizer telemetry-catalog-buffer app-config]}]
   (let [flush-interval-ms (app-config/get-setting-value app-config :metric-flush-interval-ms)]
     (mulog/log ::metric-batcher-starting :flush-interval-ms flush-interval-ms)
-    (let [state (-start-event-loop duckdb sqlite normalizer flush-interval-ms)]
+    (let [state (-start-event-loop {:duckdb duckdb
+                                    :sqlite sqlite
+                                    :norm normalizer
+                                    :catalog-buffer telemetry-catalog-buffer
+                                    :flush-interval-ms flush-interval-ms})]
       (mulog/log ::metric-batcher-started)
       state)))
 
