@@ -1,9 +1,29 @@
 ;; ---------------------------------------------------------
 ;; o11ylite.components.event-metadata
 ;;
-;; Event metadata cache component.
-;; Caches field metadata (name, type) from the events table.
-;; Initialized after storage init, supports async refresh.
+;; DuckDB schema cache for the `events` table.
+;;
+;; Caches the column -> type map (e.g. :service -> {:type :string},
+;; :span.duration_ms -> {:type :float}) fetched from DuckDB's
+;; information_schema. Used during event cleanse / schema evolution
+;; in the ingest hot path to decide which columns exist, whether a
+;; new field needs ADD COLUMN, and how to coerce values.
+;;
+;; The cache is eagerly initialized at startup from DuckDB and can
+;; be refreshed asynchronously (e.g. after schema evolution or after
+;; dropping fields via the Data Management UI).
+;;
+;; Not to be confused with:
+;;   - `o11ylite.store.metrics.metadata` — per-metric definitions
+;;     (description, unit, type, attribute set). Answers "what is this
+;;     metric?". Keyed by metric name.
+;;   - `o11ylite.store.telemetry-catalog` — service ↔ metric and
+;;     service ↔ event-field ownership + liveness. Answers "who emits
+;;     what and when did we last see it?". Keyed by service × thing.
+;;
+;; This component is the DuckDB schema cache for events only. A future
+;; rename (`events.schema-cache`) would make that clearer but would
+;; touch many call sites; see the telemetry-catalog plan for details.
 ;; ---------------------------------------------------------
 
 (ns o11ylite.components.event-metadata
