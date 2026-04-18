@@ -35,9 +35,14 @@
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
 
+ :discovery/telemetry-catalog-buffer
+ {:sqlite #ig/ref :db/sqlite
+  :_storage #ig/ref :storage/init}
+
  :ingest/event-batcher
  {:duckdb #ig/ref :db/duckdb
   :event-metadata #ig/ref :cache/event-metadata
+  :telemetry-catalog-buffer #ig/ref :discovery/telemetry-catalog-buffer
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
 
@@ -48,6 +53,7 @@
  {:duckdb #ig/ref :db/duckdb
   :sqlite #ig/ref :db/sqlite
   :normalizer #ig/ref :ingest/metric-normalizer
+  :telemetry-catalog-buffer #ig/ref :discovery/telemetry-catalog-buffer
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
 
