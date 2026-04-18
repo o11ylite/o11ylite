@@ -20,6 +20,7 @@
     [o11ylite.components.blocked-fields]
     [o11ylite.components.event-metadata]
     [o11ylite.components.service-discovery]
+    [o11ylite.components.telemetry-catalog-buffer]
     [o11ylite.components.event-batcher]
     [o11ylite.components.metric-batcher]
     [o11ylite.components.scheduler]
