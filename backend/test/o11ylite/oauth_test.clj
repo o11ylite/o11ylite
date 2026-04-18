@@ -60,8 +60,14 @@
 (deftest access-token-tampered-test
   (let [key (-test-signing-key)
         token (oauth/sign-access-token key {:sub "user" :scope "write"})
-        ;; Tamper with the token by changing a character in the signature
-        tampered (str (subs token 0 (dec (count token))) "X")]
+        ;; Flip a character well inside the signature to guarantee a
+        ;; different HMAC digest (last-char-only edits can land on
+        ;; base64 padding bits and leave the decoded bytes unchanged).
+        last-dot (.lastIndexOf token ".")
+        sig-mid (+ last-dot (quot (- (count token) last-dot) 2))
+        orig-ch (.charAt token sig-mid)
+        flip-ch (if (= orig-ch \A) \B \A)
+        tampered (str (subs token 0 sig-mid) flip-ch (subs token (inc sig-mid)))]
     (testing "tampered token is rejected"
       (is (nil? (oauth/verify key tampered "access"))))))
 
