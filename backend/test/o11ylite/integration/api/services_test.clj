@@ -25,7 +25,9 @@
 (deftest list-services-returns-registered-test
   (testing "GET /api/services returns registered services"
     (let [sqlite (:db/sqlite h/*system*)]
-      (services/register-services! sqlite ["test-service-a" "test-service-b"]))
+      (services/upsert-services! sqlite
+                                 ["test-service-a" "test-service-b"]
+                                 (System/currentTimeMillis)))
 
     (let [response (h/get-json "/api/services")
           service-names (->> (:body response) (map :name) set)]

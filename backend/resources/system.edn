@@ -29,12 +29,6 @@
   ;; so the events table exists before we DESCRIBE it
   :_storage #ig/ref :storage/init}
 
- :discovery/services
- {:sqlite #ig/ref :db/sqlite
-  :duckdb #ig/ref :db/duckdb
-  :app-config #ig/ref :config/app
-  :_storage #ig/ref :storage/init}
-
  :discovery/telemetry-catalog-buffer
  {:sqlite #ig/ref :db/sqlite
   :_storage #ig/ref :storage/init}
