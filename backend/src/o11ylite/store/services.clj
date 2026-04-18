@@ -40,6 +40,29 @@
             ON CONFLICT(service) DO UPDATE SET last_seen_at = excluded.last_seen_at"
                                 service now-ms now-ms now-ms])))))
 
+(defn get-services-with-counts
+  "Get all registered services joined with per-service metric and event-field
+   counts from the telemetry catalog. Services without catalog entries show
+   zero counts (COALESCE).
+
+   Returns a list of {:name :last_seen_at :metric_count :event_field_count}."
+  [sqlite]
+  (jdbc/execute!
+    sqlite
+    ["SELECT sm.service AS name,
+             sm.last_seen_at,
+             COALESCE(mc.c, 0) AS metric_count,
+             COALESCE(fc.c, 0) AS event_field_count
+     FROM service_metadata sm
+     LEFT JOIN (SELECT service, COUNT(*) AS c
+                FROM service_metrics
+                GROUP BY service) mc ON mc.service = sm.service
+     LEFT JOIN (SELECT service, COUNT(*) AS c
+                FROM service_event_fields
+                GROUP BY service) fc ON fc.service = sm.service
+     ORDER BY sm.service"]
+    {:builder-fn rs/as-unqualified-lower-maps}))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
