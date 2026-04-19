@@ -96,16 +96,16 @@
 
    Returns {:state :ok|:firing, :error nil} on success,
    or {:state nil, :error string} on failure (caller preserves prev state)."
-  [duckdb sqlite event-metadata {qmode :query_mode query :query
-                                 eval-win :eval_window_ms
-                                 alert-on :alert_on}]
+  [duckdb sqlite events-schema {qmode :query_mode query :query
+                                eval-win :eval_window_ms
+                                alert-on :alert_on}]
   (try
     (let [full-query (-> query
                          (-inject-time-range eval-win)
                          -ensure-table-viz)]
       (case qmode
         "events"
-        (if-let [validation-error (events.query/validate event-metadata full-query)]
+        (if-let [validation-error (events.query/validate events-schema full-query)]
           {:state nil :error (str "Validation error: " (:error validation-error))}
           (let [result (events.query/execute duckdb full-query)]
             {:state (-resolve-state (-events-result-firing? result) alert-on)
@@ -133,10 +133,10 @@
 (defn- -evaluate-and-notify!
   "Evaluate a single rule and send notification if appropriate.
    On evaluation failure (state is nil), preserves previous state."
-  [duckdb sqlite event-metadata webhook-url rule]
+  [duckdb sqlite events-schema webhook-url rule]
   (let [{:keys [id state]} rule
         prev-state (keyword state)
-        {:keys [state error]} (evaluate-rule duckdb sqlite event-metadata rule)
+        {:keys [state error]} (evaluate-rule duckdb sqlite events-schema rule)
         new-state (or state prev-state)]
     (mulog/log ::rule-evaluated
                :rule-id id
@@ -153,12 +153,12 @@
    Called by the scheduler on each tick.
 
    See facade namespace for scaling considerations."
-  [duckdb sqlite event-metadata webhook-url]
+  [duckdb sqlite events-schema webhook-url]
   (let [due-rules (store/get-enabled-due sqlite)]
     (when (seq due-rules)
       (mulog/log ::evaluation-cycle-start :rule-count (count due-rules))
       (doseq [rule due-rules]
-        (-evaluate-and-notify! duckdb sqlite event-metadata webhook-url rule))
+        (-evaluate-and-notify! duckdb sqlite events-schema webhook-url rule))
       (mulog/log ::evaluation-cycle-complete :rule-count (count due-rules)))))
 
 ;; ---------------------------------------------------------
@@ -175,10 +175,10 @@
      :eval_window_ms 300000})
 
   ;; Evaluate would be called as:
-  ;; (evaluate-rule duckdb sqlite event-metadata sample-rule)
+  ;; (evaluate-rule duckdb sqlite events-schema sample-rule)
 
   ;; To run full evaluation cycle:
-  ;; (run-evaluation-cycle! duckdb sqlite event-metadata nil)
+  ;; (run-evaluation-cycle! duckdb sqlite events-schema nil)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

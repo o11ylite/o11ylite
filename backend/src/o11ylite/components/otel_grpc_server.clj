@@ -69,15 +69,15 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :server/otel-grpc
-  [_ {:keys [core-config event-metadata blocked-fields event-batcher id-generator metric-batcher metric-normalizer sqlite api-key-cache]}]
+  [_ {:keys [core-config events-schema blocked-fields event-batcher id-generator metric-batcher metric-normalizer sqlite api-key-cache]}]
   (let [port (:otel-grpc-port core-config)]
     (mulog/log ::otel-grpc-server-starting :port port)
     (let [executor (Executors/newVirtualThreadPerTaskExecutor)
           server (-> (ServerBuilder/forPort port)
                      (.executor executor)
                      (.intercept (-create-auth-interceptor api-key-cache))
-                     (.addService (trace/create-service event-metadata blocked-fields event-batcher id-generator))
-                     (.addService (log/create-service event-metadata blocked-fields event-batcher id-generator))
+                     (.addService (trace/create-service events-schema blocked-fields event-batcher id-generator))
+                     (.addService (log/create-service events-schema blocked-fields event-batcher id-generator))
                      (.addService (metric/create-service metric-batcher blocked-fields sqlite metric-normalizer))
                      (.build)
                      (.start))]

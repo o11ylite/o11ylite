@@ -189,7 +189,7 @@
 (defn trace-handler
   "Handle POST /v1/traces requests.
    Parses OTLP trace data and ingests into storage."
-  [{:keys [event-metadata blocked-fields event-batcher id-generator]} request]
+  [{:keys [events-schema blocked-fields event-batcher id-generator]} request]
   (try
     (let [proto-request (-parse-trace-request request)
           events (trace-events/trace-request->events proto-request)
@@ -199,7 +199,7 @@
                  :span-count span-count
                  :span-event-count span-event-count)
       (when (seq events)
-        (events.ingest/ingest-events! event-metadata blocked-fields event-batcher id-generator events))
+        (events.ingest/ingest-events! events-schema blocked-fields event-batcher id-generator events))
       (-trace-response request {:rejected-span-count 0}))
     (catch Exception e
       (mulog/log ::http-trace-error :error (.getMessage e))
@@ -208,14 +208,14 @@
 (defn log-handler
   "Handle POST /v1/logs requests.
    Parses OTLP log data and ingests into storage."
-  [{:keys [event-metadata blocked-fields event-batcher id-generator]} request]
+  [{:keys [events-schema blocked-fields event-batcher id-generator]} request]
   (try
     (let [proto-request (-parse-log-request request)
           events (log-events/log-request->events proto-request)
           log-count (count events)]
       (mulog/log ::http-logs-received :log-count log-count)
       (when (seq events)
-        (events.ingest/ingest-events! event-metadata blocked-fields event-batcher id-generator events))
+        (events.ingest/ingest-events! events-schema blocked-fields event-batcher id-generator events))
       (-log-response request {:rejected-log-count 0}))
     (catch Exception e
       (mulog/log ::http-log-error :error (.getMessage e))
@@ -245,7 +245,7 @@
   "OTLP HTTP routes.
 
    Arguments:
-     opts - Map with :event-metadata, :event-batcher, :metric-batcher, :metric-normalizer, and :sqlite components"
+     opts - Map with :events-schema, :event-batcher, :metric-batcher, :metric-normalizer, and :sqlite components"
   [opts]
   ["/v1"
    ["/traces" {:post {:handler (partial trace-handler opts)}}]

@@ -164,7 +164,7 @@
 
 (def event-ingest-components
   "Components required for event ingestion."
-  [:cache/event-metadata :cache/blocked-fields :ingest/event-batcher :id/generator
+  [:cache/events-schema :cache/blocked-fields :ingest/event-batcher :id/generator
    :discovery/telemetry-catalog-buffer])
 
 (def metric-ingest-components
@@ -242,7 +242,7 @@
   ([n] (ingest-sample-events! n {}))
   ([n overrides]
    (event-ingest/ingest-sample-events!
-     (:cache/event-metadata *system*)
+     (:cache/events-schema *system*)
      (:cache/blocked-fields *system*)
      (:ingest/event-batcher *system*)
      (:id/generator *system*)
