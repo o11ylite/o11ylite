@@ -11,7 +11,7 @@
 
 (ns o11ylite.notebook
   (:require
-   [o11ylite.notebook.store :as store]))
+    [o11ylite.notebook.store :as store]))
 
 ;; ---------------------------------------------------------
 ;; Re-exports from store — Notebooks
