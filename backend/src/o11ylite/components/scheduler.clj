@@ -26,6 +26,7 @@
     [o11ylite.store.scheduler :as store]
     [o11ylite.alert-rule :as alert-rule]
     [o11ylite.store.ducklake :as ducklake]
+    [o11ylite.store.telemetry-catalog-gc :as catalog-gc]
     [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
@@ -140,6 +141,8 @@
         snapshot-cleanup-interval-minutes (app-config/get-setting-value app-config :snapshot-cleanup-interval-minutes)
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
         data-retention-days (app-config/get-setting-value app-config :data-retention-days)
+        catalog-gc-interval-minutes (app-config/get-setting-value app-config :telemetry-catalog-gc-interval-minutes)
+        catalog-gc-deps {:sqlite sqlite :duckdb duckdb :event-metadata event-metadata}
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
     (cond->
       {;; Tiered compaction: runs small → medium → large tiers sequentially.
@@ -170,6 +173,16 @@
         :handler (fn []
                    (ducklake/delete-old-data! duckdb data-retention-days)
                    (ducklake/run-checkpoint! duckdb))}
+
+       ;; Telemetry catalog GC: reclaim metrics_metadata rows, events
+       ;; columns, and service_metadata rows whose last emitter has been
+       ;; silent for longer than the data retention window — once no data
+       ;; survives from a service that emitted signal X, X is reclaimable.
+       ;; See o11ylite.store.telemetry-catalog-gc.
+       :telemetry-catalog-garbage-collection
+       {:interval-ms (minutes->ms catalog-gc-interval-minutes)
+        :description "Reclaim unused metrics, event fields, and services"
+        :handler (fn [] (catalog-gc/run-gc! catalog-gc-deps data-retention-days))}
 
        :alert-evaluation
        {:interval-ms 30000

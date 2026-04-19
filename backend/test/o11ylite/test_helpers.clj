@@ -58,6 +58,7 @@
         (assoc-in [:config/app :compaction-medium-interval-minutes] 1)
         (assoc-in [:config/app :compaction-large-interval-minutes] 1)
         (assoc-in [:config/app :daily-maintenance-interval-minutes] 1)
+        (assoc-in [:config/app :telemetry-catalog-gc-interval-minutes] 1)
         ;; Fast scheduler tick for tests (100ms)
         (assoc-in [:scheduler/executor :tick-interval-ms] 100))))
 

@@ -22,7 +22,8 @@
 (ns o11ylite.store.telemetry-catalog
   (:require
     [next.jdbc :as jdbc]
-    [next.jdbc.result-set :as rs]))
+    [next.jdbc.result-set :as rs]
+    [o11ylite.util.sql :as sql]))
 
 ;; ---------------------------------------------------------
 ;; Reads
@@ -157,6 +158,28 @@
                       {:builder-fn rs/as-unqualified-lower-maps})
        (mapv :field)))
 
+(defn delete-metrics!
+  "Delete rows from service_metrics matching any of the given metric
+   names. Used by the GC job after the backing metrics_metadata rows
+   are gone, but generic enough to call wherever catalog rows need to
+   be removed by metric name."
+  [sqlite metric-names]
+  (when (seq metric-names)
+    (let [stmt (str "DELETE FROM service_metrics WHERE metric_name IN ("
+                    (sql/in-placeholders (count metric-names)) ")")]
+      (jdbc/execute! sqlite (into [stmt] metric-names)))))
+
+(defn delete-event-fields!
+  "Delete rows from service_event_fields matching any of the given field
+   names. Used by the GC job after the backing DuckDB columns are
+   dropped, but generic enough to call wherever catalog rows need to be
+   removed by field name."
+  [sqlite field-names]
+  (when (seq field-names)
+    (let [stmt (str "DELETE FROM service_event_fields WHERE field IN ("
+                    (sql/in-placeholders (count field-names)) ")")]
+      (jdbc/execute! sqlite (into [stmt] field-names)))))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
@@ -184,6 +207,10 @@
   ;; GC candidates — fields/metrics where every emitter is stale
   (get-stale-metrics sqlite (- (System/currentTimeMillis) (* 7 24 60 60 1000)))
   (get-stale-event-fields sqlite (- (System/currentTimeMillis) (* 7 24 60 60 1000)))
+
+  ;; Remove catalog rows after the backing metric/column is gone
+  (delete-metrics! sqlite ["dead.metric"])
+  (delete-event-fields! sqlite ["attr.dead.field"])
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
