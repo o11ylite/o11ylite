@@ -220,7 +220,7 @@ cljstyle-install: ## Install cljstyle to .tmp/
 		mkdir -p $(CLJSTYLE_INSTALL_DIR)/bin && \
 		curl -sL https://raw.githubusercontent.com/greglook/cljstyle/main/util/install-cljstyle -o /tmp/install-cljstyle && \
 		chmod +x /tmp/install-cljstyle && \
-		/tmp/install-cljstyle --dir $(CLJSTYLE_INSTALL_DIR)/bin --version $(CLJSTYLE_VERSION); \
+		/tmp/install-cljstyle --dir "$(CURDIR)/$(CLJSTYLE_INSTALL_DIR)/bin" --version $(CLJSTYLE_VERSION); \
 	else \
 		echo "cljstyle already installed at $(CLJSTYLE_BIN)"; \
 	fi

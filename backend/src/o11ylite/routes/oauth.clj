@@ -8,11 +8,11 @@
 
 (ns o11ylite.routes.oauth
   (:require
-   [o11ylite.auth.scope :as scope]
-   [o11ylite.oauth :as oauth]
-   [o11ylite.util.response :as response]
-   [ring.util.codec :as codec]
-   [ring.util.response :as rr]))
+    [o11ylite.auth.scope :as scope]
+    [o11ylite.oauth :as oauth]
+    [o11ylite.util.response :as response]
+    [ring.util.codec :as codec]
+    [ring.util.response :as rr]))
 
 ;; ---------------------------------------------------------
 ;; Validation Helpers
@@ -96,34 +96,34 @@
           ;; Open mode — auto-approve immediately
           (:open-mode? auth-config)
           (let [code (oauth/sign-authorization-code
-                      signing-key
-                      {:sub "_open_mode"
-                       :scope scope
-                       :code-challenge code_challenge
-                       :redirect-uri redirect_uri})]
+                       signing-key
+                       {:sub "_open_mode"
+                        :scope scope
+                        :code-challenge code_challenge
+                        :redirect-uri redirect_uri})]
             (-redirect-with-code redirect_uri code state))
 
           ;; OIDC mode, user logged in — auto-approve
           (get-in request [:session :user])
           (let [sub (get-in request [:session :user :sub])
                 code (oauth/sign-authorization-code
-                      signing-key
-                      {:sub sub
-                       :scope scope
-                       :code-challenge code_challenge
-                       :redirect-uri redirect_uri})]
+                       signing-key
+                       {:sub sub
+                        :scope scope
+                        :code-challenge code_challenge
+                        :redirect-uri redirect_uri})]
             (-redirect-with-code redirect_uri code state))
 
           ;; OIDC mode, not logged in — redirect to login with return_to
           :else
           (let [authorize-url (str "/oauth/authorize?"
                                    (codec/form-encode
-                                    (cond-> {:response_type response_type
-                                             :redirect_uri redirect_uri
-                                             :code_challenge code_challenge
-                                             :code_challenge_method code_challenge_method
-                                             :scope scope}
-                                      state (assoc :state state))))]
+                                     (cond-> {:response_type response_type
+                                              :redirect_uri redirect_uri
+                                              :code_challenge code_challenge
+                                              :code_challenge_method code_challenge_method
+                                              :scope scope}
+                                       state (assoc :state state))))]
             (rr/redirect (str "/auth/login?return_to="
                               (codec/url-encode authorize-url)))))))))
 
@@ -183,9 +183,9 @@
 
               :else
               (let [access-token (oauth/sign-access-token
-                                  signing-key
-                                  {:sub (:sub claims)
-                                   :scope (:scope claims)})]
+                                   signing-key
+                                   {:sub (:sub claims)
+                                    :scope (:scope claims)})]
                 (response/json 200 {:access_token access-token
                                     :token_type "Bearer"
                                     :expires_in 3600

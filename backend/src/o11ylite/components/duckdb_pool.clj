@@ -248,7 +248,7 @@
       ;; all next.jdbc operations. However, raw Java calls like .getConnection
       ;; bypass the wrapper. Use jdbc/with-transaction+options for transactions.
       (jdbc/with-options datasource
-                         {:builder-fn jdbc-types/as-unqualified-maps}))))
+        {:builder-fn jdbc-types/as-unqualified-maps}))))
 
 (defmethod ig/halt-key! :db/duckdb
   [_ datasource]
