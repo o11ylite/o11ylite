@@ -21,12 +21,12 @@
 (defn- -log-handler
   "Handle incoming log export request.
    Converts log records to unified events and persists them."
-  [event-metadata blocked-fields batcher id-generator ^ExportLogsServiceRequest request]
+  [events-schema blocked-fields batcher id-generator ^ExportLogsServiceRequest request]
   (let [events (log-events/log-request->events request)
         log-count (count events)]
     (mulog/log ::logs-received :log-count log-count)
     (when (seq events)
-      (events.ingest/ingest-events! event-metadata blocked-fields batcher id-generator events))
+      (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
     {:rejected-log-count 0}))
 
 ;; ---------------------------------------------------------
@@ -36,16 +36,16 @@
   "Create a LogsService gRPC implementation.
 
    Arguments:
-     event-metadata - Event metadata cache component
+     events-schema  - Events schema cache component
      blocked-fields - Blocked-fields cache component
      batcher        - Ingest batcher component
      id-generator   - ID generator component"
-  [event-metadata blocked-fields batcher id-generator]
+  [events-schema blocked-fields batcher id-generator]
   (proxy [LogsServiceGrpc$LogsServiceImplBase] []
     (export
       [^ExportLogsServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-log-handler event-metadata blocked-fields batcher id-generator request)
+        (let [response-map (-log-handler events-schema blocked-fields batcher id-generator request)
               response (log-events/log-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))

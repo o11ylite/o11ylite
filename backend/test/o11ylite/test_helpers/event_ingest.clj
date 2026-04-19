@@ -91,7 +91,7 @@
    Blocks until events are persisted to storage.
 
    Arguments:
-     event-metadata - The event metadata cache component
+     events-schema  - The events schema cache component
      blocked-fields - The blocked-fields cache component
      batcher        - The ingest batcher component
      id-generator   - The ID generator component
@@ -101,15 +101,15 @@
      true if all events were persisted successfully
 
    Example:
-     (ingest-events! (event-metadata) (blocked-fields) (batcher) (id-generator) (make-random-events 10))"
-  [event-metadata blocked-fields batcher id-generator events]
-  (events.ingest/ingest-events! event-metadata blocked-fields batcher id-generator events))
+     (ingest-events! (events-schema) (blocked-fields) (batcher) (id-generator) (make-random-events 10))"
+  [events-schema blocked-fields batcher id-generator events]
+  (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
 
 (defn ingest-sample-events!
   "Generate and ingest n random events. Returns the ingested events.
 
    Arguments:
-     event-metadata - The event metadata cache component
+     events-schema  - The events schema cache component
      blocked-fields - The blocked-fields cache component
      batcher        - The ingest batcher component
      id-generator   - The ID generator component
@@ -122,13 +122,13 @@
      Vector of the ingested event maps (for verification)
 
    Example:
-      (ingest-sample-events! (event-metadata) (blocked-fields) (batcher) (id-gen) 10)
-      (ingest-sample-events! (event-metadata) (blocked-fields) (batcher) (id-gen) 5 {:service \"test-svc\"})"
-  ([event-metadata blocked-fields batcher id-generator n]
-   (ingest-sample-events! event-metadata blocked-fields batcher id-generator n {}))
-  ([event-metadata blocked-fields batcher id-generator n overrides]
+      (ingest-sample-events! (events-schema) (blocked-fields) (batcher) (id-gen) 10)
+      (ingest-sample-events! (events-schema) (blocked-fields) (batcher) (id-gen) 5 {:service \"test-svc\"})"
+  ([events-schema blocked-fields batcher id-generator n]
+   (ingest-sample-events! events-schema blocked-fields batcher id-generator n {}))
+  ([events-schema blocked-fields batcher id-generator n overrides]
    (let [events (vec (make-random-events n overrides))]
-     (ingest-events! event-metadata blocked-fields batcher id-generator events)
+     (ingest-events! events-schema blocked-fields batcher id-generator events)
      events)))
 
 ;; ---------------------------------------------------------
@@ -143,7 +143,7 @@
   (make-random-events 2 {:service "my-service"})
 
   ;; In a test with h/*system* bound:
-  ;; (ingest-sample-events! (:cache/event-metadata h/*system*)
+  ;; (ingest-sample-events! (:cache/events-schema h/*system*)
   ;;                        (:ingest/event-batcher h/*system*)
   ;;                        10)
 

@@ -39,17 +39,17 @@
     (require '[integrant.repl.state :refer [system]])
     (def sqlite (:db/sqlite system))
     (def duckdb (:db/duckdb system))
-    (def event-metadata (:cache/event-metadata system))
+    (def events-schema (:cache/events-schema system))
 
     ;; List all rules
     (def r (list-all sqlite))
-    (eval/evaluate-rule duckdb sqlite event-metadata (nth r 2)))
+    (eval/evaluate-rule duckdb sqlite events-schema (nth r 2)))
 
   ;; Run evaluation cycle (with no webhook URL)
-  (run-evaluation-cycle! duckdb sqlite event-metadata nil)
+  (run-evaluation-cycle! duckdb sqlite events-schema nil)
 
   ;; Evaluate a single rule (via eval namespace)
-  ;; (eval/evaluate-rule duckdb sqlite event-metadata sample-rule)
+  ;; (eval/evaluate-rule duckdb sqlite events-schema sample-rule)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

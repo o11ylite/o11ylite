@@ -11,7 +11,7 @@
 (ns o11ylite.api.events
   (:require
     [o11ylite.components.blocked-fields :as blocked-fields]
-    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
@@ -33,11 +33,11 @@
 (defn- -list-fields-handler
   "List all event fields with their types, excluding blocked fields.
    Returns [{:name :type} ...]."
-  [event-metadata-component blocked-fields-component]
+  [events-schema-component blocked-fields-component]
   (fn [_request]
     (let [blocked-set (blocked-fields/get-blocked-event-fields blocked-fields-component)]
       (response/json 200 (-fields-map->vec
-                           (event-metadata/get-fields event-metadata-component)
+                           (events-schema-cache/get-fields events-schema-component)
                            blocked-set)))))
 
 ;; ---------------------------------------------------------
@@ -47,10 +47,10 @@
   "Events metadata API routes.
 
    Arguments:
-     opts - Map with :event-metadata and :blocked-fields components"
-  [{:keys [event-metadata blocked-fields]}]
+     opts - Map with :events-schema and :blocked-fields components"
+  [{:keys [events-schema blocked-fields]}]
   [["/events"
-    ["/fields" {:get {:handler (-list-fields-handler event-metadata blocked-fields)}}]]])
+    ["/fields" {:get {:handler (-list-fields-handler events-schema blocked-fields)}}]]])
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

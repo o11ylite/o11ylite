@@ -1,5 +1,5 @@
 ;; ---------------------------------------------------------
-;; o11ylite.components.event-metadata
+;; o11ylite.components.events-schema-cache
 ;;
 ;; DuckDB schema cache for the `events` table.
 ;;
@@ -20,13 +20,9 @@
 ;;   - `o11ylite.store.telemetry-catalog` — service ↔ metric and
 ;;     service ↔ event-field ownership + liveness. Answers "who emits
 ;;     what and when did we last see it?". Keyed by service × thing.
-;;
-;; This component is the DuckDB schema cache for events only. A future
-;; rename (`events.schema-cache`) would make that clearer but would
-;; touch many call sites; see the telemetry-catalog plan for details.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.components.event-metadata
+(ns o11ylite.components.events-schema-cache
   (:require
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
@@ -38,24 +34,24 @@
 (defn get-fields
   "Get the current cached field metadata.
    Returns a map of keyword -> {:type normalized-type}."
-  [event-metadata]
-  @(:state event-metadata))
+  [events-schema]
+  @(:state events-schema))
 
 (defn get-field
   "Get metadata for a specific field.
    Returns {:type normalized-type} or nil if field doesn't exist."
-  [event-metadata field-name]
-  (get @(:state event-metadata) field-name))
+  [events-schema field-name]
+  (get @(:state events-schema) field-name))
 
 (defn refresh!
   "Trigger an async refresh of the field metadata cache.
    Returns a promise that will be delivered with:
      - {:ok true :fields <field-map>} on success
      - {:ok false :error <exception>} on failure
-   
+
    The cache is only updated on successful refresh."
-  [event-metadata]
-  ((:refresh! event-metadata)))
+  [events-schema]
+  ((:refresh! events-schema)))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -69,27 +65,27 @@
         (try
           (let [fields (schema/fetch-event-fields duckdb)]
             (reset! state fields)
-            (mulog/log ::event-metadata-refreshed :field-count (count fields))
+            (mulog/log ::events-schema-refreshed :field-count (count fields))
             (deliver p {:ok true :fields fields}))
           (catch Exception e
-            (mulog/log ::event-metadata-refresh-failed :error (.getMessage e))
+            (mulog/log ::events-schema-refresh-failed :error (.getMessage e))
             (deliver p {:ok false :error e}))))
       p)))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
 
-(defmethod ig/init-key :cache/event-metadata
+(defmethod ig/init-key :cache/events-schema
   [_ {:keys [duckdb]}]
-  (mulog/log ::event-metadata-starting)
+  (mulog/log ::events-schema-starting)
   (let [state (atom {})
         fields (schema/fetch-event-fields duckdb)]
     (reset! state fields)
-    (mulog/log ::event-metadata-started :field-count (count fields))
+    (mulog/log ::events-schema-started :field-count (count fields))
     {:state state
      :refresh! (-make-refresh-fn duckdb state)}))
 
-(defmethod ig/halt-key! :cache/event-metadata
+(defmethod ig/halt-key! :cache/events-schema
   [_ _]
   ;; Nothing to clean up
   nil)
@@ -98,26 +94,25 @@
 ;; Rich Comment
 (comment
 
-  ;; Test event metadata manually
+  ;; Test events schema cache manually
   (require '[integrant.repl.state :refer [system]])
 
-  (def em (:cache/event-metadata system))
+  (def esc (:cache/events-schema system))
 
   ;; Get all fields (now with normalized types)
-  (get-fields em)
+  (get-fields esc)
   ;; => {:service {:type :string}
   ;;     :timestamp {:type :instant}
-   ;;     :span.duration_ms {:type :float}
+  ;;     :span.duration_ms {:type :float}
   ;;     ...}
 
   ;; Get specific field
-  (get-field em :service)           ;; => {:type :string}
-  (get-field em :timestamp)         ;; => {:type :instant}
-  (get-field em :span.duration_ms)  ;; => {:type :float}
+  (get-field esc :service)           ;; => {:type :string}
+  (get-field esc :timestamp)         ;; => {:type :instant}
+  (get-field esc :span.duration_ms)  ;; => {:type :float}
 
   ;; Async refresh
-  @(refresh! em)
-  (ig/halt-key! :db/duckdb duckdb-ds)
+  @(refresh! esc)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

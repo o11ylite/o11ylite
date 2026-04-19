@@ -15,7 +15,7 @@
 ;; the deltas + bump last_seen_at for everything observed.
 ;;
 ;; Naming: this is the telemetry *catalog*. Not to be confused with:
-;;   - :cache/event-metadata            (DuckDB column schema cache)
+;;   - :cache/events-schema             (DuckDB column schema cache)
 ;;   - o11ylite.store.metrics.metadata  (per-metric definitions)
 ;; See the plan at .opencode/plans/telemetry-catalog.md for context.
 ;;

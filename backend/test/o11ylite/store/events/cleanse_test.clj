@@ -7,7 +7,7 @@
 (ns o11ylite.store.events.cleanse-test
   (:require
     [clojure.test :refer [deftest is testing]]
-    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.events.cleanse :as cleanse]))
 
 ;; ---------------------------------------------------------
@@ -15,7 +15,7 @@
 
 (deftest cleanse-events-test
   (testing "Fields with type conflicts are skipped, event is kept"
-    (with-redefs [event-metadata/get-fields
+    (with-redefs [events-schema-cache/get-fields
                   (constantly {:service {:type :string}
                                :attr.count {:type :integer}})]
       (let [events [{:service "test-service"
@@ -29,7 +29,7 @@
         (is (= 1 skipped-field-count)))))
 
   (testing "Fields with matching types pass through"
-    (with-redefs [event-metadata/get-fields
+    (with-redefs [events-schema-cache/get-fields
                   (constantly {:service {:type :string}
                                :attr.count {:type :integer}
                                :attr.active {:type :boolean}})]
@@ -44,7 +44,7 @@
         (is (= 0 skipped-field-count)))))
 
   (testing "Blocked fields are stripped before type-conflict check"
-    (with-redefs [event-metadata/get-fields
+    (with-redefs [events-schema-cache/get-fields
                   (constantly {:service {:type :string}
                                :attr.http.method {:type :string}})]
       (let [events [{:service "test-service"

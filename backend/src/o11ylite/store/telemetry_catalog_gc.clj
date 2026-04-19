@@ -14,7 +14,7 @@
 ;;   2. Event fields -> DROP COLUMN from o11ylite.events (DuckLake
 ;;                      metadata-only) when no service has emitted the
 ;;                      field for `stale-days`. Refreshes the in-memory
-;;                      :cache/event-metadata. Pairs with a catalog-row
+;;                      :cache/events-schema. Pairs with a catalog-row
 ;;                      purge (service_event_fields).
 ;;   3. Services     -> DELETE row from service_metadata when the service
 ;;                      itself has been silent for `stale-days`, and
@@ -42,7 +42,7 @@
 (ns o11ylite.store.telemetry-catalog-gc
   (:require
     [com.brunobonacci.mulog :as mulog]
-    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
     [o11ylite.store.services :as services]
@@ -75,16 +75,16 @@
 
 (defn- -gc-stale-event-fields!
   "Find event fields whose every emitter is stale, drop the DuckDB
-   columns, remove the catalog rows, and refresh the event-metadata
+   columns, remove the catalog rows, and refresh the events-schema
    cache so the next ingest sees the current schema."
-  [{:keys [sqlite duckdb event-metadata]} threshold-ms]
+  [{:keys [sqlite duckdb events-schema]} threshold-ms]
   (let [stale (catalog/get-stale-event-fields sqlite threshold-ms)]
     (span/with-span!
       [::gc-stale-event-fields {:count (count stale)}]
       (when (seq stale)
         (schema/drop-event-fields! duckdb stale)
         (catalog/delete-event-fields! sqlite stale)
-        @(event-metadata/refresh! event-metadata)
+        @(events-schema-cache/refresh! events-schema)
         (mulog/log ::stale-event-fields-reclaimed
                    :count (count stale)
                    :names stale))
@@ -111,7 +111,7 @@
   "Reclaim metrics, event fields, and services that haven't been seen
    for at least `stale-days`.
 
-   `deps` must contain :sqlite, :duckdb, :event-metadata.
+   `deps` must contain :sqlite, :duckdb, :events-schema.
 
    Returns a map {:metrics <names> :event-fields <names> :services <names>}
    describing what was reclaimed. Safe to call with a dataset where
@@ -146,7 +146,7 @@
   (def deps
     {:sqlite (:db/sqlite system)
      :duckdb (:db/duckdb system)
-     :event-metadata (:cache/event-metadata system)})
+     :events-schema (:cache/events-schema system)})
 
   ;; Dry-run style: inspect candidates without deleting
   (require '[o11ylite.store.telemetry-catalog :as catalog])

@@ -25,7 +25,7 @@
 ;; cause data duplication when running concurrently.
 ;; See: https://github.com/duckdb/ducklake/issues/650
 (use-fixtures :each
-  (h/with-partial-system [:scheduler/executor :cache/event-metadata]
+  (h/with-partial-system [:scheduler/executor :cache/events-schema]
                          {:config/core {:data-inlining-row-limit 1000}}))
 
 ;; ---------------------------------------------------------
@@ -37,9 +37,9 @@
 (defn- duckdb
   []
   (:db/duckdb h/*system*))
-(defn- event-metadata
+(defn- events-schema
   []
-  (:cache/event-metadata h/*system*))
+  (:cache/events-schema h/*system*))
 
 (def ^:private test-id-counter (atom 0))
 
@@ -62,7 +62,7 @@
                 :meta.signal_type {:type :string}
                 :meta.observed_time {:type :instant}
                 :name {:type :string}}]
-    (events.ingest/persist-batch! (duckdb) (event-metadata) events fields)))
+    (events.ingest/persist-batch! (duckdb) (events-schema) events fields)))
 
 (defn- count-events
   "Count total events in the events table."

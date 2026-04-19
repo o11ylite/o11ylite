@@ -18,7 +18,7 @@
     [o11ylite.components.id-gen]
     [o11ylite.components.storage-init]
     [o11ylite.components.blocked-fields]
-    [o11ylite.components.event-metadata]
+    [o11ylite.components.events-schema-cache]
     [o11ylite.components.telemetry-catalog-buffer]
     [o11ylite.components.event-batcher]
     [o11ylite.components.metric-batcher]

@@ -198,21 +198,21 @@
   "Recursively validate filter expression operators against field types.
    Returns nil if valid, error map if invalid.
    Unknown fields are skipped (allows querying before data exists)."
-  [event-metadata filter-expr]
+  [events-schema filter-expr]
   (cond
     ;; Compound AND
     (:and filter-expr)
-    (some #(-validate-filter-expr-with-metadata event-metadata %)
+    (some #(-validate-filter-expr-with-metadata events-schema %)
           (:and filter-expr))
 
     ;; Compound OR
     (:or filter-expr)
-    (some #(-validate-filter-expr-with-metadata event-metadata %)
+    (some #(-validate-filter-expr-with-metadata events-schema %)
           (:or filter-expr))
 
     ;; Simple filter
     :else
-    (when-let [field-meta (get event-metadata (keyword (:field filter-expr)))]
+    (when-let [field-meta (get events-schema (keyword (:field filter-expr)))]
       (-validate-filter-op-for-type (:op filter-expr)
                                     (:type field-meta)
                                     (:field filter-expr)))))
@@ -222,9 +222,9 @@
    Returns nil if valid, {:error ...} if invalid.
    Unknown fields are skipped (allows querying before data exists).
    Having uses ref-based numeric comparisons (no field-type check needed)."
-  [event-metadata {:keys [filter]}]
+  [events-schema {:keys [filter]}]
   (when filter
-    (-validate-filter-expr-with-metadata event-metadata filter)))
+    (-validate-filter-expr-with-metadata events-schema filter)))
 
 ;; ---------------------------------------------------------
 ;; Events Query Schema
