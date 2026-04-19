@@ -33,13 +33,13 @@
   [sqlite services now-ms]
   (when (seq services)
     (jdbc/with-transaction [tx sqlite]
-                           (doseq [service services]
-                             (jdbc/execute!
-                               tx
-                               ["INSERT INTO service_metadata (service, first_seen_at, updated_at, last_seen_at)
+      (doseq [service services]
+        (jdbc/execute!
+          tx
+          ["INSERT INTO service_metadata (service, first_seen_at, updated_at, last_seen_at)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(service) DO UPDATE SET last_seen_at = excluded.last_seen_at"
-                                service now-ms now-ms now-ms])))))
+           service now-ms now-ms now-ms])))))
 
 (defn get-stale-services
   "Return the names of services whose `last_seen_at` is older than
@@ -72,15 +72,15 @@
     (let [placeholders (sql/in-placeholders (count service-names))
           params (vec service-names)]
       (jdbc/with-transaction [tx sqlite]
-                             (jdbc/execute! tx (into [(str "DELETE FROM service_metrics WHERE service IN ("
-                                                           placeholders ")")]
-                                                     params))
-                             (jdbc/execute! tx (into [(str "DELETE FROM service_event_fields WHERE service IN ("
-                                                           placeholders ")")]
-                                                     params))
-                             (jdbc/execute! tx (into [(str "DELETE FROM service_metadata WHERE service IN ("
-                                                           placeholders ")")]
-                                                     params))))))
+        (jdbc/execute! tx (into [(str "DELETE FROM service_metrics WHERE service IN ("
+                                      placeholders ")")]
+                                params))
+        (jdbc/execute! tx (into [(str "DELETE FROM service_event_fields WHERE service IN ("
+                                      placeholders ")")]
+                                params))
+        (jdbc/execute! tx (into [(str "DELETE FROM service_metadata WHERE service IN ("
+                                      placeholders ")")]
+                                params))))))
 
 (defn get-services-with-counts
   "Get all registered services joined with per-service metric and event-field

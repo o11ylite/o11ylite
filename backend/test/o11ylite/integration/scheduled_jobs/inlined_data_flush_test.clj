@@ -26,7 +26,7 @@
 ;; See: https://github.com/duckdb/ducklake/issues/650
 (use-fixtures :each
   (h/with-partial-system [:scheduler/executor :cache/events-schema]
-                         {:config/core {:data-inlining-row-limit 1000}}))
+    {:config/core {:data-inlining-row-limit 1000}}))
 
 ;; ---------------------------------------------------------
 ;; Helpers

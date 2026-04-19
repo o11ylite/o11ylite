@@ -20,7 +20,7 @@
 
 (use-fixtures :each
   (h/with-partial-system [:server/web]
-                         {:config/core {:runtime-app-config? true}}))
+    {:config/core {:runtime-app-config? true}}))
 
 ;; ---------------------------------------------------------
 ;; Helpers
