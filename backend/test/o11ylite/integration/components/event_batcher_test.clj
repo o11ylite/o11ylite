@@ -122,7 +122,7 @@
           n 5]
       ;; Mock persist-batch! to capture call counts (batching behavior test)
       (with-redefs [events.ingest/persist-batch!
-                    (fn [_duckdb _event-metadata events fields]
+                    (fn [_duckdb _events-schema events fields]
                       (swap! persist-calls conj {:event-count (count events)
                                                  :field-count (count fields)})
                       true)]

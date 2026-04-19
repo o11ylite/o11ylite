@@ -304,7 +304,7 @@
 ;; ---------------------------------------------------------
 ;; Type-Aware Filter Validation
 
-(def ^:private test-event-metadata
+(def ^:private test-events-schema
   "Mock event metadata for testing type-aware validation."
   {:service   {:type :string}
    :status    {:type :integer}
@@ -315,12 +315,12 @@
 (defn- type-valid?
   "Check if filter operators are valid for field types."
   [query]
-  (nil? (schema/validate-filter-ops-with-metadata test-event-metadata query)))
+  (nil? (schema/validate-filter-ops-with-metadata test-events-schema query)))
 
 (defn- type-invalid?
   "Check if filter operators are invalid for field types."
   [query]
-  (some? (schema/validate-filter-ops-with-metadata test-event-metadata query)))
+  (some? (schema/validate-filter-ops-with-metadata test-events-schema query)))
 
 (deftest type-aware-filter-validation-test
   (testing "string fields accept string operators"
@@ -405,7 +405,7 @@
 
   (testing "error message includes field info"
     (let [result (schema/validate-filter-ops-with-metadata
-                   test-event-metadata
+                   test-events-schema
                    {:filter {:field "service" :op ">" :value "api"}})]
       (is (some? result) "should return error")
       (is (string? (:error result)) "error should be a string")
@@ -537,44 +537,44 @@
 
 (deftest coerce-filter-values-test
   (testing "coerces boolean string to boolean"
-    (is (= true  (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= true  (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                    {:filter {:field "is_error" :op "=" :value "true"}})))))
-    (is (= false (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= false (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                    {:filter {:field "is_error" :op "=" :value "false"}}))))))
 
   (testing "boolean coercion is case-insensitive"
-    (is (= true (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= true (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                   {:filter {:field "is_error" :op "=" :value "True"}}))))))
 
   (testing "leaves actual booleans unchanged"
-    (is (= true (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= true (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                   {:filter {:field "is_error" :op "=" :value true}}))))))
 
   (testing "coerces integer string to long"
-    (is (= 200 (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= 200 (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                  {:filter {:field "status" :op "=" :value "200"}}))))))
 
   (testing "coerces float string to double"
-    (is (= 3.14 (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= 3.14 (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                   {:filter {:field "duration" :op ">" :value "3.14"}}))))))
 
   (testing "leaves strings unchanged for string fields"
-    (is (= "api" (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= "api" (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                    {:filter {:field "service" :op "=" :value "api"}}))))))
 
   (testing "leaves unknown fields unchanged"
-    (is (= "anything" (:value (:filter (query-util/coerce-filter-values test-event-metadata
+    (is (= "anything" (:value (:filter (query-util/coerce-filter-values test-events-schema
                                                                         {:filter {:field "unknown" :op "=" :value "anything"}}))))))
 
   (testing "coerces values in compound AND filters"
-    (let [result (query-util/coerce-filter-values test-event-metadata
+    (let [result (query-util/coerce-filter-values test-events-schema
                                                   {:filter {:and [{:field "is_error" :op "=" :value "true"}
                                                                   {:field "status" :op ">=" :value "500"}]}})]
       (is (= true (get-in result [:filter :and 0 :value])))
       (is (= 500  (get-in result [:filter :and 1 :value])))))
 
   (testing "coerces values in compound OR filters"
-    (let [result (query-util/coerce-filter-values test-event-metadata
+    (let [result (query-util/coerce-filter-values test-events-schema
                                                   {:filter {:or [{:field "is_error" :op "=" :value "false"}
                                                                  {:field "duration" :op ">" :value "100.5"}]}})]
       (is (= false (get-in result [:filter :or 0 :value])))
@@ -582,4 +582,4 @@
 
   (testing "returns query unchanged when no filter present"
     (let [query {:time_range {:start 0 :end 1}}]
-      (is (= query (query-util/coerce-filter-values test-event-metadata query))))))
+      (is (= query (query-util/coerce-filter-values test-events-schema query))))))

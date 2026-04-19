@@ -9,7 +9,7 @@
 (ns o11ylite.routes.data-management
   (:require
     [o11ylite.auth.middleware :as auth-mw]
-    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
@@ -28,10 +28,10 @@
     "system"))
 
 (defn- -build-event-fields
-  "Build the event_fields prop by joining the metadata cache with blocked set.
+  "Build the event_fields prop by joining the schema cache with blocked set.
    Returns a sorted vector of {:name :type :category :status} maps."
-  [event-metadata blocked-fields]
-  (let [fields (event-metadata/get-fields event-metadata)
+  [events-schema blocked-fields]
+  (let [fields (events-schema-cache/get-fields events-schema)
         blocked (blocked-fields/get-blocked-event-fields blocked-fields)]
     (->> fields
          (map (fn [[field-key {:keys [type]}]]
@@ -100,10 +100,10 @@
 
 (defn- -make-page-handler
   "GET /system/data-management — render the Data Management page with all props."
-  [{:keys [sqlite event-metadata duckdb blocked-fields]}]
+  [{:keys [sqlite events-schema duckdb blocked-fields]}]
   (fn [_request]
     (response/inertia "DataManagement"
-                      {:event_fields (-build-event-fields event-metadata blocked-fields)
+                      {:event_fields (-build-event-fields events-schema blocked-fields)
                        :metrics (-build-metrics sqlite)
                        :metric_attributes (-build-metric-attributes duckdb blocked-fields)
                        :services (-build-services sqlite)})))
@@ -123,7 +123,7 @@
 
 (defn- -make-event-fields-delete-handler
   "DELETE /system/data-management/event-fields — drop columns + auto-block."
-  [{:keys [sqlite duckdb event-metadata blocked-fields]}]
+  [{:keys [sqlite duckdb events-schema blocked-fields]}]
   (fn [request]
     (let [fields (get-in request [:body :fields])
           n (count fields)]
@@ -131,8 +131,8 @@
       (blocked-fields/block-event-fields! blocked-fields sqlite fields)
       ;; 2. DROP COLUMN from DuckDB
       (schema/drop-event-fields! duckdb fields)
-      ;; 3. Refresh event-metadata cache so dropped columns disappear (sync)
-      @(event-metadata/refresh! event-metadata)
+      ;; 3. Refresh events-schema cache so dropped columns disappear (sync)
+      @(events-schema-cache/refresh! events-schema)
       (-flash-message (str "Deleted " (-pluralize n "event field"))))))
 
 (defn- -make-metric-attrs-status-handler
