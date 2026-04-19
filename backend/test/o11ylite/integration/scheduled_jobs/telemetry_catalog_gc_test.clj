@@ -10,7 +10,7 @@
 (ns o11ylite.integration.scheduled-jobs.telemetry-catalog-gc-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.components.scheduler :as scheduler]
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
@@ -31,15 +31,15 @@
 (defn- duckdb
   []
   (:db/duckdb h/*system*))
-(defn- event-meta
+(defn- events-schema
   []
-  (:cache/event-metadata h/*system*))
+  (:cache/events-schema h/*system*))
 
 (defn- gc-deps
   []
   {:sqlite (sqlite)
    :duckdb (duckdb)
-   :event-metadata (event-meta)})
+   :events-schema (events-schema)})
 
 (defn- get-gc-job-status
   []
@@ -123,7 +123,7 @@
       (schema/add-event-fields! (duckdb)
                                 {(keyword dead-field) {:type :string}
                                  (keyword live-field) {:type :string}})
-      @(event-metadata/refresh! (event-meta))
+      @(events-schema-cache/refresh! (events-schema))
 
       (seed-catalog-event-field! "svc-gone" dead-field ancient)
       (seed-catalog-event-field! "svc-live" live-field fresh)
@@ -133,7 +133,7 @@
         (is (not (contains? (set (:event-fields result)) live-field))))
 
       (testing "events table no longer has the dead column"
-        (let [columns (set (map name (keys (event-metadata/get-fields (event-meta)))))]
+        (let [columns (set (map name (keys (events-schema-cache/get-fields (events-schema)))))]
           (is (contains? columns live-field))
           (is (not (contains? columns dead-field)))))
 

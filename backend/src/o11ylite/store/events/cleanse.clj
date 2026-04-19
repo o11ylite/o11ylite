@@ -18,7 +18,7 @@
 (ns o11ylite.store.events.cleanse
   (:require
     [com.brunobonacci.mulog :as mulog]
-    [o11ylite.components.event-metadata :as event-metadata]
+    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.schema :as schema]))
 
 ;; ---------------------------------------------------------
@@ -99,14 +99,14 @@
    - Logs skipped fields for debugging
    
    Arguments:
-     event-metadata      - The event metadata cache component
+     events-schema       - The events schema cache component
      blocked-event-fields - Set of blocked field name strings (from cache, no I/O)
      events              - Collection of event maps to cleanse
    
    Returns:
      {:events [...] :skipped-field-count N}"
-  [event-metadata blocked-event-fields events]
-  (let [known-fields (event-metadata/get-fields event-metadata)]
+  [events-schema blocked-event-fields events]
+  (let [known-fields (events-schema-cache/get-fields events-schema)]
     (reduce
       (fn [acc event]
         (let [{:keys [event skipped-fields]} (-cleanse-event known-fields blocked-event-fields event)]

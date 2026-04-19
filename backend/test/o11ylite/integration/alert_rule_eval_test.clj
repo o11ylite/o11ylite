@@ -27,9 +27,9 @@
   []
   (:db/duckdb h/*system*))
 
-(defn- event-metadata
+(defn- events-schema
   []
-  (:cache/event-metadata h/*system*))
+  (:cache/events-schema h/*system*))
 
 (defn- create-alert-rule!
   "Create an alert rule directly via the store. Returns the rule ID."
@@ -78,7 +78,7 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (event-metadata)
+        (events-schema)
         nil)
 
       ;; 4. Verify rule state changed to "firing"
@@ -101,7 +101,7 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (event-metadata)
+        (events-schema)
         nil)
 
       ;; 4. Verify rule stays in "ok" state
@@ -124,7 +124,7 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (event-metadata)
+        (events-schema)
         nil)
 
       ;; Verify timestamp was recorded
@@ -151,7 +151,7 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (event-metadata)
+        (events-schema)
         nil)
 
       ;; no_result + empty results = firing
@@ -172,7 +172,7 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (event-metadata)
+        (events-schema)
         nil)
 
       ;; no_result + non-empty results = ok

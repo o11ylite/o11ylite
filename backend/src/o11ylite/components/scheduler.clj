@@ -129,7 +129,7 @@
   (partial * 60000))
 
 (defmethod ig/init-key :scheduler/registry
-  [_ {:keys [core-config duckdb sqlite event-metadata app-config]}]
+  [_ {:keys [core-config duckdb sqlite events-schema app-config]}]
   (mulog/log ::registry-initializing)
   (let [data-inlining-row-limit (:data-inlining-row-limit core-config 0)
         inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
@@ -142,7 +142,7 @@
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
         data-retention-days (app-config/get-setting-value app-config :data-retention-days)
         catalog-gc-interval-minutes (app-config/get-setting-value app-config :telemetry-catalog-gc-interval-minutes)
-        catalog-gc-deps {:sqlite sqlite :duckdb duckdb :event-metadata event-metadata}
+        catalog-gc-deps {:sqlite sqlite :duckdb duckdb :events-schema events-schema}
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
     (cond->
       {;; Tiered compaction: runs small → medium → large tiers sequentially.
@@ -189,7 +189,7 @@
         :description "Evaluate due alert rules and send webhook notifications"
         :handler (fn []
                    (alert-rule/run-evaluation-cycle!
-                     duckdb sqlite event-metadata webhook-url))}}
+                     duckdb sqlite events-schema webhook-url))}}
 
       ;; Only register the inlined-data-flush job when data inlining is enabled.
       ;; When DATA_INLINING_ROW_LIMIT is 0, no data is ever inlined so flushing
