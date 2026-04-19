@@ -88,6 +88,8 @@ export function QueryBuilder({
         }))
 
   const handleModeChange = (newMode: QueryMode) => {
+    const visualization: Visualization =
+      newMode === "metrics" ? { type: "time_series" } : { type: "table" }
     updateState({
       ...state,
       mode: newMode,
@@ -97,6 +99,7 @@ export function QueryBuilder({
       metrics: [],
       having: undefined,
       service: state.service,
+      visualization,
     })
   }
 
