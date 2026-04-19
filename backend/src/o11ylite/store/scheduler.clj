@@ -8,9 +8,9 @@
 
 (ns o11ylite.store.scheduler
   (:require
-    [clojure.string :as str]
     [next.jdbc :as jdbc]
-    [next.jdbc.result-set :as rs]))
+    [next.jdbc.result-set :as rs]
+    [o11ylite.util.sql :as sql]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -100,9 +100,9 @@
    Called on startup to clean up orphaned jobs after code changes."
   [sqlite job-names]
   (when (seq job-names)
-    (let [placeholders (str/join ", " (repeat (count job-names) "?"))
-          sql (str "DELETE FROM scheduled_jobs WHERE job_name NOT IN (" placeholders ")")]
-      (jdbc/execute! sqlite (into [sql] job-names)))))
+    (let [stmt (str "DELETE FROM scheduled_jobs WHERE job_name NOT IN ("
+                    (sql/in-placeholders (count job-names)) ")")]
+      (jdbc/execute! sqlite (into [stmt] job-names)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
