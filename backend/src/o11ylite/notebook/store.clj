@@ -125,37 +125,48 @@
        title description query_mode (-serialize-query query) pinned_from pinned_to now id])))
 
 (defn delete-cell!
-  "Delete a cell by ID."
+  "Delete a cell by ID and renumber remaining cells so positions stay contiguous."
   [sqlite id]
-  (jdbc/execute!
-    sqlite
-    ["DELETE FROM notebook_cells WHERE id = ?" id]))
+  (jdbc/with-transaction [tx sqlite]
+                         (when-let [cell (jdbc/execute-one!
+                                           tx
+                                           ["SELECT notebook_id, position FROM notebook_cells WHERE id = ?" id]
+                                           {:builder-fn rs/as-unqualified-lower-maps})]
+                           (jdbc/execute!
+                             tx
+                             ["DELETE FROM notebook_cells WHERE id = ?" id])
+                           (jdbc/execute!
+                             tx
+                             ["UPDATE notebook_cells SET position = position - 1, updated_at = ? WHERE notebook_id = ? AND position > ?"
+                              (-now-ms) (:notebook_id cell) (:position cell)]))))
 
 (defn move-cell!
   "Move a cell up or down within its notebook.
    Direction is :up or :down. Swaps positions with the adjacent cell."
   [sqlite cell-id direction]
-  (when-let [cell (jdbc/execute-one!
-                    sqlite
-                    ["SELECT id, notebook_id, position FROM notebook_cells WHERE id = ?" cell-id]
-                    {:builder-fn rs/as-unqualified-lower-maps})]
-    (let [current-pos (:position cell)
-          notebook-id (:notebook_id cell)
-          target-pos (case direction
-                       :up (dec current-pos)
-                       :down (inc current-pos))
-          neighbor (jdbc/execute-one!
-                     sqlite
-                     ["SELECT id, position FROM notebook_cells WHERE notebook_id = ? AND position = ?" notebook-id target-pos]
-                     {:builder-fn rs/as-unqualified-lower-maps})]
-      (when neighbor
-        (let [now (-now-ms)]
-          (jdbc/execute!
-            sqlite
-            ["UPDATE notebook_cells SET position = ?, updated_at = ? WHERE id = ?" target-pos now cell-id])
-          (jdbc/execute!
-            sqlite
-            ["UPDATE notebook_cells SET position = ?, updated_at = ? WHERE id = ?" current-pos now (:id neighbor)]))))))
+  (jdbc/with-transaction [tx sqlite]
+                         (when-let [cell (jdbc/execute-one!
+                                           tx
+                                           ["SELECT id, notebook_id, position FROM notebook_cells WHERE id = ?" cell-id]
+                                           {:builder-fn rs/as-unqualified-lower-maps})]
+                           (let [current-pos (:position cell)
+                                 notebook-id (:notebook_id cell)
+                                 neighbor-sql (case direction
+                                                :up ["SELECT id, position FROM notebook_cells WHERE notebook_id = ? AND position < ? ORDER BY position DESC LIMIT 1" notebook-id current-pos]
+                                                :down ["SELECT id, position FROM notebook_cells WHERE notebook_id = ? AND position > ? ORDER BY position ASC LIMIT 1" notebook-id current-pos])
+                                 neighbor (jdbc/execute-one!
+                                            tx
+                                            neighbor-sql
+                                            {:builder-fn rs/as-unqualified-lower-maps})]
+                             (when neighbor
+                               (let [now (-now-ms)
+                                     neighbor-pos (:position neighbor)]
+                                 (jdbc/execute!
+                                   tx
+                                   ["UPDATE notebook_cells SET position = ?, updated_at = ? WHERE id = ?" neighbor-pos now cell-id])
+                                 (jdbc/execute!
+                                   tx
+                                   ["UPDATE notebook_cells SET position = ?, updated_at = ? WHERE id = ?" current-pos now (:id neighbor)])))))))
 
 (defn touch-notebook!
   "Update a notebook's updated_at timestamp."
