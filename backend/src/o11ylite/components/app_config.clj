@@ -93,6 +93,12 @@
     :parser      #(Long/parseLong %)
     :description "Number of days to retain trace and metric data."}
 
+   {:key         :telemetry-catalog-gc-interval-minutes
+    :env-var     "O11YLITE_TELEMETRY_CATALOG_GC_INTERVAL_MINUTES"
+    :default     1440
+    :parser      #(Long/parseLong %)
+    :description "Interval for telemetry catalog GC (drops unused event columns and metric metadata) (min)."}
+
    {:key         :webhook-url
     :env-var     "O11YLITE_WEBHOOK_URL"
     :default     nil
