@@ -29,8 +29,8 @@
    See: https://ducklake.select/docs/stable/duckdb/advanced_features/data_inlining"
   [duckdb-ds]
   (span/with-span! [::flush-inlined-data]
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"]))))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"]))))
 
 (defn- -set-target-file-size!
   "Set the DuckLake target_file_size for the next merge operation."
@@ -53,7 +53,7 @@
   [duckdb-ds opts]
   (let [sql (-build-merge-sql opts)]
     (jdbc/with-transaction [tx duckdb-ds]
-                           (count (jdbc/execute! tx [sql])))))
+      (count (jdbc/execute! tx [sql])))))
 
 (defn- -merge-loop!
   "Repeatedly merge in bounded batches until a batch produces fewer output
@@ -88,15 +88,15 @@
   [duckdb-ds {:keys [max-compacted-files target-file-size] :as opts}]
   (span/with-span! [::merge-adjacent-files (select-keys opts [:max-compacted-files :target-file-size
                                                               :min-file-size :max-file-size])]
-                   ;; Set target file size before merging (catalog-level setting)
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (-set-target-file-size! tx target-file-size))
-                   (let [total (if max-compacted-files
-                                 (-merge-loop! duckdb-ds opts)
-                                 (-merge-once! duckdb-ds opts))]
-                     (when (pos? total)
-                       (mulog/log ::merge-adjacent-files-completed :files-created total))
-                     total)))
+    ;; Set target file size before merging (catalog-level setting)
+    (jdbc/with-transaction [tx duckdb-ds]
+      (-set-target-file-size! tx target-file-size))
+    (let [total (if max-compacted-files
+                  (-merge-loop! duckdb-ds opts)
+                  (-merge-once! duckdb-ds opts))]
+      (when (pos? total)
+        (mulog/log ::merge-adjacent-files-completed :files-created total))
+      total)))
 
 ;; ---------------------------------------------------------
 ;; Tiered Compaction
@@ -207,21 +207,21 @@
    e.g. {:compaction-small-interval-minutes 5, ...}"
   [duckdb-ds sqlite max-compacted-files tier-intervals]
   (span/with-span! [::run-tiered-compaction {:max-compacted-files max-compacted-files}]
-                   (doseq [{:keys [tier-name interval-key] :as tier} compaction-tiers]
-                     (let [interval-ms (* (get tier-intervals interval-key 60) 60000)]
-                       (when (-tier-due? sqlite tier-name interval-ms)
-                         (merge-adjacent-files! duckdb-ds (-tier-merge-opts tier max-compacted-files))
-                         (-record-tier-run! sqlite tier-name))))))
+    (doseq [{:keys [tier-name interval-key] :as tier} compaction-tiers]
+      (let [interval-ms (* (get tier-intervals interval-key 60) 60000)]
+        (when (-tier-due? sqlite tier-name interval-ms)
+          (merge-adjacent-files! duckdb-ds (-tier-merge-opts tier max-compacted-files))
+          (-record-tier-run! sqlite tier-name))))))
 
 (defn delete-old-data!
   "Delete events and metrics older than retention-days."
   [duckdb-ds retention-days]
   (span/with-span! [::delete-old-data {:retention-days retention-days}]
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
-                                          ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type
-                                          (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::TIMESTAMP_NS" retention-days)])
-                                          (jdbc/execute! tx [(format "DELETE FROM o11ylite.metrics WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP" retention-days)]))))
+    (jdbc/with-transaction [tx duckdb-ds]
+      ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
+      ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type
+      (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::TIMESTAMP_NS" retention-days)])
+      (jdbc/execute! tx [(format "DELETE FROM o11ylite.metrics WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP" retention-days)]))))
 
 (defn run-checkpoint!
   "Run DuckLake maintenance operations for comprehensive cleanup.
@@ -244,15 +244,15 @@
    See: https://ducklake.select/docs/stable/duckdb/maintenance/checkpoint"
   [duckdb-ds]
   (span/with-span! [::run-checkpoint]
-                   ;; Each operation runs in its own transaction to avoid DuckLake scanning issues
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_rewrite_data_files('o11ylite')"]))
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
+    ;; Each operation runs in its own transaction to avoid DuckLake scanning issues
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_rewrite_data_files('o11ylite')"]))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
 
 (defn run-snapshot-cleanup!
   "Expire old snapshots and remove superseded files on a shorter cadence
@@ -260,12 +260,12 @@
    runs, preventing unbounded metadata growth."
   [duckdb-ds]
   (span/with-span! [::run-snapshot-cleanup]
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
-                   (jdbc/with-transaction [tx duckdb-ds]
-                                          (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
+    (jdbc/with-transaction [tx duckdb-ds]
+      (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

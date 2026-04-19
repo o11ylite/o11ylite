@@ -97,14 +97,14 @@
   [sqlite entries]
   (when (seq entries)
     (jdbc/with-transaction [tx sqlite]
-                           (doseq [{:keys [service metric-name last-seen-at]} entries]
-                             (jdbc/execute!
-                               tx
-                               ["INSERT INTO service_metrics (service, metric_name, last_seen_at)
+      (doseq [{:keys [service metric-name last-seen-at]} entries]
+        (jdbc/execute!
+          tx
+          ["INSERT INTO service_metrics (service, metric_name, last_seen_at)
             VALUES (?, ?, ?)
             ON CONFLICT(service, metric_name) DO UPDATE SET
               last_seen_at = excluded.last_seen_at"
-                                service metric-name last-seen-at])))))
+           service metric-name last-seen-at])))))
 
 (defn upsert-service-event-fields!
   "Upsert (service, field, last_seen_at) rows. Same semantics as
@@ -112,14 +112,14 @@
   [sqlite entries]
   (when (seq entries)
     (jdbc/with-transaction [tx sqlite]
-                           (doseq [{:keys [service field last-seen-at]} entries]
-                             (jdbc/execute!
-                               tx
-                               ["INSERT INTO service_event_fields (service, field, last_seen_at)
+      (doseq [{:keys [service field last-seen-at]} entries]
+        (jdbc/execute!
+          tx
+          ["INSERT INTO service_event_fields (service, field, last_seen_at)
             VALUES (?, ?, ?)
             ON CONFLICT(service, field) DO UPDATE SET
               last_seen_at = excluded.last_seen_at"
-                                service field last-seen-at])))))
+           service field last-seen-at])))))
 
 ;; ---------------------------------------------------------
 ;; GC foundation (unused for now, exposed for future GC work)
