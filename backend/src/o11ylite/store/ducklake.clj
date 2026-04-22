@@ -49,21 +49,25 @@
       "CALL ducklake_merge_adjacent_files('o11ylite')")))
 
 (defn- -merge-once!
-  "Run a single merge call. Returns the number of output files created."
+  "Run a single merge call. Returns a map of :files-created and :files-processed."
   [duckdb-ds opts]
-  (let [sql (-build-merge-sql opts)]
-    (jdbc/with-transaction [tx duckdb-ds]
-      (count (jdbc/execute! tx [sql])))))
+  (let [sql (-build-merge-sql opts)
+        rows (jdbc/with-transaction [tx duckdb-ds]
+               (jdbc/execute! tx [sql]))]
+    {:files-created (count rows)
+     :files-processed (reduce + 0 (map :files_processed rows))}))
 
 (defn- -merge-loop!
   "Repeatedly merge in bounded batches until a batch produces fewer output
    files than max-compacted-files, meaning the backlog is drained."
   [duckdb-ds {:keys [max-compacted-files] :as opts}]
-  (loop [total-files 0]
-    (let [n (-merge-once! duckdb-ds opts)]
-      (if (< n max-compacted-files)
-        (+ total-files n)
-        (recur (+ total-files n))))))
+  (loop [total-created 0 total-processed 0]
+    (let [{:keys [files-created files-processed]} (-merge-once! duckdb-ds opts)]
+      (if (< files-created max-compacted-files)
+        {:files-created   (+ total-created files-created)
+         :files-processed (+ total-processed files-processed)}
+        (recur (+ total-created files-created)
+               (+ total-processed files-processed))))))
 
 (defn merge-adjacent-files!
   "Merge small Parquet files into larger ones for better query performance.
@@ -85,18 +89,20 @@
      :max-file-size       - exclude files at or larger than this (bytes, optional)
 
    See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
-  [duckdb-ds {:keys [max-compacted-files target-file-size] :as opts}]
+  [duckdb-ds {:keys [max-compacted-files target-file-size tier-name] :as opts}]
   (span/with-span! [::merge-adjacent-files (select-keys opts [:max-compacted-files :target-file-size
                                                               :min-file-size :max-file-size])]
     ;; Set target file size before merging (catalog-level setting)
     (jdbc/with-transaction [tx duckdb-ds]
       (-set-target-file-size! tx target-file-size))
-    (let [total (if max-compacted-files
-                  (-merge-loop! duckdb-ds opts)
-                  (-merge-once! duckdb-ds opts))]
-      (when (pos? total)
-        (mulog/log ::merge-adjacent-files-completed :files-created total))
-      total)))
+    (let [{:keys [files-created files-processed]} (if max-compacted-files
+                                                    (-merge-loop! duckdb-ds opts)
+                                                    (-merge-once! duckdb-ds opts))]
+      (when tier-name
+        (span/add-span-data! {:attributes {:tier            (name tier-name)
+                                           :files-created   files-created
+                                           :files-processed files-processed}}))
+      {:files-created files-created :files-processed files-processed})))
 
 ;; ---------------------------------------------------------
 ;; Tiered Compaction
@@ -186,10 +192,11 @@
 (defn- -tier-merge-opts
   "Build merge options for a tier. Looping tiers include max-compacted-files;
    non-looping tiers omit it for a single unbounded call."
-  [{:keys [target-file-size min-file-size max-file-size loop?]} max-compacted-files]
+  [{:keys [target-file-size min-file-size max-file-size loop? tier-name]} max-compacted-files]
   (cond-> {:target-file-size target-file-size
            :min-file-size    min-file-size
-           :max-file-size    max-file-size}
+           :max-file-size    max-file-size
+           :tier-name        tier-name}
     loop? (assoc :max-compacted-files max-compacted-files)))
 
 (defn run-tiered-compaction!
