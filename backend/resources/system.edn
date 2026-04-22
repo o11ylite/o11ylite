@@ -54,6 +54,10 @@
  :metrics/duckdb
  {:duckdb #ig/ref :db/duckdb}
 
+ :metrics/ducklake
+ {:duckdb #ig/ref :db/duckdb
+  :_storage #ig/ref :storage/init}
+
  :scheduler/registry
  {:core-config #ig/ref :config/core
   :duckdb #ig/ref :db/duckdb
