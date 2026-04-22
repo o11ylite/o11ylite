@@ -17,8 +17,8 @@
     [java.time Instant]
     [java.time.temporal ChronoUnit]))
 
-;; Start scheduler for these tests
-(use-fixtures :each (h/with-partial-system [:scheduler/executor]))
+;; Start scheduler and ingestion components for these tests
+(use-fixtures :each (h/with-partial-system [:scheduler/executor :ingest/event-batcher :cache/blocked-fields :id/generator]))
 
 ;; ---------------------------------------------------------
 ;; Helpers
@@ -127,17 +127,38 @@
 
 (deftest manual-merge-adjacent-files-test
   (testing "Bounded merge returns 0 when nothing to compact"
-    (is (zero? (ducklake/merge-adjacent-files!
-                 (duckdb)
-                 {:max-compacted-files 5
-                  :target-file-size    "5MB"
-                  :max-file-size       1048576}))))
+    (let [result (ducklake/merge-adjacent-files!
+                   (duckdb)
+                   {:max-compacted-files 5
+                    :target-file-size    "5MB"
+                    :max-file-size       1048576})]
+      (is (zero? (:files-created result)))
+      (is (zero? (:files-processed result)))))
 
   (testing "Unbounded merge (no max-compacted-files) returns 0 when nothing to compact"
-    (is (zero? (ducklake/merge-adjacent-files!
-                 (duckdb)
-                 {:target-file-size "5MB"
-                  :max-file-size    1048576})))))
+    (let [result (ducklake/merge-adjacent-files!
+                   (duckdb)
+                   {:target-file-size "5MB"
+                    :max-file-size    1048576})]
+      (is (zero? (:files-created result)))
+      (is (zero? (:files-processed result))))))
+
+(deftest merge-adjacent-files-compacts-data-test
+  (testing "After ingesting events, merge returns files-created and files-processed"
+    ;; Fix service name so all events land in the same partition,
+    ;; giving us predictable 1 file per batch.
+    (h/ingest-sample-events! 5 {:service "test-service"})
+    (h/ingest-sample-events! 5 {:service "test-service"})
+    (h/ingest-sample-events! 5 {:service "test-service"})
+
+    ;; Compact small files
+    (let [result (ducklake/merge-adjacent-files!
+                   (duckdb)
+                   {:target-file-size "5MB"
+                    :max-file-size    1048576})]
+      (is (map? result) "Should return a map")
+      (is (= 1 (:files-created result)) "Should merge all small files into one")
+      (is (= 3 (:files-processed result)) "Should process all three input files"))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
