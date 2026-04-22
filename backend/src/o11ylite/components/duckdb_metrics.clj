@@ -9,8 +9,8 @@
 ;; pattern as jvm.memory.used{type=...}.
 ;;
 ;; The OTel SDK polls the callback on its export interval (~60s).
-;; Results are cached briefly so the callback is cheap even if polled
-;; more frequently than expected.
+;; `duckdb_memory()` is an in-process metadata query, so it's cheap
+;; enough to run on every poll without caching.
 ;;
 ;; This component exists because DuckDB's native memory usage is
 ;; invisible to JVM metrics and was the root cause of OOM kills
@@ -36,7 +36,9 @@
   (AttributeKey/stringKey "o11ylite.duckdb.memory.type"))
 
 (defn- -fetch-memory
-  "Query duckdb_memory() and return a seq of {:tag \"...\" :bytes N} maps."
+  "Query duckdb_memory() and return a seq of {:tag \"...\" :bytes N} maps.
+   Returns an empty seq on failure so the callback never throws into the
+   OTel SDK."
   [duckdb]
   (try
     (mapv (fn [row]
@@ -47,26 +49,12 @@
       (mulog/log ::duckdb-memory-query-error :error (.getMessage e))
       [])))
 
-(defn- -make-cached-fetcher
-  "Return a fn that caches duckdb_memory() results for `ttl-ms`."
-  [duckdb ttl-ms]
-  (let [cache (atom {:ts 0 :data []})]
-    (fn []
-      (let [{:keys [ts data]} @cache
-            now (System/currentTimeMillis)]
-        (if (< (- now ts) ttl-ms)
-          data
-          (let [fresh (-fetch-memory duckdb)]
-            (reset! cache {:ts now :data fresh})
-            fresh))))))
-
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
 
 (defmethod ig/init-key :metrics/duckdb
   [_ {:keys [duckdb]}]
-  (let [cached-fetch (-make-cached-fetcher duckdb 5000)
-        gauge (instrument/instrument
+  (let [gauge (instrument/instrument
                 {:name "o11ylite.duckdb.memory"
                  :instrument-type :gauge
                  :measurement-type :long
@@ -76,7 +64,7 @@
                   (mapv (fn [{:keys [tag bytes]}]
                           {:value bytes
                            :attributes {-memory-type-key tag}})
-                        (cached-fetch))))]
+                        (-fetch-memory duckdb))))]
     (mulog/log ::duckdb-metrics-started)
     gauge))
 
