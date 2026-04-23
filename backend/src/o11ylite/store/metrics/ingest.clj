@@ -320,12 +320,12 @@
    :attr.host.name "server-1"
    :attr.cpu.core "0"}
 
-  ;; Example metadata (keyed by metric name)
+   ;; Example metadata (keyed by metric name)
   {"cpu.utilization"
    {:description "CPU utilization percentage"
     :unit "%"
     :metric_type :gauge
-    :attributes #{"host.name" "cpu.core"}}}
+    :attributes #{"attr.host.name" "attr.cpu.core"}}}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
