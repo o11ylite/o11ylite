@@ -32,7 +32,7 @@ export function MetricFiltersSection({
   })
 
   const fields: Field[] = (metricDetail?.attributes ?? []).map((attr) => ({
-    name: `attr.${attr}`,
+    name: attr,
     type: "string" as const,
   }))
 

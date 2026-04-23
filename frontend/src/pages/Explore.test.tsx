@@ -89,7 +89,7 @@ const server = setupServer(
       ...metric,
       description: `${name} metric`,
       temporality: "delta",
-      attributes: ["host", "region"],
+      attributes: ["attr.host", "attr.region"],
       hist_boundaries: metric.metric_type === "histogram" ? [0.01, 0.1, 1, 10] : null,
     })
   })

@@ -153,7 +153,7 @@
   ;;     :description "CPU usage"
   ;;     :unit "%"
   ;;     :metric_type :gauge
-  ;;     :attributes #{"host.name" "cpu.core"}}
+  ;;     :attributes #{"attr.host.name" "attr.cpu.core"}}
 
   ;; List all metric names
   ;; (list-metric-names sqlite)
