@@ -57,10 +57,11 @@
   (let [col (if (= field "*") :* (-field->col field))
         agg-fn (keyword function)
         expr (case function
-               ;; Percentiles use approx_quantile in DuckDB
-               "p50" [:approx_quantile col 0.50]
-               "p90" [:approx_quantile col 0.90]
-               "p99" [:approx_quantile col 0.99]
+               ;; Percentiles use approx_quantile in DuckDB.
+               ;; Cast quantile to float because DuckDB expects FLOAT not DOUBLE.
+               "p50" [:approx_quantile col [:cast 0.50 :float]]
+               "p90" [:approx_quantile col [:cast 0.90 :float]]
+               "p99" [:approx_quantile col [:cast 0.99 :float]]
                ;; Standard aggregations
                [agg-fn col])
         result-alias (-format-agg-alias function field)]
