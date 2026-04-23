@@ -79,7 +79,7 @@
         (is (= "gauge" (:metrics_metadata/metric_type row)))
         ;; Attributes are stored as JSON array string
         (let [attrs (json/read-value (:metrics_metadata/attributes row))]
-          (is (some #{"process.pid"} attrs)))))))
+          (is (some #{"attr.process.pid"} attrs)))))))
 
 (deftest metric-metadata-merges-attributes-test
   (testing "Metric metadata merges attributes from multiple exports"
@@ -112,8 +112,8 @@
       (let [attrs-json (:metrics_metadata/attributes (first rows))
             attrs (set (json/read-value attrs-json))]
         ;; Both attributes should be merged
-        (is (contains? attrs "http.method"))
-        (is (contains? attrs "http.status_code"))))))
+        (is (contains? attrs "attr.http.method"))
+        (is (contains? attrs "attr.http.status_code"))))))
 
 (deftest metric-schema-evolution-adds-attr-columns-test
   (testing "Schema evolution adds attr.* columns to metrics table"

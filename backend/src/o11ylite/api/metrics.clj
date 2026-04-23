@@ -66,7 +66,7 @@
   ;;     :unit "ms"
   ;;     :metric_type :histogram
   ;;     :temporality :delta
-  ;;     :attributes ["http.method" "http.route" "http.status_code"]
+    ;;     :attributes ["attr.http.method" "attr.http.route" "attr.http.status_code"]
   ;;     :hist_boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1 2.5 5 10]}
 
   ;; Example: Metric not found

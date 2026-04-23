@@ -68,11 +68,17 @@
     NumberDataPoint$ValueCase/AS_INT (double (.getAsInt dp))
     0.0))
 
+(defn- -prefix-attr-name
+  "Prefix an attribute key with 'attr.' and normalize / -> ."
+  [k]
+  (str "attr." (str/replace (str k) "/" ".")))
+
 (defn- -extract-attribute-names
-  "Extract attribute names (without prefix) from a NumberDataPoint."
+  "Extract attribute names with attr. prefix from a NumberDataPoint."
   [^NumberDataPoint dp]
   (->> (.getAttributesList dp)
        (map #(.getKey ^io.opentelemetry.proto.common.v1.KeyValue %))
+       (map -prefix-attr-name)
        set))
 
 (defn- -gauge-data-point->map
@@ -176,10 +182,11 @@
 ;; Histogram metric extraction
 
 (defn- -extract-histogram-attribute-names
-  "Extract attribute names (without prefix) from a HistogramDataPoint."
+  "Extract attribute names with attr. prefix from a HistogramDataPoint."
   [^HistogramDataPoint dp]
   (->> (.getAttributesList dp)
        (map #(.getKey ^io.opentelemetry.proto.common.v1.KeyValue %))
+       (map -prefix-attr-name)
        set))
 
 (defn- -histogram-data-point->map
@@ -322,7 +329,7 @@
                             ;; attributes set reflects all attr.* columns that will
                             ;; exist on the data points (not just data-point-level attrs).
                             metadata (when metadata
-                                       (update metadata :attributes into (keys resource-attrs)))]
+                                       (update metadata :attributes into (map -prefix-attr-name (keys resource-attrs))))]
                       :when (and data-points metadata)]
                   {:data-points data-points
                    :metadata metadata})
@@ -371,7 +378,7 @@
     {:description "CPU utilization percentage"
      :unit "%"
      :metric_type :gauge
-     :attributes #{"host.name" "cpu.core"}}}}
+     :attributes #{"attr.host.name" "attr.cpu.core"}}}}
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

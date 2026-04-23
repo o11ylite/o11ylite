@@ -37,12 +37,12 @@
                                {:metric_type :gauge
                                 :unit "%"
                                 :description "CPU usage percentage"
-                                :attributes #{"host.name" "cpu.core"}}
+                                :attributes #{"attr.host.name" "attr.cpu.core"}}
                                "http.server.duration"
                                {:metric_type :histogram
                                 :unit "ms"
                                 :description "HTTP server request duration"
-                                :attributes #{"http.method" "http.route"}
+                                :attributes #{"attr.http.method" "attr.http.route"}
                                 :hist_boundaries [0.005 0.01 0.025 0.05 0.1]}
                                "http.requests.total"
                                {:metric_type :sum
@@ -87,7 +87,7 @@
                                 :temporality :delta
                                 :unit "ms"
                                 :description "HTTP server request duration"
-                                :attributes #{"http.method" "http.route" "http.status_code"}
+                                :attributes #{"attr.http.method" "attr.http.route" "attr.http.status_code"}
                                 :hist_boundaries [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0]}})
 
     (let [response (h/get-json "/api/metrics/http.server.duration")
@@ -100,7 +100,7 @@
       (is (= "histogram" (:metric_type metric)))
       (is (= "delta" (:temporality metric)))
       ;; Attributes returned as sorted array
-      (is (= ["http.method" "http.route" "http.status_code"] (:attributes metric)))
+      (is (= ["attr.http.method" "attr.http.route" "attr.http.status_code"] (:attributes metric)))
       ;; Histogram boundaries preserved
       (is (= [0.005 0.01 0.025 0.05 0.1 0.25 0.5 1.0] (:hist_boundaries metric))))))
 
@@ -111,7 +111,7 @@
                                {:metric_type :gauge
                                 :unit "%"
                                 :description "CPU usage"
-                                :attributes #{"host.name"}}})
+                                :attributes #{"attr.host.name"}}})
 
     (let [response (h/get-json "/api/metrics/cpu.utilization")
           metric (:body response)]
