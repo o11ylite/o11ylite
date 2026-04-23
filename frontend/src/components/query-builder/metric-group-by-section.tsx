@@ -45,10 +45,8 @@ export function MetricGroupBySection({
   })
 
   // Convert metric attributes to Field[] format
-  // Metric attributes are stored as bare names (e.g., "host.name")
-  // but query uses "attr." prefix (e.g., "attr.host.name")
   const fields: Field[] = (metricDetail?.attributes ?? []).map((attr) => ({
-    name: `attr.${attr}`,
+    name: attr,
     type: "string" as const,
   }))
 

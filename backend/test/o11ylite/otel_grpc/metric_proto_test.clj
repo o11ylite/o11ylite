@@ -111,14 +111,14 @@
       (is (= {:description "CPU utilization percentage"
               :unit "%"
               :metric_type :gauge
-              :attributes #{"cpu.core" "service.name" "host.name"}}
+              :attributes #{"attr.cpu.core" "attr.service.name" "attr.host.name"}}
              (get metrics-metadata "cpu.utilization")))
 
       ;; Memory metric metadata (no data-point attrs, but resource attrs present)
       (is (= {:description "Memory used"
               :unit "bytes"
               :metric_type :gauge
-              :attributes #{"service.name" "host.name"}}
+              :attributes #{"attr.service.name" "attr.host.name"}}
              (get metrics-metadata "memory.used"))))))
 
 (deftest parse-metrics-request-metadata-merge-test
@@ -146,7 +146,7 @@
       (is (= {:description "HTTP request count"
               :unit "1"
               :metric_type :gauge
-              :attributes #{"method" "status" "service.name"}}
+              :attributes #{"attr.method" "attr.status" "attr.service.name"}}
              (get metrics-metadata "http.requests"))))))
 
 (deftest defaults-service-name-when-missing-test
