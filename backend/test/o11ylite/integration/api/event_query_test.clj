@@ -344,6 +344,42 @@
                        (fn [s] (vec (sort-by (juxt #(get-in % [:labels :service]) :name) s))))))))))
 
 ;; ---------------------------------------------------------
+;; Percentile Aggregations
+
+(deftest events-query-percentile-aggregations-test
+  (testing "POST /api/query/events with p50/p90/p99 returns correct percentiles"
+    (let [bucket-1 (-> (t/instant) (t/truncate :minutes))
+          bucket-1-ms (.toEpochMilli bucket-1)]
+
+      ;; Ingest events with deterministic durations: 10, 20, 30, 40, 50
+      (doseq [dur [10.0 20.0 30.0 40.0 50.0]]
+        (h/ingest-sample-events! 1
+                                 {:service "percentile-test-service"
+                                  :timestamp bucket-1
+                                  :span.duration_ms dur}))
+
+      ;; Query with p50, p90, p99 aggregations
+      (let [end-ms (+ bucket-1-ms 60000)
+            response (h/post-json "/api/query/events"
+                                  {:time_range {:start bucket-1-ms :end end-ms}
+                                   :aggregations [{:id "A" :field "span.duration_ms" :function "p50"}
+                                                  {:id "B" :field "span.duration_ms" :function "p90"}
+                                                  {:id "C" :field "span.duration_ms" :function "p99"}]
+                                   :visualization {:type "time_series" :bucket_ms 60000}})
+            data (get-in response [:body :data])]
+        (is (= 200 (h/status response)))
+        ;; DuckDB approx_quantile is approximate, so we allow a small margin
+        (let [series (first (filter #(= "p50(span.duration_ms)" (:name %)) (:series data)))
+              p50-value (get-in series [:data 0 :value])]
+          (is (< (Math/abs (- p50-value 30.0)) 5.0) "p50 should be approximately 30"))
+        (let [series (first (filter #(= "p90(span.duration_ms)" (:name %)) (:series data)))
+              p90-value (get-in series [:data 0 :value])]
+          (is (< (Math/abs (- p90-value 50.0)) 5.0) "p90 should be approximately 50"))
+        (let [series (first (filter #(= "p99(span.duration_ms)" (:name %)) (:series data)))
+              p99-value (get-in series [:data 0 :value])]
+          (is (< (Math/abs (- p99-value 50.0)) 5.0) "p99 should be approximately 50"))))))
+
+;; ---------------------------------------------------------
 ;; Heatmap Visualization (DEFERRED to post-v1)
 ;;
 ;; Decision: Heatmap is deferred because:
