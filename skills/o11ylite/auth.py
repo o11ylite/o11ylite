@@ -38,6 +38,9 @@ from typing import Any, NoReturn
 
 CREDENTIALS_PATH = Path.home() / ".o11ylite" / "credentials.json"
 CALLBACK_TIMEOUT = 120  # seconds
+USER_AGENT = (
+    "o11ylite-agent/1.0"  # avoids WAF/CDN blocks triggered by urllib's default UA
+)
 
 
 def _ssl_context() -> ssl.SSLContext | None:
@@ -109,7 +112,9 @@ def _discover_inertia_version(base_url: str) -> str:
     We use /explore rather than / because / redirects to /explore, and
     urllib's redirect handling may not follow all redirect types cleanly.
     """
-    req = urllib.request.Request(base_url + "/explore")
+    req = urllib.request.Request(
+        base_url + "/explore", headers={"User-Agent": USER_AGENT}
+    )
     try:
         with urllib.request.urlopen(req, timeout=10, context=_ssl_context()) as resp:
             body = resp.read().decode("utf-8", errors="replace")
@@ -226,7 +231,10 @@ def _run_pkce_flow(base_url: str, scope: str) -> dict:
     token_req = urllib.request.Request(
         f"{base_url}/oauth/token",
         data=token_body,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+        },
         method="POST",
     )
 
