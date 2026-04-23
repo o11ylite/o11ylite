@@ -79,15 +79,21 @@ const COUNT_SCALES: ScaleStep[] = [
 
 /** Format a number with appropriate precision, trimming trailing zeros.
  *  Uses `decimals` for values >= 1, and `toPrecision` for smaller values
- *  so that e.g. 0.023 doesn't round to "0" with 1 decimal place. */
-function formatNumber(value: number, decimals: number): string {
-  if (value === 0) return "0"
-  const abs = Math.abs(value)
+ *  so that e.g. 0.023 doesn't round to "0" with 1 decimal place.
+ *  Defensively handles non-number inputs (strings, null, undefined) by
+ *  converting or falling back to a safe display. */
+function formatNumber(value: unknown, decimals: number): string {
+  const num = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(num)) {
+    return typeof value === "string" ? value : String(value)
+  }
+  if (num === 0) return "0"
+  const abs = Math.abs(num)
   // For small values, use significant digits so 0.023 shows as "0.02" not "0"
   const s = abs < 1
-    ? Number(value.toPrecision(Math.max(decimals, 2)))
+    ? Number(num.toPrecision(Math.max(decimals, 2)))
         .toString()
-    : value.toFixed(decimals)
+    : num.toFixed(decimals)
   // Trim trailing zeros after decimal point, then trailing dot
   return s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")
 }
