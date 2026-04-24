@@ -204,8 +204,6 @@
                               {:headers {"Content-Type" "application/x-protobuf"}
                                :body (.toByteArray proto-request)})]
       (is (= 200 (:status response)))
-      ;; Wait for batcher to flush (test config uses 100ms interval)
-      (Thread/sleep 200)
       ;; Verify data was persisted
       (let [rows (query-metrics-by-name metric-name)]
         (is (= 1 (count rows)))
@@ -302,7 +300,6 @@
                                          "Content-Encoding" "gzip"}
                                :body (gzip-bytes (.toByteArray proto-request))})]
       (is (= 200 (:status response)))
-      (Thread/sleep 200)
       (let [rows (query-metrics-by-name metric-name)]
         (is (= 1 (count rows)))
         (is (= 77.3 (:value (first rows))))))))
