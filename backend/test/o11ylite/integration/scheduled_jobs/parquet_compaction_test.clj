@@ -145,11 +145,15 @@
 
 (deftest merge-adjacent-files-compacts-data-test
   (testing "After ingesting events, merge returns files-created and files-processed"
-    ;; Fix service name so all events land in the same partition,
-    ;; giving us predictable 1 file per batch.
-    (h/ingest-sample-events! 5 {:service "test-service"})
-    (h/ingest-sample-events! 5 {:service "test-service"})
-    (h/ingest-sample-events! 5 {:service "test-service"})
+    ;; Pin both service and timestamp so all events land in the same
+    ;; year/month/day/service partition. Without a fixed timestamp,
+    ;; make-random-event picks a random time in the past hour — when the
+    ;; test runs near a UTC day boundary, events can straddle two day
+    ;; partitions and the merge produces one output file per partition.
+    (let [overrides {:service "test-service" :timestamp (Instant/now)}]
+      (h/ingest-sample-events! 5 overrides)
+      (h/ingest-sample-events! 5 overrides)
+      (h/ingest-sample-events! 5 overrides))
 
     ;; Compact small files
     (let [result (ducklake/merge-adjacent-files!
