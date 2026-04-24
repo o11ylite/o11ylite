@@ -4,7 +4,22 @@ import type {
   SimpleFilter,
   QueryBuilderState,
   QueryMode,
+  Visualization,
 } from "@/types"
+
+/** Coerce a visualization to one valid for the given mode.
+ *  Metrics mode only supports time_series; preserve extra fields (e.g. bucket_ms,
+ *  overlay) when type already matches, otherwise replace. Events mode falls back
+ *  to table when missing. */
+function visualizationForMode(
+  mode: QueryMode,
+  viz: Visualization | undefined,
+): Visualization {
+  if (mode === "metrics") {
+    return viz?.type === "time_series" ? viz : { type: "time_series" }
+  }
+  return viz ?? { type: "table" }
+}
 
 // ============================================================================
 // Defaults
@@ -61,6 +76,7 @@ export function queryStateToPayload(
   state: QueryBuilderState,
 ): Record<string, FormDataConvertible> {
   const filter = withServiceFilter(buildFilterExpr(state.filters), state.service)
+  const visualization = visualizationForMode(state.mode, state.visualization)
   const full: Record<string, unknown> =
     state.mode === "events"
       ? {
@@ -69,14 +85,14 @@ export function queryStateToPayload(
           group_by: state.groupBy,
           having: state.having,
           limit: state.limit,
-          visualization: state.visualization,
+          visualization,
         }
       : {
           filter,
           metrics: state.metrics,
           group_by: state.groupBy,
           having: state.having,
-          visualization: state.visualization,
+          visualization,
         }
 
   const isPresent = (v: unknown) =>
@@ -102,8 +118,9 @@ interface QueryEntity {
 /** Derive QueryBuilderState from a persisted entity. */
 export function queryStateFromEntity(entity: QueryEntity): QueryBuilderState {
   const q = entity.query
+  const mode = entity.query_mode
   return {
-    mode: entity.query_mode,
+    mode,
     filters: filtersFromExpr(q.filter),
     aggregations:
       (q.aggregations as QueryBuilderState["aggregations"]) ?? [],
@@ -111,8 +128,9 @@ export function queryStateFromEntity(entity: QueryEntity): QueryBuilderState {
     having: q.having as QueryBuilderState["having"],
     limit: q.limit as number | undefined,
     metrics: (q.metrics as QueryBuilderState["metrics"]) ?? [],
-    visualization: (q.visualization as QueryBuilderState["visualization"]) ?? {
-      type: "table",
-    },
+    visualization: visualizationForMode(
+      mode,
+      q.visualization as Visualization | undefined,
+    ),
   }
 }
