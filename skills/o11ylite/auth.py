@@ -106,14 +106,21 @@ def _save_credentials(data: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _discover_inertia_version(base_url: str) -> str:
+def _discover_inertia_version(base_url: str, token: str) -> str:
     """GET /explore and extract the Inertia version from the data-page attribute.
 
     We use /explore rather than / because / redirects to /explore, and
     urllib's redirect handling may not follow all redirect types cleanly.
+
+    The Authorization header is required: on auth-gated deployments /explore
+    will not return the HTML shell (with the data-page attribute) without it.
     """
     req = urllib.request.Request(
-        base_url + "/explore", headers={"User-Agent": USER_AGENT}
+        base_url + "/explore",
+        headers={
+            "User-Agent": USER_AGENT,
+            "Authorization": f"Bearer {token}",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=10, context=_ssl_context()) as resp:
@@ -324,8 +331,8 @@ def main():
             expires_at = time.time() + token_resp.get("expires_in", 3600)
             scope = token_resp.get("scope", args.scope)
 
-    # Discover Inertia version
-    inertia_version = _discover_inertia_version(base_url)
+    # Discover Inertia version (requires auth)
+    inertia_version = _discover_inertia_version(base_url, token)
 
     # Cache and output
     _save_credentials(
