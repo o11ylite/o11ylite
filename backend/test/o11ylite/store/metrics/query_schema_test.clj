@@ -231,6 +231,27 @@
                    :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]}))))
 
 ;; ---------------------------------------------------------
+;; Visualization Validation
+
+(deftest visualization-validation-test
+  (testing "visualization is optional (defaults to time_series for metrics)"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]})))
+
+  (testing "render_as enum accepts line and stacked_area"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                 :visualization {:type "time_series" :render_as "line"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                 :visualization {:type "time_series" :render_as "stacked_area"}})))
+
+  (testing "render_as rejects unknown values"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                   :visualization {:type "time_series" :render_as "bar"}}))))
+
+;; ---------------------------------------------------------
 ;; Full Query Examples
 
 (deftest full-query-examples-test

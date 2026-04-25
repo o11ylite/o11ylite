@@ -18,6 +18,7 @@ export function ResultsTimeSeries({
 }) {
   const result = data.data as TimeSeriesQueryResult
   const overlay = visualization.overlay ?? false
+  const renderAs = visualization.render_as ?? "line"
 
   const metricGroups = useMemo(() => groupByMetric(result), [result])
 
@@ -33,12 +34,19 @@ export function ResultsTimeSeries({
           <TimeSeriesSettings
             overlay={overlay}
             onOverlayChange={(value) => onVisualizationChange({ ...visualization, overlay: value })}
+            renderAs={renderAs}
+            onRenderAsChange={(value) => onVisualizationChange({ ...visualization, render_as: value })}
           />
         </div>
       )}
 
       {overlay ? (
-        <TimeSeriesChart data={result} connectNulls={connectNulls} units={result.units} />
+        <TimeSeriesChart
+          data={result}
+          connectNulls={connectNulls}
+          units={result.units}
+          renderAs={renderAs}
+        />
       ) : (
         <div className="flex flex-col gap-4">
           {metricGroups.map(([name, subset]) => (
@@ -49,6 +57,7 @@ export function ResultsTimeSeries({
               connectNulls={connectNulls}
               shortLegendLabels
               units={result.units}
+              renderAs={renderAs}
             />
           ))}
         </div>
