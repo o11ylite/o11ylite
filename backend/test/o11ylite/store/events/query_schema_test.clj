@@ -85,6 +85,17 @@
                  :aggregations [{:id "A" :field "*" :function "count"}]
                  :visualization {:type "time_series" :bucket_ms 60000}})))
 
+  (testing "time_series render_as enum"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}]
+                 :visualization {:type "time_series" :render_as "line"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}]
+                 :visualization {:type "time_series" :render_as "stacked_area"}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :aggregations [{:id "A" :field "*" :function "count"}]
+                   :visualization {:type "time_series" :render_as "pie"}})))
+
   ;; DEFERRED: Heatmap visualization is deferred to post-v1.
   ;; Schema validation is kept to ensure API contract is stable when implemented.
   (testing "heatmap visualization requires exactly one group_by (DEFERRED)"

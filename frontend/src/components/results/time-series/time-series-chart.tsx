@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from "react"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, ReferenceArea } from "recharts"
+import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis, ReferenceArea } from "recharts"
 
-import type { TimeSeriesQueryResult } from "@/types"
+import type { TimeSeriesQueryResult, TimeSeriesRenderAs } from "@/types"
 import { useTimeRange } from "@/hooks/use-time-range"
 import {
   type ChartConfig,
@@ -26,6 +26,8 @@ interface TimeSeriesChartProps {
   shortLegendLabels?: boolean
   // Metric name -> OTel unit string, from the query response
   units?: Record<string, string | null>
+  // How to draw each series. Defaults to "line".
+  renderAs?: TimeSeriesRenderAs
 }
 
 export function TimeSeriesChart({
@@ -34,10 +36,15 @@ export function TimeSeriesChart({
   connectNulls = false,
   shortLegendLabels = false,
   units,
+  renderAs = "line",
 }: TimeSeriesChartProps) {
+  // Stacked area requires numeric values at every bucket -- otherwise the stack
+  // develops holes. Zero-fill missing points only for the stacked path; the
+  // line path keeps nulls so real gaps remain visible.
+  const isStackedArea = renderAs === "stacked_area"
   const { chartData, seriesMeta } = useMemo(
-    () => transformData(data, { shortLegendLabels }),
-    [data, shortLegendLabels]
+    () => transformData(data, { shortLegendLabels, zeroFillNulls: isStackedArea }),
+    [data, shortLegendLabels, isStackedArea]
   )
   const showLegend = seriesMeta.length > 1
   const { setRange } = useTimeRange()
@@ -124,7 +131,7 @@ export function TimeSeriesChart({
         className="h-[240px] w-full py-2 px-2 touch-pan-y"
         onPointerMove={handlePointerMove}
       >
-        <LineChart
+        <ComposedChart
           accessibilityLayer
           data={chartData}
           onMouseDown={handleMouseDown}
@@ -179,17 +186,35 @@ export function TimeSeriesChart({
             }
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
-          {seriesMeta.map((series) => (
-            <Line
-              key={series.key}
-              dataKey={series.key}
-              type="monotone"
-              stroke={series.color}
-              strokeWidth={2}
-              dot={{ fill: series.color, strokeWidth: 0, r: 2 }}
-              connectNulls={connectNulls}
-            />
-          ))}
+          {seriesMeta.map((series) =>
+            isStackedArea ? (
+              <Area
+                key={series.key}
+                dataKey={series.key}
+                type="monotone"
+                stackId="stack"
+                stroke={series.color}
+                strokeWidth={1}
+                fill={series.color}
+                fillOpacity={0.4}
+                // Stacked areas are already zero-filled in transformData, so
+                // connectNulls has no effect -- pass true for safety.
+                connectNulls
+                isAnimationActive={false}
+                activeDot={{ r: 3 }}
+              />
+            ) : (
+              <Line
+                key={series.key}
+                dataKey={series.key}
+                type="monotone"
+                stroke={series.color}
+                strokeWidth={2}
+                dot={{ fill: series.color, strokeWidth: 0, r: 2 }}
+                connectNulls={connectNulls}
+              />
+            )
+          )}
           {refAreaLeft !== null && refAreaRight !== null && (
             <ReferenceArea
               x1={refAreaLeft}
@@ -200,7 +225,7 @@ export function TimeSeriesChart({
               fillOpacity={0.3}
             />
           )}
-        </LineChart>
+        </ComposedChart>
       </ChartContainer>
     </div>
   )
