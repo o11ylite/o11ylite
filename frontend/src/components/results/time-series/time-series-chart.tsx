@@ -212,6 +212,7 @@ export function TimeSeriesChart({
                 strokeWidth={2}
                 dot={{ fill: series.color, strokeWidth: 0, r: 2 }}
                 connectNulls={connectNulls}
+                isAnimationActive={false}
               />
             )
           )}
