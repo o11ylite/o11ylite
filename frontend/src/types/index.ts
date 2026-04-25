@@ -93,10 +93,14 @@ export interface TableVisualization {
   displayed_fields?: string[]
 }
 
+export type TimeSeriesRenderAs = "line" | "stacked_area"
+
 export interface TimeSeriesVisualization {
   type: "time_series"
   bucket_ms?: number
   overlay?: boolean
+  // How to draw each series. Defaults to "line" when omitted.
+  render_as?: TimeSeriesRenderAs
 }
 
 export interface TraceVisualization {

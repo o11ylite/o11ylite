@@ -119,7 +119,8 @@
   [:map {:closed true}
    [:type [:= "time_series"]]
    [:bucket_ms {:optional true} [:int {:min 1}]]
-   [:overlay {:optional true} :boolean]])
+   [:overlay {:optional true} :boolean]
+   [:render_as {:optional true} [:enum "line" "stacked_area"]]])
 
 (def visualization
   "Visualization config for metrics queries. Currently only time_series is supported."

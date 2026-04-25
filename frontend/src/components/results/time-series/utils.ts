@@ -52,19 +52,22 @@ export interface SeriesMeta {
 
 // Transforms backend series data into Recharts-compatible format
 // Each data point becomes a row with timestamp and values for each series
-// Missing data points are set to null so charts can show gaps
+// Missing data points are set to null by default (so line charts show gaps)
+// or to 0 when zeroFillNulls is true (required for stacked area to
+// avoid holes in the stack).
 //
 // Options:
 // - shortLegendLabels: use shorter labels (omit metric name) for when charts are split by metric
+// - zeroFillNulls: replace missing points with 0 instead of null
 export function transformData(
   result: TimeSeriesQueryResult,
-  options: { shortLegendLabels?: boolean } = {}
+  options: { shortLegendLabels?: boolean; zeroFillNulls?: boolean } = {}
 ): {
   chartData: Record<string, number | null>[]
   seriesMeta: SeriesMeta[]
 } {
   const { series, start_ms, end_ms, bucket_ms } = result
-  const { shortLegendLabels = false } = options
+  const { shortLegendLabels = false, zeroFillNulls = false } = options
 
   // Generate all bucket timestamps from start to end
   const timestamps: number[] = []
@@ -96,7 +99,7 @@ export function transformData(
     for (const { series: s, map } of seriesDataMaps) {
       const key = seriesKey(s.labels, s.name)
       const value = map.get(timestamp)
-      row[key] = value !== undefined ? value : null
+      row[key] = value !== undefined ? value : zeroFillNulls ? 0 : null
     }
 
     return row
