@@ -97,6 +97,7 @@ export function NotebookCell({
     opts?: { onFinish?: () => void },
   ) => {
     router.put(cellUrl(notebookId, cell.id), payload, {
+      preserveUrl: true,
       onFinish: opts?.onFinish,
     })
   }
@@ -130,11 +131,11 @@ export function NotebookCell({
 
   const handleDelete = () => {
     if (!confirm("Delete this cell?")) return
-    router.delete(cellUrl(notebookId, cell.id))
+    router.delete(cellUrl(notebookId, cell.id), { preserveUrl: true })
   }
 
   const handleMove = (direction: "up" | "down") => {
-    router.post(`${cellUrl(notebookId, cell.id)}/move`, { direction })
+    router.post(`${cellUrl(notebookId, cell.id)}/move`, { direction }, { preserveUrl: true })
   }
 
   // ------------------------------------------------------------------

@@ -8,7 +8,7 @@ export function AddCellButton({ notebookId }: { notebookId: string }) {
     router.post(`/notebooks/${notebookId}/cells`, {
       query_mode: "events",
       query: { visualization: { type: "table" }, limit: 10 },
-    })
+    }, { preserveUrl: true })
   }
 
   return (
