@@ -49,4 +49,24 @@ describe("transformData", () => {
     expect(chartData.map((row) => row[keyA])).toEqual([1, 0, 3])
     expect(chartData.map((row) => row[keyB])).toEqual([2, 4, 6])
   })
+
+  it("assigns colors deterministically from sorted series keys, independent of input order", () => {
+    // Capture the (key → color) mapping in the natural input order.
+    const { seriesMeta } = transformData(makeResult())
+    const colorByKey = new Map(seriesMeta.map((m) => [m.key, m.color]))
+
+    // The lowest-sorting key should get the first palette slot. This is the
+    // guarantee that lets us use the most distinct colors first.
+    const sortedKeys = [...colorByKey.keys()].sort()
+    expect(colorByKey.get(sortedKeys[0])).toBe("var(--chart-1)")
+
+    // Reversing the series order in the response must not change any series'
+    // color -- this is the bug the fix prevents.
+    const reversed = makeResult()
+    reversed.series = [...reversed.series].reverse()
+    const { seriesMeta: reversedMeta } = transformData(reversed)
+    for (const meta of reversedMeta) {
+      expect(meta.color).toBe(colorByKey.get(meta.key))
+    }
+  })
 })

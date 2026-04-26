@@ -1,6 +1,8 @@
 import type { TimeSeriesQueryResult } from "@/types"
 
-// Chart color palette - cycles through these for multiple series
+// Chart color palette - series are assigned colors from this list in order
+// of their sorted seriesKey, so the same set of series always produces the
+// same color mapping regardless of how the backend ordered them.
 const CHART_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
@@ -75,13 +77,25 @@ export function transformData(
     timestamps.push(ts)
   }
 
-  // Build series metadata
+  // Build series metadata.
+  // Color assignment: sort the series' stable keys and pick colors from the
+  // palette in that order. This guarantees the same set of series always
+  // produces the same color mapping (no reshuffling on refresh) and uses the
+  // earlier (more distinct) palette slots first.
   const labelFn = shortLegendLabels ? seriesLegendLabel : seriesLabel
-  const seriesMeta = series.map((s, idx) => ({
-    key: seriesKey(s.labels, s.name),
-    label: labelFn(s.labels, s.name),
-    color: CHART_COLORS[idx % CHART_COLORS.length],
-  }))
+  const keys = series.map((s) => seriesKey(s.labels, s.name))
+  const sortedKeys = [...keys].sort()
+  const colorByKey = new Map(
+    sortedKeys.map((k, i) => [k, CHART_COLORS[i % CHART_COLORS.length]])
+  )
+  const seriesMeta = series.map((s, i) => {
+    const key = keys[i]
+    return {
+      key,
+      label: labelFn(s.labels, s.name),
+      color: colorByKey.get(key)!,
+    }
+  })
 
   // Index series data by timestamp for O(1) lookup
   const seriesDataMaps = series.map((s) => {
