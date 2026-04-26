@@ -55,6 +55,7 @@ export function TimeSeriesSettings({
               <SelectContent>
                 <SelectItem value="line">Lines</SelectItem>
                 <SelectItem value="stacked_area">Stacked area</SelectItem>
+                <SelectItem value="bar">Bar</SelectItem>
               </SelectContent>
             </Select>
           </div>

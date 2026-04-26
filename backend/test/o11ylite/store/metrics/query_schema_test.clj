@@ -238,18 +238,21 @@
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]})))
 
-  (testing "render_as enum accepts line and stacked_area"
+  (testing "render_as enum accepts line, stacked_area, and bar"
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
                  :visualization {:type "time_series" :render_as "line"}}))
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
-                 :visualization {:type "time_series" :render_as "stacked_area"}})))
+                 :visualization {:type "time_series" :render_as "stacked_area"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                 :visualization {:type "time_series" :render_as "bar"}})))
 
   (testing "render_as rejects unknown values"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
-                   :visualization {:type "time_series" :render_as "bar"}}))))
+                   :visualization {:type "time_series" :render_as "pie"}}))))
 
 ;; ---------------------------------------------------------
 ;; Full Query Examples

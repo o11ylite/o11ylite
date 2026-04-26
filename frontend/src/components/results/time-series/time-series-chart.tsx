@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useRef } from "react"
-import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis, ReferenceArea } from "recharts"
+import { Area, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis, ReferenceArea } from "recharts"
 
 import type { TimeSeriesQueryResult, TimeSeriesRenderAs } from "@/types"
 import { useTimeRange } from "@/hooks/use-time-range"
@@ -38,13 +38,15 @@ export function TimeSeriesChart({
   units,
   renderAs = "line",
 }: TimeSeriesChartProps) {
-  // Stacked area requires numeric values at every bucket -- otherwise the stack
-  // develops holes. Zero-fill missing points only for the stacked path; the
-  // line path keeps nulls so real gaps remain visible.
+  // Stacked area and stacked bars both require numeric values at every bucket --
+  // otherwise the stack develops holes. Zero-fill missing points only for those
+  // paths; the line path keeps nulls so real gaps remain visible.
   const isStackedArea = renderAs === "stacked_area"
+  const isBar = renderAs === "bar"
+  const zeroFillNulls = isStackedArea || isBar
   const { chartData, seriesMeta } = useMemo(
-    () => transformData(data, { shortLegendLabels, zeroFillNulls: isStackedArea }),
-    [data, shortLegendLabels, isStackedArea]
+    () => transformData(data, { shortLegendLabels, zeroFillNulls }),
+    [data, shortLegendLabels, zeroFillNulls]
   )
   const showLegend = seriesMeta.length > 1
   const { setRange } = useTimeRange()
@@ -186,24 +188,39 @@ export function TimeSeriesChart({
             }
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
-          {seriesMeta.map((series) =>
-            isStackedArea ? (
-              <Area
-                key={series.key}
-                dataKey={series.key}
-                type="monotone"
-                stackId="stack"
-                stroke={series.color}
-                strokeWidth={1}
-                fill={series.color}
-                fillOpacity={0.4}
-                // Stacked areas are already zero-filled in transformData, so
-                // connectNulls has no effect -- pass true for safety.
-                connectNulls
-                isAnimationActive={false}
-                activeDot={{ r: 3 }}
-              />
-            ) : (
+          {seriesMeta.map((series) => {
+            if (isStackedArea) {
+              return (
+                <Area
+                  key={series.key}
+                  dataKey={series.key}
+                  type="monotone"
+                  stackId="stack"
+                  stroke={series.color}
+                  strokeWidth={1}
+                  fill={series.color}
+                  fillOpacity={0.4}
+                  // Stacked areas are already zero-filled in transformData, so
+                  // connectNulls has no effect -- pass true for safety.
+                  connectNulls
+                  isAnimationActive={false}
+                  activeDot={{ r: 3 }}
+                />
+              )
+            }
+            if (isBar) {
+              return (
+                <Bar
+                  key={series.key}
+                  dataKey={series.key}
+                  stackId="stack"
+                  fill={series.color}
+                  fillOpacity={0.85}
+                  isAnimationActive={false}
+                />
+              )
+            }
+            return (
               <Line
                 key={series.key}
                 dataKey={series.key}
@@ -215,7 +232,7 @@ export function TimeSeriesChart({
                 isAnimationActive={false}
               />
             )
-          )}
+          })}
           {refAreaLeft !== null && refAreaRight !== null && (
             <ReferenceArea
               x1={refAreaLeft}

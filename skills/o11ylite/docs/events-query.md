@@ -180,7 +180,7 @@ Bucketed time series. Requires at least one aggregation.
 
 Optional visualization fields:
 - `overlay` (boolean, default `false`) — when multiple metrics are present, draw them in a single chart instead of one chart per metric.
-- `render_as` (`"line"` | `"stacked_area"`, default `"line"`) — draw each series as a line, or as a filled region stacked on top of the others. Stacked area treats missing buckets as 0 so the stack has no holes; pick it for part-of-whole views (e.g. request count by status code).
+- `render_as` (`"line"` | `"stacked_area"` | `"bar"`, default `"line"`) — draw each series as a line, as a filled region stacked on top of the others, or as a stacked bar per bucket. Stacked area and bar treat missing buckets as 0 so the stack has no holes; pick either for part-of-whole views (e.g. request count by status code).
 
 **Response:**
 ```json

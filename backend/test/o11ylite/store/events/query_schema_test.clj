@@ -92,6 +92,9 @@
     (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
                  :aggregations [{:id "A" :field "*" :function "count"}]
                  :visualization {:type "time_series" :render_as "stacked_area"}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :aggregations [{:id "A" :field "*" :function "count"}]
+                 :visualization {:type "time_series" :render_as "bar"}}))
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :aggregations [{:id "A" :field "*" :function "count"}]
                    :visualization {:type "time_series" :render_as "pie"}})))
