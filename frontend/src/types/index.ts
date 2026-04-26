@@ -93,7 +93,7 @@ export interface TableVisualization {
   displayed_fields?: string[]
 }
 
-export type TimeSeriesRenderAs = "line" | "stacked_area"
+export type TimeSeriesRenderAs = "line" | "stacked_area" | "bar"
 
 export interface TimeSeriesVisualization {
   type: "time_series"
