@@ -9,9 +9,9 @@
 ;;   - Top-level filter + per-metric filter overrides
 ;;   - Shared group-by across all metrics
 ;;   - Auto or manual time bucketing
+;;   - Formula support (A / B * 100) with cross-field validation
 ;;
 ;; Deferred:
-;;   - Formula support (A / B * 100)
 ;;   - Aggregation-type validation (requires metadata lookup)
 ;;   - Histogram percentiles (p50, p99)
 ;; ---------------------------------------------------------
@@ -19,7 +19,8 @@
 (ns o11ylite.store.metrics.query-schema
   (:require
     [malli.core :as m]
-    [malli.error :as me]))
+    [malli.error :as me]
+    [o11ylite.store.metrics.formula :as formula]))
 
 ;; ---------------------------------------------------------
 ;; Primitive Schemas
@@ -70,7 +71,7 @@
 ;; Metric-Specific Schemas
 
 (def metric-ref
-  "Single uppercase letter A-Z for referencing metrics in formulas (future)."
+  "Single uppercase letter A-Z for referencing metrics in formulas."
   [:re {:error/message "metric id must be a single uppercase letter A-Z"}
    #"^[A-Z]$"])
 
@@ -96,6 +97,20 @@
    [:name metric-name]
    [:agg aggregation]
    [:filter {:optional true} filter-expr]])
+
+(def formula-ref
+  "Formula identifier. Distinct from metric-ref namespace (A-Z) — uses
+   F1-F9 to make formula vs metric IDs visually unambiguous."
+  [:re {:error/message "formula id must be F1-F9"}
+   #"^F[1-9]$"])
+
+(def formula-definition
+  "Definition of a single formula computed over metric query results."
+  [:map
+   [:id formula-ref]
+   [:expr [:string {:min 1 :max 256}]]
+   [:name {:optional true} [:string {:min 1 :max 128}]]
+   [:unit {:optional true} [:string {:max 32}]]])
 
 ;; ---------------------------------------------------------
 ;; Having Schema
@@ -138,6 +153,7 @@
    [:group_by {:optional true} [:vector field-name]]
    [:having {:optional true} having-expr]
    [:metrics [:vector {:min 1} metric-definition]]
+   [:formulas {:optional true} [:vector {:max 10} formula-definition]]
    [:visualization {:optional true} visualization]])
 
 (defn- -unique-metric-ids?
@@ -154,6 +170,42 @@
       (contains? metric-ids (:ref having)))
     true))
 
+(defn- -unique-formula-ids?
+  "All formula IDs must be unique within :formulas."
+  [{:keys [formulas]}]
+  (let [ids (map :id formulas)]
+    (= (count ids) (count (set ids)))))
+
+(defn- -formulas-parse?
+  "Every formula :expr must parse successfully."
+  [{:keys [formulas]}]
+  (every? (fn [{:keys [expr]}]
+            (try
+              (formula/parse expr)
+              true
+              (catch Exception _ false)))
+          formulas))
+
+(defn- -formula-refs-resolve?
+  "Every metric ref inside a formula :expr must exist in :metrics."
+  [{:keys [formulas metrics]}]
+  (let [metric-ids (set (map :id metrics))]
+    (every?
+      (fn [{:keys [expr]}]
+        (try
+          (every? metric-ids (formula/refs (formula/parse expr)))
+          (catch Exception _ true)))   ; parse failure reported by -formulas-parse?
+      formulas)))
+
+(defn- -formula-has-refs?
+  "Every formula must reference at least one metric (no constant-only exprs)."
+  [{:keys [formulas]}]
+  (every? (fn [{:keys [expr]}]
+            (try
+              (seq (formula/refs (formula/parse expr)))
+              (catch Exception _ true)))   ; parse failure reported by -formulas-parse?
+          formulas))
+
 (def metrics-query
   "Schema for metrics query requests."
   [:and
@@ -161,7 +213,15 @@
    [:fn {:error/message "metric IDs must be unique"}
     -unique-metric-ids?]
    [:fn {:error/message "having ref must reference an existing metric ID"}
-    -valid-having-ref?]])
+    -valid-having-ref?]
+   [:fn {:error/message "formula IDs must be unique"}
+    -unique-formula-ids?]
+   [:fn {:error/message "formula expressions must be valid"}
+    -formulas-parse?]
+   [:fn {:error/message "formula refs must reference declared metric IDs"}
+    -formula-refs-resolve?]
+   [:fn {:error/message "formula must reference at least one metric"}
+    -formula-has-refs?]])
 
 ;; ---------------------------------------------------------
 ;; Validation
@@ -207,6 +267,17 @@
                          :name "http.server.requests"
                          :agg "sum"}]
               :group_by ["attr.service"]})
+  ;; => nil
+
+  ;; Valid query with formula (free memory %)
+  (validate metrics-query
+            {:time_range {:start 1702000000000 :end 1702003600000}
+             :metrics [{:id "A" :name "mem.free" :agg "avg"}
+                       {:id "B" :name "mem.total" :agg "avg"}]
+             :formulas [{:id "F1"
+                         :expr "A / B * 100"
+                         :name "free mem %"
+                         :unit "%"}]})
   ;; => nil
 
   ;; Missing time_range

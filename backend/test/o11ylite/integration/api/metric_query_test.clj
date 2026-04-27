@@ -784,3 +784,79 @@
         (let [data-points (:data (first series))]
           (is (= 1 (count data-points)))
           (is (= 90.0 (:value (first data-points)))))))))
+
+;; ---------------------------------------------------------
+;; Formulas
+
+(deftest metrics-query-formula-test
+  (testing "POST /api/query/metrics returns formula series alongside source series"
+    (let [bucket-time (-> (t/instant) (t/truncate :minutes))
+          bucket-ms (.toEpochMilli bucket-time)
+          time-ns (instant->time-ns bucket-time)
+          end-ms (+ bucket-ms 60000)]
+
+      ;; Ingest two gauge metrics at the same bucket
+      (h/export-metrics!
+        {:service-name "formula-test-service"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "test.mem.free"
+                      :unit "By"
+                      :data-points [{:value 900.0 :time-ns time-ns}]})
+                   (h/build-gauge-metric
+                     {:name "test.mem.total"
+                      :unit "By"
+                      :data-points [{:value 1000.0 :time-ns time-ns}]})]})
+
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-ms :end end-ms}
+                                   :bucket_ms 60000
+                                   :metrics [{:id "A" :name "test.mem.free" :agg "last"}
+                                             {:id "B" :name "test.mem.total" :agg "last"}]
+                                   :formulas [{:id "F1"
+                                               :expr "A / B * 100"
+                                               :name "free mem %"
+                                               :unit "%"}]})
+            series (get-in response [:body :data :series])
+            ids (set (map :id series))
+            f1 (first (filter #(= "F1" (:id %)) series))
+            units (get-in response [:body :data :units])]
+        (is (= 200 (h/status response)))
+        ;; Source series A and B preserved, plus formula F1
+        (is (= #{"A" "B" "F1"} ids))
+        (is (some? f1))
+        (is (= "F1: free mem %" (:name f1)))
+        (is (= "A / B * 100" (:formula f1)))
+        (is (nil? (:metric f1)))
+        ;; A=900, B=1000 -> A/B*100 = 90.0
+        (let [point (-> f1 :data first)]
+          (is (some? point))
+          (is (<= 89.9 (:value point) 90.1)))
+        ;; Unit propagated (JSON-roundtripped: string keys become keywords)
+        (is (= "%" (get units (keyword "F1: free mem %")))))))
+
+  (testing "POST /api/query/metrics with no matching label combos returns no formula series"
+    ;; Request a formula but ingest only one of the two referenced metrics.
+    ;; This is a sanity check that the endpoint doesn't crash; no F1 series expected.
+    (let [bucket-time (-> (t/instant) (t/truncate :minutes))
+          bucket-ms (.toEpochMilli bucket-time)
+          time-ns (instant->time-ns bucket-time)
+          end-ms (+ bucket-ms 60000)]
+      (h/export-metrics!
+        {:service-name "formula-test-service-2"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "test.solo.metric"
+                      :unit "%"
+                      :data-points [{:value 50.0 :time-ns time-ns}]})]})
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-ms :end end-ms}
+                                   :bucket_ms 60000
+                                   :metrics [{:id "A" :name "test.solo.metric" :agg "last"}
+                                             {:id "B" :name "test.absent.metric" :agg "last"}]
+                                   :formulas [{:id "F1" :expr "A / B"}]})
+            series (get-in response [:body :data :series])
+            f1-series (filter #(= "F1" (:id %)) series)]
+        (is (= 200 (h/status response)))
+        ;; A series present, B series empty/absent, F1 not emitted
+        (is (empty? f1-series))))))

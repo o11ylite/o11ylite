@@ -14,9 +14,9 @@
 ;;   - Global filters + per-metric filters
 ;;   - Shared group-by across metrics
 ;;   - Auto or manual time bucketing
+;;   - Optional formulas computed over the resulting series (A / B * 100)
 ;;
 ;; Deferred:
-;;   - Formula support (A / B * 100)
 ;;   - Histogram percentiles (p50, p99)
 ;; ---------------------------------------------------------
 
@@ -24,6 +24,7 @@
   (:require
     [honey.sql :as sql]
     [next.jdbc :as jdbc]
+    [o11ylite.store.metrics.formula :as formula]
     [o11ylite.store.metrics.metadata :as metadata]
     [o11ylite.store.metrics.query-schema :as query-schema]
     [o11ylite.store.metrics.query-validation :as query-validation]
@@ -213,8 +214,13 @@
                        :name \"avg(cpu.utilization)\"
                        :labels {:attr.host.name \"server-1\"}
                        :data [{:timestamp N :value N} ...]}
+                      ;; If :formulas were supplied, synthetic series are
+                      ;; appended after metric series. They carry :id (e.g.
+                      ;; \"F1\"), :metric nil, :formula <expr>, :name (\"F1\"
+                      ;; or \"F1: <user-name>\"), and a (possibly :unit) field.
                       ...]
              :units {\"cpu.utilization\" \"%\"
+                     ;; Formula units appear keyed as \"F1\" or \"F1: name\"
                      \"network.io\" \"By\"}}
       :metadata {:query_time_ms N}}"
   [duckdb sqlite query]
@@ -226,10 +232,18 @@
         end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
         ;; Execute query for each metric, collecting series and units
         results (map #(-execute-metric duckdb sqlite query % resolved-bucket-ms) metrics)
-        all-series (vec (mapcat :series results))
-        units (into {} (map (fn [metric result]
-                              [(:name metric) (:unit result)])
-                            metrics results))
+        raw-series (vec (mapcat :series results))
+        formulas (or (:formulas query) [])
+        ;; Append synthetic formula series (one per formula × matching label combo)
+        all-series (formula/apply-formulas raw-series formulas)
+        metric-units (into {} (map (fn [metric result]
+                                     [(:name metric) (:unit result)])
+                                   metrics results))
+        formula-units (into {} (for [f formulas
+                                     :when (:unit f)]
+                                 [(if (:name f) (str (:id f) ": " (:name f)) (:id f))
+                                  (:unit f)]))
+        units (merge metric-units formula-units)
         query-time-ms (- (System/currentTimeMillis) start-time)]
     {:data {:bucket_ms resolved-bucket-ms
             :start_ms start-ms
