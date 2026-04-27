@@ -322,3 +322,52 @@
   (testing "having ref must be valid format"
     (is (invalid? (assoc (query-base) :having {:ref "a" :op ">" :value 80})))
     (is (invalid? (assoc (query-base) :having {:ref "AB" :op ">" :value 80})))))
+
+;; ---------------------------------------------------------
+;; Formulas Validation
+
+(deftest formulas-validation-test
+  (testing "formulas optional"
+    (is (valid? (query-base))))
+
+  (testing "valid formula"
+    (is (valid? (assoc (query-base)
+                       :metrics [{:id "A" :name "mem.free" :agg "avg"}
+                                 {:id "B" :name "mem.total" :agg "avg"}]
+                       :formulas [{:id "F1"
+                                   :expr "A / B * 100"
+                                   :name "free mem %"
+                                   :unit "%"}]))))
+
+  (testing "formula id must be F1-F9"
+    (is (invalid? (assoc (query-base)
+                         :formulas [{:id "X" :expr "A"}])))
+    (is (invalid? (assoc (query-base)
+                         :formulas [{:id "F0" :expr "A"}]))))
+
+  (testing "formula ids must be unique"
+    (is (invalid? (assoc (query-base)
+                         :metrics [{:id "A" :name "x" :agg "avg"}
+                                   {:id "B" :name "y" :agg "avg"}]
+                         :formulas [{:id "F1" :expr "A"}
+                                    {:id "F1" :expr "B"}]))))
+
+  (testing "formula expr must parse"
+    (is (invalid? (assoc (query-base)
+                         :formulas [{:id "F1" :expr "A +"}]))))
+
+  (testing "formula refs must reference declared metrics"
+    (is (invalid? (assoc (query-base)
+                         :metrics [{:id "A" :name "x" :agg "avg"}]
+                         :formulas [{:id "F1" :expr "A / B"}]))))
+
+  (testing "empty expr rejected"
+    (is (invalid? (assoc (query-base)
+                         :formulas [{:id "F1" :expr ""}])))
+    ;; whitespace-only slips past schema :min 1 and is caught by formula/parse
+    (is (invalid? (assoc (query-base)
+                         :formulas [{:id "F1" :expr "   "}]))))
+
+  (testing "formula must reference at least one metric"
+    (is (invalid? (assoc (query-base)
+                         :formulas [{:id "F1" :expr "1 + 2"}])))))

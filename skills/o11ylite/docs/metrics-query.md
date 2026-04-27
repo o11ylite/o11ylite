@@ -59,7 +59,8 @@ Use the `attributes` list to know which fields are valid for `filter` and `group
   "bucket_ms": 60000,
   "filter": { ... },
   "group_by": ["attr.host.name"],
-  "having": { ... }
+  "having": { ... },
+  "formulas": [ ... ]
 }
 ```
 
@@ -71,6 +72,7 @@ Use the `attributes` list to know which fields are valid for `filter` and `group
 | `filter`    | No       | Global filter applied to all metrics                   |
 | `group_by`  | No       | Array of attribute names to group by (shared across metrics) |
 | `having`    | No       | Post-aggregation numeric filter                        |
+| `formulas`  | No       | Derived series computed over query results (max 10)    |
 
 ### Metric definition
 
@@ -111,6 +113,33 @@ Filter on aggregation results.
 
 - `ref` — references a metric `id`
 - `op` — `>`, `<`, `>=`, `<=`, `=`, `!=`
+
+### Formulas
+
+Compute derived series from query metrics. Source metric series are
+returned alongside formula series — the frontend decides what to render.
+
+```json
+{"id": "F1", "expr": "A / B * 100", "name": "free mem %", "unit": "%"}
+```
+
+| Field   | Required | Description                                                    |
+|---------|----------|----------------------------------------------------------------|
+| `id`    | Yes      | `F1`–`F9` (distinct namespace from metric IDs A–Z)             |
+| `expr`  | Yes      | Expression using `+ - * /`, parens, decimals, metric refs      |
+| `name`  | No       | Display name; result `name` becomes `"<id>: <name>"`           |
+| `unit`  | No       | Unit string surfaced in `units[<id>: <name>]`                  |
+
+Semantics:
+
+- Inner-join on `(bucket, labels)`. Source series share `group_by` so
+  labels match by construction.
+- Buckets where any operand is missing — or where division by zero
+  occurs — are dropped (no `null` / `NaN` propagation).
+- Each formula must reference at least one metric; constant-only
+  expressions like `1 + 2` are rejected at validation time.
+- Synthetic formula series carry `:metric null`, `:formula <expr>`, and
+  the requested `:unit` (when supplied).
 
 ---
 
@@ -178,6 +207,26 @@ One series per `(labels, metric)` combination. `labels` is `{}` when no `group_b
   "group_by": ["attr.http.route"]
 }
 ```
+
+### Free memory % via formula
+
+```json
+{
+  "time_range": {"start": 1700000000000, "end": 1700003600000},
+  "group_by": ["attr.host.name"],
+  "metrics": [
+    {"id": "A", "name": "system.memory.usage", "agg": "last",
+     "filter": {"field": "attr.state", "op": "=", "value": "free"}},
+    {"id": "B", "name": "system.memory.limit", "agg": "last"}
+  ],
+  "formulas": [
+    {"id": "F1", "expr": "A / B * 100", "name": "free memory %", "unit": "%"}
+  ]
+}
+```
+
+The response contains three series per host: `A` (free bytes), `B`
+(total bytes), and `F1: free memory %` (the derived percent).
 
 ---
 
