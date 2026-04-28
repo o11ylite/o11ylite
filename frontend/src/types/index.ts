@@ -101,6 +101,10 @@ export interface TimeSeriesVisualization {
   overlay?: boolean
   // How to draw each series. Defaults to "line" when omitted.
   render_as?: TimeSeriesRenderAs
+  // Source-metric IDs to hide from the chart. Render-only — backend
+  // ignores this for query execution, but accepts and persists it (e.g.
+  // notebook cells) so the rendering state survives reloads.
+  hidden_metrics?: string[]
 }
 
 export interface TraceVisualization {
@@ -191,6 +195,15 @@ export interface MetricDefinition {
   // TODO: filter?: FilterExpr  // per-metric filter (deferred)
 }
 
+// Single formula computed over query results.
+// Maps to backend: metrics/query_schema.clj#formula-definition
+export interface FormulaDefinition {
+  id: string // "F1".."F9", auto-assigned by query builder
+  expr: string // e.g. "A / B * 100"
+  name?: string // optional display name
+  unit?: string // optional unit string (e.g. "%")
+}
+
 // ============================================================================
 // Metrics Query Types
 // ============================================================================
@@ -204,6 +217,7 @@ export interface MetricsQuery {
   group_by?: string[]
   having?: SimpleHaving
   metrics: MetricDefinition[]
+  formulas?: FormulaDefinition[]
 }
 
 // ============================================================================
@@ -227,6 +241,7 @@ export interface QueryBuilderState {
   visualization: Visualization
   // Metrics mode fields
   metrics: MetricDefinition[]
+  formulas: FormulaDefinition[]
 }
 
 // ============================================================================

@@ -15,6 +15,7 @@ import {
   type QueryMode,
   type Visualization,
   type VisualizationType,
+  type TimeSeriesVisualization,
   type SimpleFilter,
   type Aggregation,
 } from "@/types"
@@ -23,6 +24,7 @@ import { useServicesQuery } from "@/hooks/use-services-query"
 import { FiltersSection } from "./filters-section"
 import { AggregationSection } from "./aggregation-section"
 import { MetricsSection } from "./metrics-section"
+import { FormulasSection } from "./formulas-section"
 import { MetricGroupBySection } from "./metric-group-by-section"
 import { MetricFiltersSection } from "./metric-filters-section"
 import { LimitSelector } from "./limit-selector"
@@ -97,6 +99,7 @@ export function QueryBuilder({
       aggregations: [],
       groupBy: [],
       metrics: [],
+      formulas: [],
       having: undefined,
       service: state.service,
       visualization,
@@ -217,9 +220,28 @@ export function QueryBuilder({
           {/* Metrics */}
           <MetricsSection
             metrics={state.metrics ?? []}
+            hiddenIds={
+              (state.visualization as TimeSeriesVisualization).hidden_metrics ?? []
+            }
             onMetricsChange={(metrics) =>
               updateState({ ...state, metrics, having: undefined })
             }
+            onHiddenChange={(hidden_metrics) =>
+              updateState({
+                ...state,
+                visualization: {
+                  ...(state.visualization as TimeSeriesVisualization),
+                  hidden_metrics,
+                },
+              })
+            }
+          />
+
+          {/* Formulas */}
+          <FormulasSection
+            formulas={state.formulas ?? []}
+            hasMetrics={(state.metrics ?? []).some((m) => m.name)}
+            onFormulasChange={(formulas) => updateState({ ...state, formulas })}
           />
 
           {/* Filters - shows hint when no metric selected, then metric attributes */}

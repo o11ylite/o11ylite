@@ -31,6 +31,7 @@ export const DEFAULT_QUERY_STATE: QueryBuilderState = {
   aggregations: [],
   groupBy: [],
   metrics: [],
+  formulas: [],
   visualization: { type: "table" },
 }
 
@@ -90,6 +91,7 @@ export function queryStateToPayload(
       : {
           filter,
           metrics: state.metrics,
+          formulas: state.formulas,
           group_by: state.groupBy,
           having: state.having,
           visualization,
@@ -128,6 +130,7 @@ export function queryStateFromEntity(entity: QueryEntity): QueryBuilderState {
     having: q.having as QueryBuilderState["having"],
     limit: q.limit as number | undefined,
     metrics: (q.metrics as QueryBuilderState["metrics"]) ?? [],
+    formulas: (q.formulas as QueryBuilderState["formulas"]) ?? [],
     visualization: visualizationForMode(
       mode,
       q.visualization as Visualization | undefined,

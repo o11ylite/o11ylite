@@ -66,11 +66,30 @@ export function buildMetricsPayload(state: QueryBuilderState) {
     (m: MetricDefinition) => m.name,
   )
   if (validMetrics.length === 0) return null
+  // Drop formulas that aren't ready yet (empty expr) — sending them would
+  // cause a 400 from the backend's parse validator. We let the user keep
+  // typing in peace and only include the formula once it's non-blank.
+  //
+  // Also normalise optional fields: msgpack URL state encodes `undefined`
+  // as `null` on decode, but the backend schema demands `string` (or omit).
+  // Strip nullish/empty `name`/`unit` so we send `{id, expr}` cleanly.
+  const validFormulas = (state.formulas ?? [])
+    .filter((f) => f.expr.trim().length > 0)
+    .map((f) => {
+      const out: { id: string; expr: string; name?: string; unit?: string } = {
+        id: f.id,
+        expr: f.expr,
+      }
+      if (typeof f.name === "string" && f.name.length > 0) out.name = f.name
+      if (typeof f.unit === "string" && f.unit.length > 0) out.unit = f.unit
+      return out
+    })
   return {
     filter: withServiceFilter(buildFilterExpr(state.filters), state.service),
     group_by: state.groupBy.length > 0 ? state.groupBy : undefined,
     ...(state.having ? { having: extractSimpleHaving(state.having) } : {}),
     metrics: validMetrics,
+    ...(validFormulas.length > 0 ? { formulas: validFormulas } : {}),
   }
 }
 

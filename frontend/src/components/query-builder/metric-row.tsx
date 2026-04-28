@@ -1,4 +1,4 @@
-import { X } from "lucide-react"
+import { Eye, EyeOff, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,12 +28,16 @@ import {
 export function MetricRow({
   metric,
   metricType,
+  hidden,
   onUpdate,
+  onToggleHidden,
   onRemove,
 }: {
   metric: MetricDefinition
   metricType: MetricType | null
+  hidden: boolean
   onUpdate: (metric: MetricDefinition) => void
+  onToggleHidden: () => void
   onRemove: () => void
 }) {
   const availableAggregations = metricType
@@ -87,6 +91,22 @@ export function MetricRow({
 
           {/* Spacer */}
           <div className="flex-1" />
+
+          {/* Show / Hide toggle */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onToggleHidden}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={
+              hidden
+                ? `Show ${metric.id} in chart`
+                : `Hide ${metric.id} from chart`
+            }
+            title={hidden ? "Show in chart" : "Hide from chart"}
+          >
+            {hidden ? <EyeOff /> : <Eye />}
+          </Button>
 
           {/* Remove Button */}
           <Button

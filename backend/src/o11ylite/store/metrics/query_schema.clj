@@ -135,7 +135,12 @@
    [:type [:= "time_series"]]
    [:bucket_ms {:optional true} [:int {:min 1}]]
    [:overlay {:optional true} :boolean]
-   [:render_as {:optional true} [:enum "line" "stacked_area" "bar"]]])
+   [:render_as {:optional true} [:enum "line" "stacked_area" "bar"]]
+   ;; UI-only render hint: source-metric ids whose series should be
+   ;; hidden from the chart. Backend ignores this for query execution
+   ;; but persists it (e.g. notebook cells) so the rendering state
+   ;; survives reloads.
+   [:hidden_metrics {:optional true} [:vector metric-ref]]])
 
 (def visualization
   "Visualization config for metrics queries. Currently only time_series is supported."
