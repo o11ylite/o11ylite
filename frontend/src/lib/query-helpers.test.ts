@@ -69,6 +69,7 @@ describe("queryStateToPayload", () => {
       aggregations: [],
       groupBy: [],
       metrics: [{ id: "A", name: "x", agg: "last" }],
+      formulas: [],
       visualization: { type: "table" },
     })
 
@@ -82,9 +83,57 @@ describe("queryStateToPayload", () => {
       aggregations: [{ id: "A", field: "*", function: "count" }],
       groupBy: [],
       metrics: [],
+      formulas: [],
       visualization: { type: "table" },
     })
 
     expect(payload.visualization).toEqual({ type: "table" })
+  })
+
+  it("persists formulas in metrics-mode payload (so notebook cells round-trip)", () => {
+    const payload = queryStateToPayload({
+      mode: "metrics",
+      filters: [],
+      aggregations: [],
+      groupBy: [],
+      metrics: [{ id: "A", name: "mem.free", agg: "last" }],
+      formulas: [{ id: "F1", expr: "A * 100", name: "scaled" }],
+      visualization: { type: "time_series" },
+    })
+
+    expect(payload.formulas).toEqual([
+      { id: "F1", expr: "A * 100", name: "scaled" },
+    ])
+  })
+
+  it("omits empty formulas array from payload", () => {
+    const payload = queryStateToPayload({
+      mode: "metrics",
+      filters: [],
+      aggregations: [],
+      groupBy: [],
+      metrics: [{ id: "A", name: "mem.free", agg: "last" }],
+      formulas: [],
+      visualization: { type: "time_series" },
+    })
+
+    expect(payload).not.toHaveProperty("formulas")
+  })
+
+  it("persists hidden_metrics in visualization (round-trips through notebook cells)", () => {
+    const payload = queryStateToPayload({
+      mode: "metrics",
+      filters: [],
+      aggregations: [],
+      groupBy: [],
+      metrics: [{ id: "A", name: "mem.free", agg: "last" }],
+      formulas: [],
+      visualization: { type: "time_series", hidden_metrics: ["A"] },
+    })
+
+    expect(payload.visualization).toEqual({
+      type: "time_series",
+      hidden_metrics: ["A"],
+    })
   })
 })

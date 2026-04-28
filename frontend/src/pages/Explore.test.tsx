@@ -345,6 +345,65 @@ describe("Explore", () => {
       expect(requestBody!.metrics[0].agg).toBe("avg") // default for gauge
     })
 
+    it("sends metrics API request with formulas when formula is added", async () => {
+      const user = userEvent.setup()
+
+      let requestBody: MetricsQuery | null = null
+
+      server.use(
+        http.post("/api/query/metrics", async ({ request }) => {
+          requestBody = (await request.json()) as MetricsQuery
+          return HttpResponse.json(mockMetricsQueryResponse)
+        })
+      )
+
+      renderExplore()
+
+      // Switch to metrics tab
+      const metricsTab = screen.getByRole("tab", { name: /metrics/i })
+      await user.click(metricsTab)
+
+      // Add a metric
+      const addMetricButton = await screen.findByRole("button", { name: /add metric/i })
+      await user.click(addMetricButton)
+
+      // Open metric picker and select cpu.utilization
+      const metricPickerButton = await screen.findByText(/select metric/i)
+      await user.click(metricPickerButton)
+      await waitFor(() => {
+        expect(screen.getByRole("option", { name: /cpu\.utilization/ })).toBeInTheDocument()
+      })
+      await user.click(screen.getByRole("option", { name: /cpu\.utilization/ }))
+
+      // Now that a metric is named, FormulasSection renders. Click Add Formula.
+      const addFormulaButton = await screen.findByRole("button", { name: /add formula/i })
+      await user.click(addFormulaButton)
+
+      // Type expression into the formula F1 expression input
+      const formulaExprInput = await screen.findByLabelText("Formula F1 expression")
+      await user.type(formulaExprInput, "A * 2")
+
+      // Click Run
+      const runButton = screen.getByRole("button", { name: /run/i })
+      await user.click(runButton)
+
+      // Wait for API request
+      await waitFor(() => {
+        expect(requestBody).not.toBeNull()
+      })
+
+      // Verify metric in request body
+      expect(requestBody!.metrics).toHaveLength(1)
+      expect(requestBody!.metrics[0].id).toBe("A")
+      expect(requestBody!.metrics[0].name).toBe("cpu.utilization")
+
+      // Verify formulas array
+      expect(requestBody!.formulas).toBeDefined()
+      expect(requestBody!.formulas).toHaveLength(1)
+      expect(requestBody!.formulas![0].id).toBe("F1")
+      expect(requestBody!.formulas![0].expr).toBe("A * 2")
+    })
+
     it("hides visualization toggle in metrics mode", async () => {
       const user = userEvent.setup()
       renderExplore()

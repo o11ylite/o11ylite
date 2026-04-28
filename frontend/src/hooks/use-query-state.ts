@@ -2,7 +2,7 @@ import { usePage, router } from "@inertiajs/react"
 import { useMemo, useCallback } from "react"
 
 import { urlSafeEncode, urlSafeDecode } from "@/lib/url-codec"
-import type { QueryBuilderState, Aggregation, MetricDefinition } from "@/types"
+import type { QueryBuilderState, Aggregation, MetricDefinition, FormulaDefinition } from "@/types"
 
 // ============================================================================
 // Constants
@@ -18,6 +18,7 @@ const DEFAULT_STATE: QueryBuilderState = {
   limit: 100,
   visualization: { type: "table" },
   metrics: [],
+  formulas: [],
 }
 
 // ============================================================================
@@ -45,8 +46,12 @@ function computeResultColumnFingerprint(state: QueryBuilderState): string {
       .map((m: MetricDefinition) => `${m.id}:${m.name}:${m.agg}`)
       .sort()
       .join(",")
+    const formulasKey = (state.formulas ?? [])
+      .map((f: FormulaDefinition) => `${f.id}:${f.expr}:${f.name ?? ""}:${f.unit ?? ""}`)
+      .sort()
+      .join(",")
     const groupKey = [...state.groupBy].sort().join(",")
-    return `mode=${modeKey}|metrics=${metricsKey}|group=${groupKey}`
+    return `mode=${modeKey}|metrics=${metricsKey}|formulas=${formulasKey}|group=${groupKey}`
   }
 
   // Events mode

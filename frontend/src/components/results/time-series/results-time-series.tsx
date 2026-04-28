@@ -1,5 +1,3 @@
-import { useMemo } from "react"
-
 import type { QueryResponse, TimeSeriesQueryResult, TimeSeriesVisualization } from "@/types"
 import { TimeSeriesChart } from "./time-series-chart"
 import { TimeSeriesSettings } from "./time-series-settings"
@@ -20,12 +18,31 @@ export function ResultsTimeSeries({
   const overlay = visualization.overlay ?? false
   const renderAs = visualization.render_as ?? "line"
 
-  const metricGroups = useMemo(() => groupByMetric(result), [result])
+  // Filter out series whose source-metric id is listed in
+  // visualization.hidden_metrics. Series without an `id` (e.g. derived
+  // / legacy results) are kept as-is. No useMemo: `result` is fresh on
+  // every refetch (live tick), so memoising would just add bookkeeping
+  // for no cache hits.
+  const hidden = visualization.hidden_metrics ?? []
+  const filteredResult: TimeSeriesQueryResult =
+    hidden.length === 0
+      ? result
+      : {
+          ...result,
+          series: result.series.filter(
+            (s) => !s.id || !hidden.includes(s.id),
+          ),
+        }
+
+  const metricGroups = groupByMetric(filteredResult)
 
   const uniqueGroupCount = new Set(
-    result.series.map((s) => Object.values(s.labels).join(",")),
+    filteredResult.series.map((s) => Object.values(s.labels).join(",")),
   ).size
-  const totalDataPoints = result.series.reduce((acc, s) => acc + s.data.length, 0)
+  const totalDataPoints = filteredResult.series.reduce(
+    (acc, s) => acc + s.data.length,
+    0,
+  )
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border">
@@ -42,9 +59,9 @@ export function ResultsTimeSeries({
 
       {overlay ? (
         <TimeSeriesChart
-          data={result}
+          data={filteredResult}
           connectNulls={connectNulls}
-          units={result.units}
+          units={filteredResult.units}
           renderAs={renderAs}
         />
       ) : (
@@ -56,7 +73,7 @@ export function ResultsTimeSeries({
               title={name}
               connectNulls={connectNulls}
               shortLegendLabels
-              units={result.units}
+              units={filteredResult.units}
               renderAs={renderAs}
             />
           ))}
@@ -64,7 +81,7 @@ export function ResultsTimeSeries({
       )}
 
       <div className="px-3 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
-        {uniqueGroupCount} groups &middot; {result.series.length} series &middot;{" "}
+        {uniqueGroupCount} groups &middot; {filteredResult.series.length} series &middot;{" "}
         {totalDataPoints} data points &middot; {data.metadata.query_time_ms}ms
       </div>
     </div>

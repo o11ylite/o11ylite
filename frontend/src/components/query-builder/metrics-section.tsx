@@ -39,10 +39,14 @@ function getNextMetricId(metrics: MetricDefinition[]): string {
 
 export function MetricsSection({
   metrics,
+  hiddenIds,
   onMetricsChange,
+  onHiddenChange,
 }: {
   metrics: MetricDefinition[]
+  hiddenIds: string[]
   onMetricsChange: (metrics: MetricDefinition[]) => void
+  onHiddenChange: (hiddenIds: string[]) => void
 }) {
   // Fetch metrics list to look up metric types
   const { data: metricsList = [] } = useQuery({
@@ -55,6 +59,14 @@ export function MetricsSection({
   const metricTypeMap = new Map<string, MetricType>(
     metricsList.map((m) => [m.name, m.metric_type])
   )
+
+  const hiddenSet = new Set(hiddenIds)
+
+  const toggleHidden = (id: string) => {
+    onHiddenChange(
+      hiddenSet.has(id) ? hiddenIds.filter((x) => x !== id) : [...hiddenIds, id],
+    )
+  }
 
   const addMetric = () => {
     const newMetric: MetricDefinition = {
@@ -72,7 +84,12 @@ export function MetricsSection({
   }
 
   const removeMetric = (index: number) => {
+    const removedId = metrics[index]?.id
     onMetricsChange(metrics.filter((_, i) => i !== index))
+    // Also drop the hidden flag for the removed id, if any.
+    if (removedId && hiddenSet.has(removedId)) {
+      onHiddenChange(hiddenIds.filter((x) => x !== removedId))
+    }
   }
 
   const canAddMore = metrics.length < 26
@@ -103,7 +120,9 @@ export function MetricsSection({
                 key={metric.id}
                 metric={metric}
                 metricType={metricTypeMap.get(metric.name) ?? null}
+                hidden={hiddenSet.has(metric.id)}
                 onUpdate={(updated) => updateMetric(index, updated)}
+                onToggleHidden={() => toggleHidden(metric.id)}
                 onRemove={() => removeMetric(index)}
               />
             ))}
