@@ -14,6 +14,7 @@
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
     [o11ylite.store.services :as services]
+    [o11ylite.store.telemetry-catalog :as telemetry-catalog]
     [o11ylite.util.response :as response]
     [ring.util.response :as rr]))
 
@@ -27,12 +28,27 @@
     "attribute"
     "system"))
 
+(defn- -field-services
+  "Invert {service #{field ...}} from the catalog into {field [service ...]}.
+   Used to show which services emit each event field.
+
+   Reconsider this design if N(server) * N(field) > 10^6"
+  [sqlite]
+  (->> (telemetry-catalog/get-all-service-event-fields sqlite)
+       (mapcat (fn [[service fields]]
+                 (map #(vector % service) fields)))
+       (reduce (fn [acc [field service]]
+                 (update acc field (fnil conj []) service))
+               {})))
+
 (defn- -build-event-fields
-  "Build the event_fields prop by joining the schema cache with blocked set.
-   Returns a sorted vector of {:name :type :category :status} maps."
-  [events-schema blocked-fields]
+  "Build the event_fields prop by joining the schema cache with blocked
+   set and per-field service list from the telemetry catalog.
+   Returns a sorted vector of {:name :type :category :status :services}."
+  [events-schema blocked-fields sqlite]
   (let [fields (events-schema-cache/get-fields events-schema)
-        blocked (blocked-fields/get-blocked-event-fields blocked-fields)]
+        blocked (blocked-fields/get-blocked-event-fields blocked-fields)
+        field-services (-field-services sqlite)]
     (->> fields
          (map (fn [[field-key {:keys [type]}]]
                 (let [n (name field-key)]
@@ -41,7 +57,8 @@
                    :category (-field-category n)
                    :status (if (contains? blocked n)
                              "blocked"
-                             "active")})))
+                             "active")
+                   :services (get field-services n [])})))
          (sort-by :name)
          vec)))
 
@@ -103,7 +120,7 @@
   [{:keys [sqlite events-schema duckdb blocked-fields]}]
   (fn [_request]
     (response/inertia "DataManagement"
-                      {:event_fields (-build-event-fields events-schema blocked-fields)
+                      {:event_fields (-build-event-fields events-schema blocked-fields sqlite)
                        :metrics (-build-metrics sqlite)
                        :metric_attributes (-build-metric-attributes duckdb blocked-fields)
                        :services (-build-services sqlite)})))
