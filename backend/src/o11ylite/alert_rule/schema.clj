@@ -61,7 +61,7 @@
     metrics-schema/metrics-query
     [:time_range]
     #{"metric IDs must be unique"
-      "having ref must reference an existing metric ID"}))
+      "having ref must reference a declared metric or formula id"}))
 
 ;; ---------------------------------------------------------
 ;; Alert Rule Schema

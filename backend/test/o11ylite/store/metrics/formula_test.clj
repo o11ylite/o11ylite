@@ -163,3 +163,50 @@
           by-id (group-by :id result)]
       (is (= 12.0 (-> (get by-id "F1") first :data first :value)))
       (is (= 5.0  (-> (get by-id "F2") first :data first :value))))))
+
+(deftest apply-having-to-formula-test
+  (testing "drops per-bucket points failing predicate, keeps source series untouched"
+    (let [series [(-ts "A"  {} [[1000 10.0] [2000 20.0]])
+                  (-ts "F1" {} [[1000 5.0]  [2000 50.0] [3000 100.0]])]
+          result (formula/apply-having-to-formula
+                   series {:ref "F1" :op ">" :value 40})
+          by-id (group-by :id result)]
+      ;; Source series A unchanged
+      (is (= [{:timestamp 1000 :value 10.0}
+              {:timestamp 2000 :value 20.0}]
+             (-> (get by-id "A") first :data)))
+      ;; F1 has only the >40 buckets
+      (is (= [{:timestamp 2000 :value 50.0}
+              {:timestamp 3000 :value 100.0}]
+             (-> (get by-id "F1") first :data)))))
+
+  (testing "drops series whose data is fully filtered out"
+    (let [series [(-ts "A"  {} [[1000 10.0]])
+                  (-ts "F1" {} [[1000 5.0]])]
+          result (formula/apply-having-to-formula
+                   series {:ref "F1" :op ">" :value 100})]
+      (is (= 1 (count result)))
+      (is (= "A" (:id (first result))))))
+
+  (testing "filters per-label-set independently"
+    (let [series [(-ts "F1" {:host "h1"} [[1000 50.0] [2000 5.0]])
+                  (-ts "F1" {:host "h2"} [[1000 5.0]])]
+          result (formula/apply-having-to-formula
+                   series {:ref "F1" :op ">" :value 10})]
+      (is (= 1 (count result)))
+      (is (= {:host "h1"} (:labels (first result))))
+      (is (= [{:timestamp 1000 :value 50.0}] (:data (first result))))))
+
+  (testing "all numeric operators"
+    (let [series [(-ts "F1" {} [[1000 10.0] [2000 20.0] [3000 30.0]])]]
+      (doseq [[op threshold expected]
+              [[">"  20 [30.0]]
+               ["<"  20 [10.0]]
+               [">=" 20 [20.0 30.0]]
+               ["<=" 20 [10.0 20.0]]
+               ["="  20 [20.0]]
+               ["!=" 20 [10.0 30.0]]]]
+        (let [r (formula/apply-having-to-formula
+                  series {:ref "F1" :op op :value threshold})]
+          (is (= expected (mapv :value (:data (first r))))
+              (str "operator " op)))))))

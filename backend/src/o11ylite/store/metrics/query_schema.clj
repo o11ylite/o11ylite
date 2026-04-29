@@ -119,11 +119,17 @@
   "Numeric comparison operators for post-aggregation filtering."
   [:enum ">" "<" ">=" "<=" "=" "!="])
 
+(def having-ref
+  "Reference target for a having clause. Either a metric id (A-Z) or a
+   formula id (F1-F9). Filtering semantics are symmetric: per-bucket
+   drop where the predicate fails."
+  [:or metric-ref formula-ref])
+
 (def having-expr
-  "Post-aggregation filter on a metric ref.
+  "Post-aggregation filter on a metric or formula ref.
    Only supports numeric comparisons."
   [:map
-   [:ref metric-ref]
+   [:ref having-ref]
    [:op having-op]
    [:value number?]])
 
@@ -168,11 +174,12 @@
     (= (count ids) (count (set ids)))))
 
 (defn- -valid-having-ref?
-  "Having ref must reference an existing metric ID."
-  [{:keys [having metrics]}]
+  "Having ref must reference a declared metric id or formula id."
+  [{:keys [having metrics formulas]}]
   (if having
-    (let [metric-ids (set (map :id metrics))]
-      (contains? metric-ids (:ref having)))
+    (let [valid-ids (into (set (map :id metrics))
+                          (map :id formulas))]
+      (contains? valid-ids (:ref having)))
     true))
 
 (defn- -unique-formula-ids?
@@ -217,7 +224,7 @@
    base-query
    [:fn {:error/message "metric IDs must be unique"}
     -unique-metric-ids?]
-   [:fn {:error/message "having ref must reference an existing metric ID"}
+   [:fn {:error/message "having ref must reference a declared metric or formula id"}
     -valid-having-ref?]
    [:fn {:error/message "formula IDs must be unique"}
     -unique-formula-ids?]

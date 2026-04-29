@@ -225,17 +225,25 @@
       :metadata {:query_time_ms N}}"
   [duckdb sqlite query]
   (let [start-time (System/currentTimeMillis)
-        {:keys [time_range bucket_ms metrics]} query
+        {:keys [time_range bucket_ms metrics having]} query
         range-ms (- (:end time_range) (:start time_range))
         resolved-bucket-ms (or bucket_ms (query-util/select-bucket-ms range-ms))
         start-ms (query-util/align-to-bucket (:start time_range) resolved-bucket-ms)
         end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
-        ;; Execute query for each metric, collecting series and units
+        ;; Execute query for each metric, collecting series and units.
+        ;; Per-metric SQL HAVING activates only when having.ref matches that
+        ;; metric's id (handled inside -build-metric-query). Formula-targeted
+        ;; HAVING is applied below, after formulas are evaluated.
         results (map #(-execute-metric duckdb sqlite query % resolved-bucket-ms) metrics)
         raw-series (vec (mapcat :series results))
         formulas (or (:formulas query) [])
         ;; Append synthetic formula series (one per formula × matching label combo)
-        all-series (formula/apply-formulas raw-series formulas)
+        with-formulas (formula/apply-formulas raw-series formulas)
+        ;; Post-formula HAVING when ref points at a formula id
+        formula-ids (set (map :id formulas))
+        all-series (if (and having (formula-ids (:ref having)))
+                     (formula/apply-having-to-formula with-formulas having)
+                     with-formulas)
         metric-units (into {} (map (fn [metric result]
                                      [(:name metric) (:unit result)])
                                    metrics results))

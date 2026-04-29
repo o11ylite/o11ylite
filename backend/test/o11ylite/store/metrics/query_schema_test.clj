@@ -321,7 +321,19 @@
 
   (testing "having ref must be valid format"
     (is (invalid? (assoc (query-base) :having {:ref "a" :op ">" :value 80})))
-    (is (invalid? (assoc (query-base) :having {:ref "AB" :op ">" :value 80})))))
+    (is (invalid? (assoc (query-base) :having {:ref "AB" :op ">" :value 80}))))
+
+  (testing "having ref may target a declared formula id"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "mem.free" :agg "avg"}
+                           {:id "B" :name "mem.total" :agg "avg"}]
+                 :formulas [{:id "F1" :expr "A / B * 100"}]
+                 :having {:ref "F1" :op ">" :value 50}})))
+
+  (testing "having ref must reference a *declared* formula id"
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :metrics [{:id "A" :name "mem.free" :agg "avg"}]
+                   :having {:ref "F1" :op ">" :value 50}}))))
 
 ;; ---------------------------------------------------------
 ;; Formulas Validation
