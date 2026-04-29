@@ -414,6 +414,7 @@ export interface ManagedField {
   type: FieldType
   category: FieldCategory
   status: FieldStatus
+  services: string[]
 }
 
 export interface ManagedMetric {

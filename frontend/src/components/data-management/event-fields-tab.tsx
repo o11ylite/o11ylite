@@ -22,6 +22,8 @@ import {
 } from "./shared"
 import { useSelection } from "./use-selection"
 
+const MAX_VISIBLE_SERVICES = 3
+
 export function EventFieldsTab({ fields }: { fields: ManagedField[] }) {
   const [search, setSearch] = useState("")
   const [deleteFields, setDeleteFields] = useState<string[] | null>(null)
@@ -38,6 +40,20 @@ export function EventFieldsTab({ fields }: { fields: ManagedField[] }) {
     () => filtered.filter((f) => selected.has(f.name)).map((f) => f.name),
     [filtered, selected]
   )
+
+  const serviceList = (services: string[]) => {
+    if (services.length === 0) return <span className="text-muted-foreground">--</span>
+    const visible = services.slice(0, MAX_VISIBLE_SERVICES)
+    const remaining = services.length - MAX_VISIBLE_SERVICES
+    return (
+      <span className="font-mono text-xs">
+        {visible.join(", ")}
+        {remaining > 0 && (
+          <span className="text-muted-foreground"> +{remaining} more</span>
+        )}
+      </span>
+    )
+  }
 
   const handleBlock = () => {
     router.put("/system/data-management/event-fields/status", {
@@ -90,12 +106,13 @@ export function EventFieldsTab({ fields }: { fields: ManagedField[] }) {
             <TableHead className="w-24">Category</TableHead>
             <TableHead className="w-20">Type</TableHead>
             <TableHead className="w-24">Status</TableHead>
+            <TableHead className="w-48">Services</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 {search ? "No fields match your search." : "No event fields."}
               </TableCell>
             </TableRow>
@@ -112,6 +129,7 @@ export function EventFieldsTab({ fields }: { fields: ManagedField[] }) {
                 <TableCell><CategoryBadge category={field.category} /></TableCell>
                 <TableCell><FieldTypeBadge type={field.type} /></TableCell>
                 <TableCell><StatusBadge status={field.status} /></TableCell>
+                <TableCell>{serviceList(field.services)}</TableCell>
               </TableRow>
             ))
           )}

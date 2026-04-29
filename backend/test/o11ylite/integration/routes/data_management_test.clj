@@ -103,7 +103,22 @@
       (is (= "active" (:status service)))
       ;; Attr field we just blocked shows blocked
       (is (= "attribute" (:category blocked-f)))
-      (is (= "blocked" (:status blocked-f))))))
+      (is (= "blocked" (:status blocked-f)))))
+
+  (testing "event fields include services from catalog"
+    (-add-event-attr! "attr.test.services")
+    (let [sqlite (:db/sqlite h/*system*)
+          now (System/currentTimeMillis)]
+      (telemetry-catalog/upsert-service-event-fields!
+        sqlite
+        [{:service "svc-a" :field "attr.test.services" :last-seen-at now}
+         {:service "svc-b" :field "attr.test.services" :last-seen-at now}
+         {:service "svc-c" :field "attr.test.services" :last-seen-at now}
+         {:service "svc-d" :field "attr.test.services" :last-seen-at now}])
+      (let [{:keys [event_fields]} (-dm-props)
+            f (-find-field event_fields "attr.test.services")]
+        (is (some? f))
+        (is (= ["svc-a" "svc-b" "svc-c" "svc-d"] (:services f)))))))
 
 ;; ---------------------------------------------------------
 ;; Event field block/activate/delete
