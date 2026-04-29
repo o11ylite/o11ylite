@@ -333,6 +333,12 @@ export interface AlertRule {
   eval_window_ms: number
   eval_interval_ms: number
   alert_on: AlertOn
+  /**
+   * For metrics rules with more than one metric/formula declared, the id
+   * (A-Z or F1-F9) of the metric or formula whose series the alert watches.
+   * Required at save time when query has > 1 metric/formula.
+   */
+  alert_target: string | null
   state: AlertState
   state_changed_at: number | null
   last_eval_at: number | null

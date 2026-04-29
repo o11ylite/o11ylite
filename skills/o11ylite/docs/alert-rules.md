@@ -54,6 +54,7 @@ For absence/silence detection (e.g., "service stopped sending events"), use `ale
       "eval_window_ms": 300000,
       "eval_interval_ms": 60000,
       "alert_on": "result",
+      "alert_target": null,
       "state": "ok",
       "last_eval_at": 1700003500000,
       "last_eval_error": null,
@@ -112,16 +113,17 @@ Same shape as a list item. `errors` is populated only after a failed mutation re
 
 ### Fields
 
-| Field              | Required | Type     | Description                                      |
-|--------------------|----------|----------|--------------------------------------------------|
-| `name`             | Yes      | string   | 1–255 characters                                 |
-| `description`      | No       | string   | Free-text description                            |
-| `enabled`          | Yes      | boolean  | Whether the rule is actively evaluated           |
-| `query_mode`       | Yes      | enum     | `"events"` or `"metrics"`                        |
-| `query`            | Yes      | object   | Query definition (see below)                     |
-| `eval_window_ms`   | Yes      | enum     | Evaluation window: 60000, 300000, 900000, 1800000, 3600000 |
-| `eval_interval_ms` | Yes      | enum     | Evaluation interval: 60000, 300000, 900000, 1800000, 3600000 |
-| `alert_on`         | Yes      | enum     | `"result"` (fire on match) or `"no_result"` (fire on absence) |
+| Field              | Required    | Type     | Description                                      |
+|--------------------|-------------|----------|--------------------------------------------------|
+| `name`             | Yes         | string   | 1–255 characters                                 |
+| `description`      | No          | string   | Free-text description                            |
+| `enabled`          | Yes         | boolean  | Whether the rule is actively evaluated           |
+| `query_mode`       | Yes         | enum     | `"events"` or `"metrics"`                        |
+| `query`            | Yes         | object   | Query definition (see below)                     |
+| `eval_window_ms`   | Yes         | enum     | Evaluation window: 60000, 300000, 900000, 1800000, 3600000 |
+| `eval_interval_ms` | Yes         | enum     | Evaluation interval: 60000, 300000, 900000, 1800000, 3600000 |
+| `alert_on`         | Yes         | enum     | `"result"` (fire on match) or `"no_result"` (fire on absence) |
+| `alert_target`     | Conditional | string\|null | Selects which series to watch when the metrics query declares more than one metric/formula. See below. |
 
 ### Query object
 
@@ -151,6 +153,32 @@ See `docs/events-query.md` for filter, aggregation, and having syntax. All field
 ```
 
 See `docs/metrics-query.md` for metric definition and filter syntax.
+
+### `alert_target` (metrics mode only)
+
+A metrics query may declare multiple metrics (`A`, `B`, …) and/or formulas (`F1`, `F2`, …). At evaluation time, every declared series is rendered. `alert_target` picks the one the rule watches; series produced by other ids are ignored.
+
+- Value is the id of a declared metric (`A`–`Z`) or formula (`F1`–`F9`).
+- **Required** when the query declares more than one metric/formula in total (`count(metrics) + count(formulas) > 1`). Otherwise must be omitted or `null`.
+- Must reference an id that exists in the query at submit time. Stale ids surface as a field-level validation error on `alert_target`.
+- Ignored for `query_mode: "events"` (events queries produce a single result set).
+
+Example — alert when formula `F1` (error rate) exceeds 5% while still rendering both raw counts for context:
+
+```json
+{
+  "query_mode": "metrics",
+  "query": {
+    "metrics": [
+      {"id": "A", "name": "http.requests", "agg": "sum"},
+      {"id": "B", "name": "http.errors", "agg": "sum"}
+    ],
+    "formulas": [{"id": "F1", "expression": "B / A * 100"}],
+    "having": {"ref": "F1", "op": ">", "value": 5}
+  },
+  "alert_target": "F1"
+}
+```
 
 ---
 

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
+import { flattenApiError } from "@/lib/api-error"
 import { buildFilterExpr, withServiceFilter } from "@/lib/query-helpers"
 import { resolveTimeRange } from "@/hooks/use-time-range"
 import { extractSimpleHaving } from "@/lib/metric-query-helpers"
@@ -22,8 +23,8 @@ async function fetchEventsQuery(query: EventsQuery): Promise<QueryResponse> {
     body: JSON.stringify(query),
   })
   if (!response.ok) {
-    const errorData = (await response.json()) as { error?: string }
-    throw new Error(errorData.error ?? "Query failed")
+    const errorData = (await response.json()) as { error?: unknown }
+    throw new Error(flattenApiError(errorData.error, "Query failed"))
   }
   return response.json() as Promise<QueryResponse>
 }
@@ -35,8 +36,8 @@ async function fetchMetricsQuery(query: MetricsQuery): Promise<QueryResponse> {
     body: JSON.stringify(query),
   })
   if (!response.ok) {
-    const errorData = (await response.json()) as { error?: string }
-    throw new Error(errorData.error ?? "Query failed")
+    const errorData = (await response.json()) as { error?: unknown }
+    throw new Error(flattenApiError(errorData.error, "Query failed"))
   }
   return response.json() as Promise<QueryResponse>
 }

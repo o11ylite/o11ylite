@@ -5,6 +5,7 @@ import { usePage } from "@inertiajs/react"
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { TraceWaterfall, SpanDetailsPanel } from "@/components/trace"
 import { ResultsLoading, ResultsError } from "@/components/results"
+import { flattenApiError } from "@/lib/api-error"
 import { useTimeRange, resolveTimeRange } from "@/hooks/use-time-range"
 import type { TraceQueryResult } from "@/types"
 
@@ -27,8 +28,8 @@ async function fetchTrace(
   })
 
   if (!response.ok) {
-    const errorData = (await response.json()) as { error?: string }
-    throw new Error(errorData.error ?? "Failed to fetch trace")
+    const errorData = (await response.json()) as { error?: unknown }
+    throw new Error(flattenApiError(errorData.error, "Failed to fetch trace"))
   }
 
   const result = (await response.json()) as { data: TraceQueryResult }

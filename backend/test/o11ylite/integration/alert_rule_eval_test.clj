@@ -180,6 +180,63 @@
           "Rule with alert_on=no_result should stay ok when query returns results"))))
 
 ;; ---------------------------------------------------------
+;; Metrics mode + alert_target
+
+(deftest metrics-alert-target-filters-series-test
+  (testing "alert_target restricts which series the evaluator considers"
+    ;; Ingest two metrics so the query returns two series. metric A always
+    ;; has data; metric B never has data. With alert_target=B, the rule
+    ;; should NOT fire (B's series is empty), proving alert_target
+    ;; correctly narrows evaluation.
+    (let [now-ns (* (System/currentTimeMillis) 1000000)
+          ;; Use distinct names so other tests don't pollute
+          metric-a "alert.target.test.a"
+          metric-b "alert.target.test.b"]
+
+      (h/export-metrics!
+        {:service-name "alert-target-svc"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name metric-a
+                      :unit "1"
+                      :data-points [{:value 42.0 :time-ns now-ns}]})]})
+      ;; metric-b is declared but never ingested (no series produced)
+
+      (testing "without alert_target, A's data alone fires the rule"
+        (let [rule-id (create-alert-rule!
+                        {:name "No alert_target"
+                         :query_mode "metrics"
+                         :query {:metrics [{:id "A" :name metric-a :agg "last"}]}
+                         :eval_window_ms 7200000})]
+          (alert-rule/run-evaluation-cycle!
+            (duckdb) (sqlite) (events-schema) nil)
+          (is (= "firing" (get-rule-state rule-id)))))
+
+      (testing "alert_target=A fires when A has data"
+        (let [rule-id (create-alert-rule!
+                        {:name "alert_target A"
+                         :query_mode "metrics"
+                         :query {:metrics [{:id "A" :name metric-a :agg "last"}
+                                           {:id "B" :name metric-b :agg "last"}]}
+                         :eval_window_ms 7200000
+                         :alert_target "A"})]
+          (alert-rule/run-evaluation-cycle!
+            (duckdb) (sqlite) (events-schema) nil)
+          (is (= "firing" (get-rule-state rule-id)))))
+
+      (testing "alert_target=B stays ok when B has no data (even though A has data)"
+        (let [rule-id (create-alert-rule!
+                        {:name "alert_target B"
+                         :query_mode "metrics"
+                         :query {:metrics [{:id "A" :name metric-a :agg "last"}
+                                           {:id "B" :name metric-b :agg "last"}]}
+                         :eval_window_ms 7200000
+                         :alert_target "B"})]
+          (alert-rule/run-evaluation-cycle!
+            (duckdb) (sqlite) (events-schema) nil)
+          (is (= "ok" (get-rule-state rule-id))))))))
+
+;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
 

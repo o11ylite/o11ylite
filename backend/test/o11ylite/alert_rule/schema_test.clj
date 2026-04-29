@@ -296,6 +296,74 @@
                    :alert_on "result"}))))
 
 ;; ---------------------------------------------------------
+;; alert_target
+
+(deftest alert-target-test
+  (testing "single metric, no alert_target -> valid"
+    (is (valid? {:name "x" :enabled true :query_mode "metrics"
+                 :query {:metrics [{:id "A" :name "cpu" :agg "avg"}]}
+                 :eval_window_ms 300000 :eval_interval_ms 60000
+                 :alert_on "result"})))
+
+  (testing "single metric, alert_target matches -> valid"
+    (is (valid? {:name "x" :enabled true :query_mode "metrics"
+                 :query {:metrics [{:id "A" :name "cpu" :agg "avg"}]}
+                 :eval_window_ms 300000 :eval_interval_ms 60000
+                 :alert_on "result"
+                 :alert_target "A"})))
+
+  (testing "two metrics, no alert_target -> invalid (required)"
+    (is (invalid? {:name "x" :enabled true :query_mode "metrics"
+                   :query {:metrics [{:id "A" :name "cpu" :agg "avg"}
+                                     {:id "B" :name "mem" :agg "avg"}]}
+                   :eval_window_ms 300000 :eval_interval_ms 60000
+                   :alert_on "result"})))
+
+  (testing "two metrics, valid alert_target -> valid"
+    (is (valid? {:name "x" :enabled true :query_mode "metrics"
+                 :query {:metrics [{:id "A" :name "cpu" :agg "avg"}
+                                   {:id "B" :name "mem" :agg "avg"}]}
+                 :eval_window_ms 300000 :eval_interval_ms 60000
+                 :alert_on "result"
+                 :alert_target "B"})))
+
+  (testing "metric + formula, alert_target points to formula -> valid"
+    (is (valid? {:name "x" :enabled true :query_mode "metrics"
+                 :query {:metrics [{:id "A" :name "cpu" :agg "avg"}
+                                   {:id "B" :name "mem" :agg "avg"}]
+                         :formulas [{:id "F1" :expr "A / B"}]}
+                 :eval_window_ms 300000 :eval_interval_ms 60000
+                 :alert_on "result"
+                 :alert_target "F1"})))
+
+  (testing "alert_target references undeclared id -> invalid"
+    (is (invalid? {:name "x" :enabled true :query_mode "metrics"
+                   :query {:metrics [{:id "A" :name "cpu" :agg "avg"}]}
+                   :eval_window_ms 300000 :eval_interval_ms 60000
+                   :alert_on "result"
+                   :alert_target "Z"})))
+
+  (testing "alert_target with bad format -> invalid"
+    (is (invalid? {:name "x" :enabled true :query_mode "metrics"
+                   :query {:metrics [{:id "A" :name "cpu" :agg "avg"}]}
+                   :eval_window_ms 300000 :eval_interval_ms 60000
+                   :alert_on "result"
+                   :alert_target "lower"})))
+
+  (testing "events mode with alert_target ignored (still valid)"
+    (is (valid? {:name "x" :enabled true :query_mode "events"
+                 :query {:visualization {:type "table"}}
+                 :eval_window_ms 300000 :eval_interval_ms 60000
+                 :alert_on "result"
+                 :alert_target "A"})))
+
+  (testing "events mode without alert_target ignored (still valid)"
+    (is (valid? {:name "x" :enabled true :query_mode "events"
+                 :query {:visualization {:type "table"}}
+                 :eval_window_ms 300000 :eval_interval_ms 60000
+                 :alert_on "result"}))))
+
+;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
 

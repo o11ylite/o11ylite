@@ -9,6 +9,7 @@
 
 (ns o11ylite.routes.alert-rules
   (:require
+    [clojure.string :as str]
     [o11ylite.alert-rule :as alert-rule]
     [o11ylite.alert-rule.schema :as alert-rule-schema]
     [o11ylite.util.response :as response]
@@ -20,6 +21,10 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
+(defn- -blank->nil
+  [s]
+  (when-not (str/blank? s) s))
+
 (defn- -parse-form-params
   "Extract and normalize alert rule form params from an Inertia request body."
   [body]
@@ -30,7 +35,8 @@
    :query (:query body)
    :eval_window_ms (some-> (:eval_window_ms body) long)
    :eval_interval_ms (some-> (:eval_interval_ms body) long)
-   :alert_on (:alert_on body)})
+   :alert_on (:alert_on body)
+   :alert_target (-blank->nil (:alert_target body))})
 
 ;; ---------------------------------------------------------
 ;; Handlers

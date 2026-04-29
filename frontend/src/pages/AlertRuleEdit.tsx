@@ -30,6 +30,7 @@ export default function AlertRuleEdit() {
     evalWindowMs: alert_rule?.eval_window_ms ?? 300000,
     evalIntervalMs: alert_rule?.eval_interval_ms ?? 60000,
     alertOn: alert_rule?.alert_on ?? "result" as const,
+    alertTarget: alert_rule?.alert_target ?? null,
   }
 
   const handleSubmit: React.ComponentProps<typeof AlertRuleForm>["onSubmit"] = (data) => {

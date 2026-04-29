@@ -31,6 +31,7 @@ interface AlertRuleFormPayload {
   eval_window_ms: number
   eval_interval_ms: number
   alert_on: AlertOn
+  alert_target: string | null
 }
 
 interface AlertRuleFormProps {
@@ -42,6 +43,7 @@ interface AlertRuleFormProps {
     evalWindowMs: number
     evalIntervalMs: number
     alertOn: AlertOn
+    alertTarget: string | null
   }
   errors?: Partial<Record<string, string>>
   submitting?: boolean
@@ -62,10 +64,29 @@ export function AlertRuleForm({
   const [evalWindowMs, setEvalWindowMs] = useState(initialValues.evalWindowMs)
   const [evalIntervalMs, setEvalIntervalMs] = useState(initialValues.evalIntervalMs)
   const [alertOn, setAlertOn] = useState<AlertOn>(initialValues.alertOn)
+  const [alertTarget, setAlertTarget] = useState<string | null>(
+    initialValues.alertTarget,
+  )
   const [queryState, setQueryState] = useState(initialValues.queryState)
 
   const nameError = errors.name
   const queryError = errors.query
+  const alertTargetError = errors.alert_target
+
+  const isMetricsMode = queryState.mode === "metrics"
+  const targetCandidates = isMetricsMode
+    ? [
+        ...queryState.metrics.map((m) => ({
+          id: m.id,
+          label: `${m.id}: ${m.agg}(${m.name || "?"})`,
+        })),
+        ...(queryState.formulas ?? []).map((f) => ({
+          id: f.id,
+          label: f.name ? `${f.id}: ${f.name}` : f.id,
+        })),
+      ]
+    : []
+  const showAlertTarget = isMetricsMode && targetCandidates.length > 1
 
   const handleSubmit = () => {
     onSubmit({
@@ -77,6 +98,7 @@ export function AlertRuleForm({
       eval_window_ms: evalWindowMs,
       eval_interval_ms: evalIntervalMs,
       alert_on: alertOn,
+      alert_target: showAlertTarget ? alertTarget : null,
     })
   }
 
@@ -206,6 +228,38 @@ export function AlertRuleForm({
           />
         </div>
       </div>
+
+      {/* Alert target — required when query has more than one metric/formula */}
+      {showAlertTarget && (
+        <div className="space-y-2">
+          <Label>Alert target</Label>
+          <Select
+            value={alertTarget ?? ""}
+            onValueChange={(v) => setAlertTarget(v)}
+          >
+            <SelectTrigger
+              className="w-auto min-w-[240px]"
+              aria-invalid={!!alertTargetError}
+            >
+              <SelectValue placeholder="Select metric or formula..." />
+            </SelectTrigger>
+            <SelectContent>
+              {targetCandidates.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Multiple metrics/formulas declared. Pick which one this alert
+            watches; only that series decides firing.
+          </p>
+          {alertTargetError && (
+            <p className="text-xs text-destructive">{alertTargetError}</p>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-3">

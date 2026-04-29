@@ -74,8 +74,15 @@
   "Valid evaluation interval presets (milliseconds)."
   [:enum 60000 300000 900000 1800000 3600000])
 
-(def alert-rule
-  "Full schema for alert rule create/update requests."
+(def alert-target
+  "Identifier of the metric or formula whose series the alert watches.
+   Required at save time when a metrics query declares more than one
+   series source (i.e. metrics + formulas count > 1). When provided,
+   must match a declared metric id (A-Z) or formula id (F1-F9)."
+  [:re {:error/message "alert_target must be a metric id (A-Z) or formula id (F1-F9)"}
+   #"^([A-Z]|F[1-9])$"])
+
+(def ^:private -alert-rule-base
   [:map {:closed true}
    [:name [:string {:min 1, :max 255}]]
    [:description {:optional true} [:maybe :string]]
@@ -84,7 +91,45 @@
    [:query :any]
    [:eval_window_ms eval-window-ms]
    [:eval_interval_ms eval-interval-ms]
-   [:alert_on [:enum "result" "no_result"]]])
+   [:alert_on [:enum "result" "no_result"]]
+   [:alert_target {:optional true} [:maybe alert-target]]])
+
+(defn- -metrics-source-ids
+  "Set of declared metric and formula ids from a metrics query."
+  [query]
+  (into (set (map :id (:metrics query)))
+        (map :id (:formulas query))))
+
+(defn- -alert-target-required?
+  [query]
+  (> (+ (count (:metrics query)) (count (:formulas query))) 1))
+
+(defn- -valid-alert-target?
+  "When query_mode is 'metrics':
+   - if metrics+formulas count > 1, alert_target is required
+   - when alert_target is provided, it must reference a declared id"
+  [{:keys [query_mode query alert_target]}]
+  (if-not (= query_mode "metrics")
+    true
+    (let [ids (-metrics-source-ids query)]
+      (cond
+        ;; Required but missing
+        (and (-alert-target-required? query) (nil? alert_target)) false
+        ;; Provided but doesn't match a declared id
+        (and (some? alert_target) (not (contains? ids alert_target))) false
+        :else true))))
+
+(def alert-rule
+  "Full schema for alert rule create/update requests.
+   The cross-field :fn validator attaches its error to :alert_target via
+   :error/path so the result lands as {:alert_target [...]} — the same
+   map shape every other field error has."
+  [:and
+   -alert-rule-base
+   [:fn {:error/message
+         "alert_target must reference a declared metric or formula id; required when the query has more than one metric/formula"
+         :error/path [:alert_target]}
+    -valid-alert-target?]])
 
 ;; ---------------------------------------------------------
 ;; Validation
