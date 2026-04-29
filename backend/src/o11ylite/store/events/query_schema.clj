@@ -333,9 +333,11 @@
     -valid-trace-filter?]
    [:fn {:error/message "cursor is only valid for table queries without aggregations"}
     -valid-cursor-usage?]
-   [:fn {:error/message "having requires aggregations"}
+   [:fn {:error/message "having requires aggregations"
+         :error/path [:having]}
     -valid-having-usage?]
-   [:fn {:error/message "having ref must reference an existing aggregation ID"}
+   [:fn {:error/message "having ref must reference an existing aggregation ID"
+         :error/path [:having]}
     -valid-having-ref?]
    [:fn {:error/message "sort ref must reference an existing aggregation ID"}
     -valid-sort-ref?]

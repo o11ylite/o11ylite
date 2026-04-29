@@ -7,6 +7,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { flattenApiError } from "@/lib/api-error"
 import type { TraceSpan } from "@/types"
 
 // ============================================================================
@@ -44,8 +45,8 @@ async function fetchSpanWithEvents(
   })
 
   if (!response.ok) {
-    const errorData = (await response.json()) as { error?: string }
-    throw new Error(errorData.error ?? "Failed to fetch span details")
+    const errorData = (await response.json()) as { error?: unknown }
+    throw new Error(flattenApiError(errorData.error, "Failed to fetch span details"))
   }
 
   const result = (await response.json()) as { data: SpanDetailsResult }

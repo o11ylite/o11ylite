@@ -60,7 +60,11 @@
    Input:  {:name [\"missing required key\"]
             :query {:metrics [\"should have at least 1 elements\"]}}
    Output: {\"name\" \"missing required key\"
-            \"query\" \"metrics: should have at least 1 elements\"}"
+            \"query\" \"metrics: should have at least 1 elements\"}
+
+   Schemas should attach :fn validator errors to a specific field via
+   :error/path so they land in the map shape; otherwise top-level
+   vectors collapse to a single first-message string."
   [errors]
   (cond
     (map? errors)

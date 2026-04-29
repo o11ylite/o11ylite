@@ -68,12 +68,22 @@
   [result]
   (pos? (count (get-in result [:data :rows]))))
 
+(defn- -filter-by-target
+  "When alert-target is set, keep only series whose :id matches.
+   Otherwise return series unchanged."
+  [series alert-target]
+  (if alert-target
+    (filterv #(= alert-target (:id %)) series)
+    series))
+
 (defn- -metrics-result-firing?
   "Check if a metrics query result indicates a firing state.
+   When alert-target is set, only series matching that id are considered.
    Any non-empty series with data points means the condition is met."
-  [result]
-  (some #(pos? (count (:data %)))
-        (get-in result [:data :series])))
+  [result alert-target]
+  (let [series (get-in result [:data :series])]
+    (some #(pos? (count (:data %)))
+          (-filter-by-target series alert-target))))
 
 (defn- -resolve-state
   "Determine alert state from query result emptiness and alert_on mode.
@@ -98,7 +108,8 @@
    or {:state nil, :error string} on failure (caller preserves prev state)."
   [duckdb sqlite events-schema {qmode :query_mode query :query
                                 eval-win :eval_window_ms
-                                alert-on :alert_on}]
+                                alert-on :alert_on
+                                alert-target :alert_target}]
   (try
     (let [full-query (-> query
                          (-inject-time-range eval-win)
@@ -117,8 +128,9 @@
                                 (-inject-time-range eval-win))]
           (if-let [validation-error (metrics.query/validate sqlite metrics-query)]
             {:state nil :error (str "Validation error: " (:error validation-error))}
-            (let [result (metrics.query/execute duckdb sqlite metrics-query)]
-              {:state (-resolve-state (-metrics-result-firing? result) alert-on)
+            (let [result (metrics.query/execute duckdb sqlite metrics-query)
+                  firing? (-metrics-result-firing? result alert-target)]
+              {:state (-resolve-state firing? alert-on)
                :error nil})))
 
         ;; Unknown mode

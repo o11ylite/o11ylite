@@ -77,17 +77,25 @@ export function QueryBuilder({
   const mode = state.mode ?? "events"
   const vizType = state.visualization.type
 
-  // Compute available refs for having (aggregations or metrics)
+  // Compute available refs for having.
+  // - events mode: per-aggregation ids
+  // - metrics mode: metric ids + formula ids (backend supports both)
   const availableRefs =
     mode === "events"
       ? state.aggregations.map((a) => ({
           id: a.id,
           label: `${a.function}(${a.field})`,
         }))
-      : state.metrics.map((m) => ({
-          id: m.id,
-          label: `${m.agg}(${m.name})`,
-        }))
+      : [
+          ...state.metrics.map((m) => ({
+            id: m.id,
+            label: `${m.agg}(${m.name})`,
+          })),
+          ...(state.formulas ?? []).map((f) => ({
+            id: f.id,
+            label: f.name ? `${f.id}: ${f.name}` : f.id,
+          })),
+        ]
 
   const handleModeChange = (newMode: QueryMode) => {
     const visualization: Visualization =

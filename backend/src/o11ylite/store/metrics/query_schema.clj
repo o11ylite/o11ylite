@@ -224,7 +224,8 @@
    base-query
    [:fn {:error/message "metric IDs must be unique"}
     -unique-metric-ids?]
-   [:fn {:error/message "having ref must reference a declared metric or formula id"}
+   [:fn {:error/message "having ref must reference a declared metric or formula id"
+         :error/path [:having]}
     -valid-having-ref?]
    [:fn {:error/message "formula IDs must be unique"}
     -unique-formula-ids?]
