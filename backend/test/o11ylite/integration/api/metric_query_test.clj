@@ -860,3 +860,108 @@
         (is (= 200 (h/status response)))
         ;; A series present, B series empty/absent, F1 not emitted
         (is (empty? f1-series))))))
+
+(deftest metrics-query-having-on-formula-test
+  (testing "POST /api/query/metrics returns 400 when having references undeclared formula id"
+    (let [response (h/post-json "/api/query/metrics"
+                                {:time_range {:start 1702000000000
+                                              :end 1702003600000}
+                                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                                 :having {:ref "F1" :op ">" :value 50}})]
+      (is (= 400 (h/status response)))))
+
+  (testing "POST /api/query/metrics accepts having referencing a declared formula id"
+    (let [response (h/post-json "/api/query/metrics"
+                                {:time_range {:start 1702000000000
+                                              :end 1702003600000}
+                                 :metrics [{:id "A" :name "mem.free" :agg "last"}
+                                           {:id "B" :name "mem.total" :agg "last"}]
+                                 :formulas [{:id "F1" :expr "A / B * 100"}]
+                                 :having {:ref "F1" :op ">" :value 50}})]
+      (is (= 200 (h/status response)))))
+
+  (testing "POST /api/query/metrics having on F1 filters formula buckets while preserving source series"
+    (let [bucket-1-time (-> (t/instant) (t/truncate :minutes))
+          bucket-2-time (t/>> bucket-1-time (t/of-minutes 1))
+          bucket-1-ms (.toEpochMilli bucket-1-time)
+          time-ns-1 (instant->time-ns bucket-1-time)
+          time-ns-2 (instant->time-ns bucket-2-time)
+          end-ms (+ (.toEpochMilli bucket-2-time) 60000)]
+
+      ;; Bucket 1: free=900, total=1000 -> F1 = 90 (passes > 50)
+      (h/export-metrics!
+        {:service-name "having-formula-svc"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "having.formula.free"
+                      :unit "By"
+                      :data-points [{:value 900.0 :time-ns time-ns-1}]})
+                   (h/build-gauge-metric
+                     {:name "having.formula.total"
+                      :unit "By"
+                      :data-points [{:value 1000.0 :time-ns time-ns-1}]})]})
+
+      ;; Bucket 2: free=100, total=1000 -> F1 = 10 (fails > 50)
+      (h/export-metrics!
+        {:service-name "having-formula-svc"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "having.formula.free"
+                      :unit "By"
+                      :data-points [{:value 100.0 :time-ns time-ns-2}]})
+                   (h/build-gauge-metric
+                     {:name "having.formula.total"
+                      :unit "By"
+                      :data-points [{:value 1000.0 :time-ns time-ns-2}]})]})
+
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-1-ms :end end-ms}
+                                   :bucket_ms 60000
+                                   :metrics [{:id "A" :name "having.formula.free" :agg "last"}
+                                             {:id "B" :name "having.formula.total" :agg "last"}]
+                                   :formulas [{:id "F1" :expr "A / B * 100"}]
+                                   :having {:ref "F1" :op ">" :value 50}})
+            series (get-in response [:body :data :series])
+            by-id (group-by :id series)]
+        (is (= 200 (h/status response)))
+        ;; Source series A and B are unaffected by having on F1 — both buckets present
+        (is (= 2 (count (-> by-id (get "A") first :data))))
+        (is (= 2 (count (-> by-id (get "B") first :data))))
+        ;; Formula F1 has only bucket 1 (value 90 > 50), bucket 2 (value 10) dropped
+        (let [f1 (-> by-id (get "F1") first)
+              points (:data f1)]
+          (is (some? f1))
+          (is (= 1 (count points)))
+          (is (<= 89.9 (-> points first :value) 90.1))))))
+
+  (testing "POST /api/query/metrics having on F1 can drop the formula series entirely"
+    (let [bucket-time (-> (t/instant) (t/truncate :minutes))
+          bucket-ms (.toEpochMilli bucket-time)
+          time-ns (instant->time-ns bucket-time)
+          end-ms (+ bucket-ms 60000)]
+
+      (h/export-metrics!
+        {:service-name "having-formula-drop-svc"
+         :meter-name "test-meter"
+         :metrics [(h/build-gauge-metric
+                     {:name "having.formula.drop.free"
+                      :unit "By"
+                      :data-points [{:value 100.0 :time-ns time-ns}]})
+                   (h/build-gauge-metric
+                     {:name "having.formula.drop.total"
+                      :unit "By"
+                      :data-points [{:value 1000.0 :time-ns time-ns}]})]})
+
+      (let [response (h/post-json "/api/query/metrics"
+                                  {:time_range {:start bucket-ms :end end-ms}
+                                   :bucket_ms 60000
+                                   :metrics [{:id "A" :name "having.formula.drop.free" :agg "last"}
+                                             {:id "B" :name "having.formula.drop.total" :agg "last"}]
+                                   :formulas [{:id "F1" :expr "A / B * 100"}]
+                                   :having {:ref "F1" :op ">" :value 50}})
+            series (get-in response [:body :data :series])
+            f1-series (filter #(= "F1" (:id %)) series)]
+        (is (= 200 (h/status response)))
+        ;; F1 = 10, fails > 50 -> formula series dropped, but source series A and B remain
+        (is (empty? f1-series))
+        (is (= #{"A" "B"} (set (map :id series))))))))

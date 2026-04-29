@@ -108,7 +108,8 @@
   [ast]
   (let [seen (volatile! #{})
         order (volatile! [])
-        walk (fn walk [node]
+        walk (fn walk
+               [node]
                (case (first node)
                  :num nil
                  :ref (let [r (second node)]
@@ -215,6 +216,38 @@
   (let [series-by-id (-index-by-id series)]
     (vec (concat series
                  (mapcat #(-evaluate-formula series-by-id %) formulas)))))
+
+;; ---------------------------------------------------------
+;; Having filter on formula series
+
+(def ^:private -having-ops
+  {">"  >
+   "<"  <
+   ">=" >=
+   "<=" <=
+   "="  ==
+   "!=" (fn [a b] (not (== a b)))})
+
+(defn- -filter-series-data
+  "Return `s` with :data filtered by `pred`, or nil if all points are
+   dropped. Series whose :id doesn't match `ref` pass through."
+  [pred ref s]
+  (if-not (= ref (:id s))
+    s
+    (let [filtered (filterv pred (:data s))]
+      (when (seq filtered)
+        (assoc s :data filtered)))))
+
+(defn apply-having-to-formula
+  "Apply a having predicate to formula series.
+   Per-bucket filter: drops data points where (op value threshold) is
+   false, then drops series whose :data becomes empty. Series whose
+   :id doesn't match having's :ref are returned unchanged. Mirrors
+   per-metric SQL HAVING semantics."
+  [series {:keys [ref op value]}]
+  (let [op-fn (get -having-ops op)
+        point-pred #(op-fn (:value %) value)]
+    (vec (keep #(-filter-series-data point-pred ref %) series))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

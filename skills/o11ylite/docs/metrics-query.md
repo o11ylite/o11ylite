@@ -105,14 +105,18 @@ Same syntax as events query. Operators: `=`, `!=`, `contains`, `exists`, `starts
 
 ### Having expression
 
-Filter on aggregation results.
+Filter on aggregation results. Drops time-buckets where the predicate
+is false.
 
 ```json
 {"ref": "A", "op": ">", "value": 90}
 ```
 
-- `ref` — references a metric `id`
+- `ref` — a declared metric id (`A`–`Z`) or formula id (`F1`–`F9`)
 - `op` — `>`, `<`, `>=`, `<=`, `=`, `!=`
+
+When `ref` targets a formula, only that formula's series is filtered;
+the source metric series it derives from are returned in full.
 
 ### Formulas
 
