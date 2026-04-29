@@ -197,6 +197,36 @@
     (is (not (contains? (set (map :name (services/get-services (sqlite))))
                         "svc-pre-migration")))))
 
+(deftest run-gc-handles-orphaned-catalog-rows-test
+  (testing "run-gc! tolerates stale event-field catalog rows whose DuckDB
+            column does not exist (e.g. manually dropped or from a partial
+            prior GC run) and cleans up the catalog row anyway"
+    (let [now (System/currentTimeMillis)
+          ancient (- now (* 60 24 60 60 1000))
+          orphan-field "attr.gc.orphan"]
+      ;; Seed a catalog row for a field whose column we deliberately
+      ;; never add to DuckDB. This mirrors the production scenario where
+      ;; attr.names was in service_event_fields but not in the events table.
+      (seed-catalog-event-field! "svc-ghost" orphan-field ancient)
+      ;; Also add a real column + catalog row for a live field to verify
+      ;; the GC still does real work in the same pass.
+      (let [real-field "attr.gc.real"]
+        (schema/add-event-fields! (duckdb)
+                                  {(keyword real-field) {:type :string}})
+        @(events-schema-cache/refresh! (events-schema))
+        (seed-catalog-event-field! "svc-ghost" real-field ancient)
+
+        (let [result (catalog-gc/run-gc! (gc-deps) 30)
+              reclaimed (set (:event-fields result))]
+          (is (contains? reclaimed orphan-field)
+              "Orphaned field should be reported as reclaimed")
+          (is (contains? reclaimed real-field)
+              "Real field should also be reclaimed")
+          (is (= 2 (count (:event-fields result)))))
+
+        (testing "both catalog rows are gone"
+          (is (empty? (catalog/get-service-event-fields (sqlite) "svc-ghost"))))))))
+
 (deftest run-gc-is-a-noop-when-nothing-is-stale-test
   (testing "run-gc! short-circuits gracefully when there are no stale rows"
     (let [result (catalog-gc/run-gc! (gc-deps) 30)]
