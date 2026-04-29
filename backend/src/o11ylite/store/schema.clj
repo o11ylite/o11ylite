@@ -183,7 +183,7 @@
   [duckdb-ds field-names]
   (jdbc/with-transaction [tx duckdb-ds]
     (doseq [field-name field-names]
-      (let [sql (format "ALTER TABLE o11ylite.events DROP COLUMN \"%s\""
+      (let [sql (format "ALTER TABLE o11ylite.events DROP COLUMN IF EXISTS \"%s\""
                         field-name)]
         (jdbc/execute! tx [sql])))))
 
@@ -197,7 +197,7 @@
   [duckdb-ds field-names]
   (jdbc/with-transaction [tx duckdb-ds]
     (doseq [field-name field-names]
-      (let [sql (format "ALTER TABLE o11ylite.metrics DROP COLUMN \"%s\""
+      (let [sql (format "ALTER TABLE o11ylite.metrics DROP COLUMN IF EXISTS \"%s\""
                         field-name)]
         (jdbc/execute! tx [sql])))))
 
