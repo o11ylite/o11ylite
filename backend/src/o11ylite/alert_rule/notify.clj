@@ -36,31 +36,21 @@
   (format "%016x" (hash rule-id)))
 
 (defn- -build-payload
-  "Build Alertmanager v4 webhook payload."
+  "Build Alertmanager POST body."
   [{:keys [id name description state_changed_at]} status]
   (let [now-ms (System/currentTimeMillis)
-        starts-at (or state_changed_at now-ms)
+        starts-at (-epoch-ms->rfc3339 (or state_changed_at now-ms))
         ends-at (when (= status "resolved") now-ms)
         labels {"alertname" name
                 "source" "o11ylite"}
         annotations (cond-> {}
                       description (assoc "description" description))]
-    {:version "4"
-     :groupKey id
-     :truncatedAlerts 0
-     :status status
-     :receiver "o11ylite"
-     :groupLabels {"alertname" name}
-     :commonLabels labels
-     :commonAnnotations annotations
-     :externalURL ""
-     :alerts [{:status status
-               :labels labels
-               :annotations annotations
-               :startsAt (-epoch-ms->rfc3339 starts-at)
-               :endsAt (if ends-at (-epoch-ms->rfc3339 ends-at) "0001-01-01T00:00:00Z")
-               :generatorURL ""
-               :fingerprint (-fingerprint id)}]}))
+    [{:labels labels
+      :annotations annotations
+      :startsAt starts-at
+      :endsAt (if ends-at (-epoch-ms->rfc3339 ends-at) "0001-01-01T00:00:00Z")
+      :generatorURL ""
+      :fingerprint (-fingerprint id)}]))
 
 (defn- -send-http-post!
   "Send an HTTP POST with JSON body. Fire-and-forget with timeout."
