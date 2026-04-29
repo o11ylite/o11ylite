@@ -73,6 +73,7 @@ Use the `attributes` list to know which fields are valid for `filter` and `group
 | `group_by`  | No       | Array of attribute names to group by (shared across metrics) |
 | `having`    | No       | Post-aggregation numeric filter                        |
 | `formulas`  | No       | Derived series computed over query results (max 10)    |
+| `visualization` | No  | `{type: "time_series", ...}` — see Visualization below |
 
 ### Metric definition
 
@@ -144,6 +145,29 @@ Semantics:
   expressions like `1 + 2` are rejected at validation time.
 - Synthetic formula series carry `:metric null`, `:formula <expr>`, and
   the requested `:unit` (when supplied).
+
+---
+
+### Visualization (`time_series`)
+
+Controls how query results are rendered. All fields optional.
+
+```json
+{
+  "type": "time_series",
+  "bucket_ms": 60000,
+  "overlay": true,
+  "render_as": "line",
+  "hidden_metrics": ["A", "B"]
+}
+```
+
+| Field            | Type               | Default | Description                                              |
+|------------------|--------------------|---------|----------------------------------------------------------|
+| `bucket_ms`      | integer            | auto    | Bucket width in ms                                       |
+| `overlay`        | boolean            | `false` | When multiple series are present, draw them in a single chart instead of one chart per metric |
+| `render_as`      | `"line"` \| `"stacked_area"` \| `"bar"` | `"line"` | How to draw each series. Stacked area and bar treat missing buckets as 0 so the stack has no holes; pick either for part-of-whole views |
+| `hidden_metrics` | string[]           | `[]`    | Source-metric IDs whose series should be hidden from the chart. Render-only — the backend ignores this for query execution but persists it (e.g. in notebook cells) so the hiding state survives reloads |
 
 ---
 
