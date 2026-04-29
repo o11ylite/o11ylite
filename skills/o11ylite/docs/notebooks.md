@@ -193,7 +193,8 @@ See `docs/events-query.md` for filter, aggregation, having, and visualization sy
   "metrics": [{"id": "A", "name": "cpu.utilization", "agg": "avg"}],
   "filter": { ... },
   "group_by": ["attr.host.name"],
-  "having": {"ref": "A", "op": ">", "value": 80}
+  "having": {"ref": "A", "op": ">", "value": 80},
+  "visualization": {"type": "time_series", "overlay": true, "render_as": "line", "hidden_metrics": []}
 }
 ```
 
