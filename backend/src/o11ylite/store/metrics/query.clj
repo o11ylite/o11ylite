@@ -103,10 +103,14 @@
 (defn- -build-metric-query
   "Build HoneySQL query for a single metric.
    Returns a query that produces time-bucketed, aggregated results.
+   When `single-bucket?` is true, the bucket column is a constant (the
+   aligned window start) instead of time_bucket(timestamp), collapsing
+   the result to one row per group_by combination. Alert evaluation uses
+   this so its HAVING applies to the full eval window, not sub-buckets.
 
    Supports HAVING for post-aggregation filtering (applied only when the
    having clause references this metric's ID)."
-  [{:keys [time_range filter group_by having]} metric metric-type bucket-ms]
+  [{:keys [time_range filter group_by having]} metric metric-type bucket-ms single-bucket?]
   (let [{metric-name :name metric-id :id agg :agg metric-filter :filter} metric
         merged-filter (-merge-filters filter metric-filter)
         ;; Apply HAVING only if it references this metric's ID
@@ -115,15 +119,20 @@
         bucket-interval (query-util/bucket-ms->interval bucket-ms)
         time-bucket-expr [:time_bucket bucket-interval :timestamp]
         bucket-epoch-expr [:epoch_ms time-bucket-expr]
-        bucket-expr [bucket-epoch-expr :bucket]
+        ;; In single-bucket mode, replace time_bucket(...) with the aligned
+        ;; window start so callers see a uniform shape: one column named
+        ;; :bucket, group-by includes :bucket, and downstream rows->series
+        ;; works without a special case. Empty windows yield zero rows.
+        bucket-value-expr (if single-bucket?
+                            (query-util/align-to-bucket (:start time_range) bucket-ms)
+                            bucket-epoch-expr)
+        bucket-expr [bucket-value-expr :bucket]
         agg-expr [(-build-agg-expr metric-type agg bucket-ms) :value]
         group-by-fields (or group_by [])
         group-cols (map query-util/field->col group-by-fields)
         group-select (map (fn [field col] [col (keyword field)]) group-by-fields group-cols)
-        ;; Select: bucket, group_by fields, aggregation
         select-clause (into [bucket-expr] (concat group-select [agg-expr]))
         group-by-clause (into [:bucket] group-cols)
-        ;; Base query
         base-query {:select (vec select-clause)
                     :from [:o11ylite.metrics]
                     :where [:and
@@ -175,12 +184,12 @@
    Returns empty series if referenced columns don't exist (graceful degradation).
 
    Returns {:series [...] :unit \"By\"|nil}"
-  [duckdb sqlite query metric bucket-ms]
+  [duckdb sqlite query metric bucket-ms single-bucket?]
   (let [{:keys [id name agg]} metric
         ;; Lookup metric metadata; default to :gauge for unknown metrics (graceful degradation)
         metric-meta (metadata/get-metric sqlite name)
         metric-type (or (:metric_type metric-meta) :gauge)
-        hsql-query (-build-metric-query query metric metric-type bucket-ms)
+        hsql-query (-build-metric-query query metric metric-type bucket-ms single-bucket?)
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         group-by-fields (or (:group_by query) [])]
     (try
@@ -204,6 +213,11 @@
      duckdb - DuckDB datasource
      sqlite - SQLite datasource (for metric metadata lookups to determine type)
      query  - Validated query map
+     opts   - (optional) {:single-bucket? bool}
+              When :single-bucket? is true, every metric query collapses
+              to one row per group_by combination over the full time range
+              instead of producing a time series of sub-buckets. Used by
+              alert evaluation so HAVING applies to the full eval window.
 
     Returns:
      {:data {:bucket_ms N
@@ -223,42 +237,48 @@
                      ;; Formula units appear keyed as \"F1\" or \"F1: name\"
                      \"network.io\" \"By\"}}
       :metadata {:query_time_ms N}}"
-  [duckdb sqlite query]
-  (let [start-time (System/currentTimeMillis)
-        {:keys [time_range bucket_ms metrics having]} query
-        range-ms (- (:end time_range) (:start time_range))
-        resolved-bucket-ms (or bucket_ms (query-util/select-bucket-ms range-ms))
-        start-ms (query-util/align-to-bucket (:start time_range) resolved-bucket-ms)
-        end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
-        ;; Execute query for each metric, collecting series and units.
-        ;; Per-metric SQL HAVING activates only when having.ref matches that
-        ;; metric's id (handled inside -build-metric-query). Formula-targeted
-        ;; HAVING is applied below, after formulas are evaluated.
-        results (map #(-execute-metric duckdb sqlite query % resolved-bucket-ms) metrics)
-        raw-series (vec (mapcat :series results))
-        formulas (or (:formulas query) [])
-        ;; Append synthetic formula series (one per formula × matching label combo)
-        with-formulas (formula/apply-formulas raw-series formulas)
-        ;; Post-formula HAVING when ref points at a formula id
-        formula-ids (set (map :id formulas))
-        all-series (if (and having (formula-ids (:ref having)))
-                     (formula/apply-having-to-formula with-formulas having)
-                     with-formulas)
-        metric-units (into {} (map (fn [metric result]
-                                     [(:name metric) (:unit result)])
-                                   metrics results))
-        formula-units (into {} (for [f formulas
-                                     :when (:unit f)]
-                                 [(if (:name f) (str (:id f) ": " (:name f)) (:id f))
-                                  (:unit f)]))
-        units (merge metric-units formula-units)
-        query-time-ms (- (System/currentTimeMillis) start-time)]
-    {:data {:bucket_ms resolved-bucket-ms
-            :start_ms start-ms
-            :end_ms end-ms
-            :series all-series
-            :units units}
-     :metadata {:query_time_ms query-time-ms}}))
+  ([duckdb sqlite query]
+   (execute duckdb sqlite query nil))
+  ([duckdb sqlite query opts]
+   (let [start-time (System/currentTimeMillis)
+         {:keys [time_range bucket_ms metrics having]} query
+         single-bucket? (boolean (:single-bucket? opts))
+         range-ms (- (:end time_range) (:start time_range))
+         resolved-bucket-ms (cond
+                              single-bucket? range-ms
+                              bucket_ms bucket_ms
+                              :else (query-util/select-bucket-ms range-ms))
+         start-ms (query-util/align-to-bucket (:start time_range) resolved-bucket-ms)
+         end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
+         ;; Execute query for each metric, collecting series and units.
+         ;; Per-metric SQL HAVING activates only when having.ref matches that
+         ;; metric's id (handled inside -build-metric-query). Formula-targeted
+         ;; HAVING is applied below, after formulas are evaluated.
+         results (map #(-execute-metric duckdb sqlite query % resolved-bucket-ms single-bucket?) metrics)
+         raw-series (vec (mapcat :series results))
+         formulas (or (:formulas query) [])
+         ;; Append synthetic formula series (one per formula × matching label combo)
+         with-formulas (formula/apply-formulas raw-series formulas)
+         ;; Post-formula HAVING when ref points at a formula id
+         formula-ids (set (map :id formulas))
+         all-series (if (and having (formula-ids (:ref having)))
+                      (formula/apply-having-to-formula with-formulas having)
+                      with-formulas)
+         metric-units (into {} (map (fn [metric result]
+                                      [(:name metric) (:unit result)])
+                                    metrics results))
+         formula-units (into {} (for [f formulas
+                                      :when (:unit f)]
+                                  [(if (:name f) (str (:id f) ": " (:name f)) (:id f))
+                                   (:unit f)]))
+         units (merge metric-units formula-units)
+         query-time-ms (- (System/currentTimeMillis) start-time)]
+     {:data {:bucket_ms resolved-bucket-ms
+             :start_ms start-ms
+             :end_ms end-ms
+             :series all-series
+             :units units}
+      :metadata {:query_time_ms query-time-ms}})))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -306,7 +326,7 @@
   ;; => nil
 
   ;; Build query for inspection (gauge metric)
-  (-build-metric-query sample-query (first (:metrics sample-query)) :gauge 60000)
+  (-build-metric-query sample-query (first (:metrics sample-query)) :gauge 60000 false)
   ;; => {:select [[[:epoch_ms [:time_bucket ...]] :bucket]
   ;;              [[:raw "\"attr.host.name\""] :g0]
   ;;              [[:avg :value] :value]]
@@ -323,7 +343,8 @@
                         :metrics [{:id "A" :name "http.duration" :agg "avg"}]}
                        {:id "A" :name "http.duration" :agg "avg"}
                        :histogram
-                       60000)
+                       60000
+                       false)
   ;; => Uses hist.sum / hist.count for avg aggregation
 
   ;; Bucket size selection (using shared query-util functions)
