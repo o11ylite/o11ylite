@@ -31,3 +31,10 @@ gh release create "$TAG" --title "$TAG" --generate-notes --notes "## Docker imag
 docker pull $IMAGE:$VERSION
 \`\`\`
 "
+
+RELEASE_URL="$(gh release view "$TAG" --json url --jq .url)"
+
+buildkite-agent annotate \
+  --style "success" \
+  --context "github-release" \
+  ":github: Released [\`${TAG}\`](${RELEASE_URL})"
