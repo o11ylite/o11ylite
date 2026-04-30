@@ -28,6 +28,13 @@ interface TimeSeriesChartProps {
   units?: Record<string, string | null>
   // How to draw each series. Defaults to "line".
   renderAs?: TimeSeriesRenderAs
+  // Hide the legend even when there are multiple series. Useful for compact
+  // auxiliary charts (e.g. the events count-over-time histogram on Explore).
+  hideLegend?: boolean
+  // Override the default chart container className. The default
+  // ("h-[240px] w-full py-2 px-2 touch-pan-y") is chosen for the primary
+  // results chart; auxiliary embeds may want a smaller height.
+  containerClassName?: string
 }
 
 export function TimeSeriesChart({
@@ -37,6 +44,8 @@ export function TimeSeriesChart({
   shortLegendLabels = false,
   units,
   renderAs = "line",
+  hideLegend = false,
+  containerClassName = "h-[240px] w-full py-2 px-2 touch-pan-y",
 }: TimeSeriesChartProps) {
   // Stacked area and stacked bars both require numeric values at every bucket --
   // otherwise the stack develops holes. Zero-fill missing points only for those
@@ -48,7 +57,7 @@ export function TimeSeriesChart({
     () => transformData(data, { shortLegendLabels, zeroFillNulls }),
     [data, shortLegendLabels, zeroFillNulls]
   )
-  const showLegend = seriesMeta.length > 1
+  const showLegend = seriesMeta.length > 1 && !hideLegend
   const { setRange } = useTimeRange()
 
   // Drag-to-zoom selection state.
@@ -130,7 +139,7 @@ export function TimeSeriesChart({
       )}
       <ChartContainer
         config={chartConfig}
-        className="h-[240px] w-full py-2 px-2 touch-pan-y"
+        className={containerClassName}
         onPointerMove={handlePointerMove}
       >
         <ComposedChart

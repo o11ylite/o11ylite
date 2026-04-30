@@ -2,7 +2,7 @@ import { useState } from "react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { QueryBuilder } from "@/components/query-builder"
-import { TelemetryResult } from "@/components/results"
+import { TelemetryResult, EventCountTimeline } from "@/components/results"
 import { EventsSidePanel } from "@/components/events-side-panel"
 import { MetricSidePanel } from "@/components/metric-side-panel"
 import { useQueryState } from "@/hooks/use-query-state"
@@ -111,6 +111,14 @@ export default function Explore() {
     <MetricSidePanel />
   )
 
+  // Show the auxiliary count-over-time bar chart when the user is in the
+  // typical "logs explorer" mode: events mode + table view + no
+  // aggregations. With aggregations the table already shows a summarised
+  // view, and a count-over-time histogram of raw events would be both
+  // redundant and ambiguous (count of what?). The same gating mirrors the
+  // existing pagination rule (`isTableWithoutAggregations`).
+  const showCountTimeline = isEventsMode && isTableWithoutAggregations
+
   return (
     <ApplicationLayout title="Explore" showTimeRange rightPanel={rightPanel}>
       <div className="flex flex-col h-full gap-3">
@@ -118,6 +126,15 @@ export default function Explore() {
           initialState={state}
           onSubmit={handleSubmit}
         />
+        {showCountTimeline && (
+          <EventCountTimeline
+            state={state}
+            from={from}
+            to={to}
+            live={live}
+            runId={runId}
+          />
+        )}
         <TelemetryResult
           mode={mode}
           hasQuery={isEventsMode || hasQuery}

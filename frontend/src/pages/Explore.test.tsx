@@ -63,8 +63,30 @@ const mockServices = [
   { name: "api-gateway", first_seen_at: 1700000000, updated_at: 1700000000 },
 ]
 
+const mockTimeSeriesEventsResponse: QueryResponse = {
+  data: {
+    bucket_ms: 60000,
+    start_ms: 1704067200000,
+    end_ms: 1704070800000,
+    series: [],
+  },
+  metadata: {
+    query_time_ms: 5,
+    has_more: false,
+  },
+}
+
 const server = setupServer(
-  http.post("/api/query/events", () => {
+  http.post("/api/query/events", async ({ request }) => {
+    // The Explore page fires two events queries when in table mode: the
+    // primary table query (visualization.type === "table") and the
+    // auxiliary count-over-time histogram (visualization.type ===
+    // "time_series"). Return the appropriate shape for each — returning
+    // table rows for a time_series request crashes the chart renderer.
+    const body = (await request.json()) as EventsQuery
+    if (body.visualization?.type === "time_series") {
+      return HttpResponse.json(mockTimeSeriesEventsResponse)
+    }
     return HttpResponse.json(mockQueryResponse)
   }),
   http.post("/api/query/metrics", () => {
@@ -223,7 +245,14 @@ describe("Explore", () => {
 
       server.use(
         http.post("/api/query/events", async ({ request }) => {
-          requestBody = (await request.json()) as EventsQuery
+          const body = (await request.json()) as EventsQuery
+          // Skip the auxiliary count(*) chart's own request — only
+          // capture the primary table query so existing assertions
+          // on `requestBody.visualization` stay accurate.
+          if (body.visualization?.type === "time_series") {
+            return HttpResponse.json(mockTimeSeriesEventsResponse)
+          }
+          requestBody = body
           return HttpResponse.json(mockQueryResponse)
         })
       )
@@ -250,6 +279,65 @@ describe("Explore", () => {
       expect(requestBody!.time_range.end).toBeTypeOf("number")
       expect(requestBody!.limit).toBe(100)
       expect(requestBody!.visualization).toEqual({ type: "table" })
+    })
+
+    it("fires an auxiliary count(*) time_series request in table-without-aggregations mode", async () => {
+      // Capture every events request — the page fires two: the main
+      // table query and the auxiliary count-over-time histogram. We
+      // identify the auxiliary one by its visualization.type.
+      const requests: EventsQuery[] = []
+      const auxResponse: QueryResponse = {
+        data: {
+          bucket_ms: 60000,
+          start_ms: 1704067200000,
+          end_ms: 1704070800000,
+          series: [
+            {
+              labels: {},
+              name: "count(*)",
+              data: [
+                { timestamp: 1704067200000, value: 7 },
+                { timestamp: 1704067260000, value: 3 },
+              ],
+            },
+          ],
+        },
+        metadata: { query_time_ms: 4, has_more: false },
+      }
+
+      server.use(
+        http.post("/api/query/events", async ({ request }) => {
+          const body = (await request.json()) as EventsQuery
+          requests.push(body)
+          if (body.visualization?.type === "time_series") {
+            return HttpResponse.json(auxResponse)
+          }
+          return HttpResponse.json(mockQueryResponse)
+        }),
+      )
+
+      renderExplore()
+
+      // The auxiliary chart fires on mount (events mode + table viz +
+      // no aggregations is the default state). No need to click Run.
+      await waitFor(() => {
+        expect(
+          requests.find((r) => r.visualization?.type === "time_series"),
+        ).toBeDefined()
+      })
+
+      const auxRequest = requests.find(
+        (r) => r.visualization?.type === "time_series",
+      )!
+      expect(auxRequest.aggregations).toEqual([
+        { id: "A", field: "*", function: "count" },
+      ])
+
+      // The count summary should render once data arrives (10 events in
+      // the fixture).
+      await waitFor(() => {
+        expect(screen.getByText(/10 events/)).toBeInTheDocument()
+      })
     })
   })
 
