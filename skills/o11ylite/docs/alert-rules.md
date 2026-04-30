@@ -24,6 +24,12 @@ There is no separate threshold field. To alert when error count exceeds 100, wri
 
 For absence/silence detection (e.g., "service stopped sending events"), use `alert_on: "no_result"`. For threshold-based absence (e.g., "QPS dropped below 10"), invert the query to evidence of health (`having count >= 10`) and use `alert_on: "no_result"` — silence fires because there's no evidence of health.
 
+### Aggregation window (metrics mode)
+
+Each metric is aggregated as a **single value over the full `eval_window_ms`** — not sub-bucketed. `avg` is a true window average, `sum` is a window total, `max`/`min` are window extremes. A momentary sub-bucket spike alone does not trigger the alert. Any `bucket_ms` in the query body is ignored.
+
+This differs from the dashboard metrics API, which sub-buckets results for plotting.
+
 ## Endpoints
 
 | Method | Path                        | Description           |

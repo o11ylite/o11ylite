@@ -237,6 +237,76 @@
           (is (= "ok" (get-rule-state rule-id))))))))
 
 ;; ---------------------------------------------------------
+;; Metrics eval_window_ms is used as the single time bucket
+
+(deftest metrics-eval-aggregates-entire-window-test
+  ;; Both tests below would FAIL if alert eval used per-sub-bucket aggregation
+  ;; instead of a single bucket spanning the entire eval window. They construct
+  ;; data where the full-window aggregate disagrees with per-sub-bucket
+  ;; aggregates, so removing single-bucket mode flips the outcome.
+  (let [now-ms (System/currentTimeMillis)
+        now-ns (* now-ms 1000000)
+        eval-window-ms 300000
+        ms->ns (fn [ms] (* ms 1000000))]
+
+    (testing "avg: full-window avg below threshold stays ok despite outlier sub-bucket"
+      ;; Many low values (10) + one outlier (200) in its own sub-bucket.
+      ;; Full-window avg = (10*5 + 200)/6 ≈ 41.7 → ok.
+      ;; Per-sub-bucket: outlier bucket avg = 200 → would fire without single-bucket mode.
+      (let [metric-name "alert.avg.outlier.test"
+            data-points [{:value 10.0 :time-ns (- now-ns (ms->ns 250000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns 200000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns 150000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns 100000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns  50000))}
+                         {:value 200.0 :time-ns (- now-ns (ms->ns 30000))}]]
+        (h/export-metrics!
+          {:service-name "alert-avg-outlier-svc"
+           :meter-name "test-meter"
+           :metrics [(h/build-gauge-metric
+                       {:name metric-name
+                        :unit "1"
+                        :data-points data-points})]})
+        (let [rule-id (create-alert-rule!
+                        {:name "Avg Outlier Test"
+                         :query_mode "metrics"
+                         :query {:metrics [{:id "A" :name metric-name :agg "avg"}]
+                                 :having {:ref "A" :op ">" :value 50}}
+                         :eval_window_ms eval-window-ms})]
+          (alert-rule/run-evaluation-cycle!
+            (duckdb) (sqlite) (events-schema) nil)
+          (is (= "ok" (get-rule-state rule-id))
+              "Full-window avg ~41.7 must not fire; only single-bucket mode prevents the outlier sub-bucket from triggering."))))
+
+    (testing "sum: full-window sum above threshold fires despite small per-sub-bucket sums"
+      ;; Five values of 10 each in different sub-buckets.
+      ;; Full-window sum = 50 → > 49 → fires.
+      ;; Per-sub-bucket sum = 10 each → would stay ok without single-bucket mode.
+      (let [metric-name "alert.sum.spread.test"
+            data-points [{:value 10.0 :time-ns (- now-ns (ms->ns 240000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns 180000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns 120000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns  60000))}
+                         {:value 10.0 :time-ns (- now-ns (ms->ns  20000))}]]
+        (h/export-metrics!
+          {:service-name "alert-sum-spread-svc"
+           :meter-name "test-meter"
+           :metrics [(h/build-gauge-metric
+                       {:name metric-name
+                        :unit "1"
+                        :data-points data-points})]})
+        (let [rule-id (create-alert-rule!
+                        {:name "Sum Spread Test"
+                         :query_mode "metrics"
+                         :query {:metrics [{:id "A" :name metric-name :agg "sum"}]
+                                 :having {:ref "A" :op ">" :value 49}}
+                         :eval_window_ms eval-window-ms})]
+          (alert-rule/run-evaluation-cycle!
+            (duckdb) (sqlite) (events-schema) nil)
+          (is (= "firing" (get-rule-state rule-id))
+              "Full-window sum 50 must fire; without single-bucket mode each sub-bucket sums to 10 and would not exceed threshold."))))))
+
+;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
 

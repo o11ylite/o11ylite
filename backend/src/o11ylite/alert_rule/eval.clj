@@ -123,12 +123,14 @@
              :error nil}))
 
         "metrics"
-        (let [;; Metrics queries don't use table viz, restore original shape
-              metrics-query (-> query
-                                (-inject-time-range eval-win))]
+        (let [metrics-query (-inject-time-range query eval-win)]
           (if-let [validation-error (metrics.query/validate sqlite metrics-query)]
             {:state nil :error (str "Validation error: " (:error validation-error))}
-            (let [result (metrics.query/execute duckdb sqlite metrics-query)
+            ;; :single-bucket? collapses every metric to one row per
+            ;; group_by combination over the full eval window so HAVING
+            ;; applies to the full window, not per sub-bucket.
+            (let [result (metrics.query/execute duckdb sqlite metrics-query
+                                                {:single-bucket? true})
                   firing? (-metrics-result-firing? result alert-target)]
               {:state (-resolve-state firing? alert-on)
                :error nil})))
