@@ -104,8 +104,10 @@
    The alert_on field controls interpretation: 'result' (default) fires on
    non-empty results, 'no_result' fires on empty results (absence detection).
 
-   Returns {:state :ok|:firing, :error nil} on success,
-   or {:state nil, :error string} on failure (caller preserves prev state)."
+   Returns {:state :ok|:firing, :error nil, :result <query-result>} on
+   success, or {:state nil, :error string, :result nil} on failure (caller
+   preserves prev state). The :result key carries the query response so
+   notification dispatch can include breach context in the payload."
   [duckdb sqlite events-schema {qmode :query_mode query :query
                                 eval-win :eval_window_ms
                                 alert-on :alert_on
@@ -117,15 +119,18 @@
       (case qmode
         "events"
         (if-let [validation-error (events.query/validate events-schema full-query)]
-          {:state nil :error (str "Validation error: " (:error validation-error))}
+          {:state nil :error (str "Validation error: " (:error validation-error))
+           :result nil}
           (let [result (events.query/execute duckdb full-query)]
             {:state (-resolve-state (-events-result-firing? result) alert-on)
-             :error nil}))
+             :error nil
+             :result result}))
 
         "metrics"
         (let [metrics-query (-inject-time-range query eval-win)]
           (if-let [validation-error (metrics.query/validate sqlite metrics-query)]
-            {:state nil :error (str "Validation error: " (:error validation-error))}
+            {:state nil :error (str "Validation error: " (:error validation-error))
+             :result nil}
             ;; :single-bucket? collapses every metric to one row per
             ;; group_by combination over the full eval window so HAVING
             ;; applies to the full window, not per sub-bucket.
@@ -133,13 +138,14 @@
                                                 {:single-bucket? true})
                   firing? (-metrics-result-firing? result alert-target)]
               {:state (-resolve-state firing? alert-on)
-               :error nil})))
+               :error nil
+               :result result})))
 
         ;; Unknown mode
-        {:state nil :error (str "Unknown query_mode: " qmode)}))
+        {:state nil :error (str "Unknown query_mode: " qmode) :result nil}))
     (catch Exception e
       (mulog/log ::evaluation-error :error (.getMessage e))
-      {:state nil :error (.getMessage e)})))
+      {:state nil :error (.getMessage e) :result nil})))
 
 ;; ---------------------------------------------------------
 ;; Evaluation Cycle Orchestration
@@ -150,17 +156,18 @@
   [duckdb sqlite events-schema webhook-url rule]
   (let [{:keys [id state]} rule
         prev-state (keyword state)
-        {:keys [state error]} (evaluate-rule duckdb sqlite events-schema rule)
-        new-state (or state prev-state)]
+        {new-state :state error :error result :result}
+        (evaluate-rule duckdb sqlite events-schema rule)
+        effective-state (or new-state prev-state)]
     (mulog/log ::rule-evaluated
                :rule-id id
                :prev-state prev-state
-               :new-state new-state
+               :new-state effective-state
                :error error)
     ;; Update DB state (records last_eval_at and error even on failure)
-    (store/update-eval-result! sqlite id new-state error prev-state)
-    ;; Send webhook notification
-    (notify/maybe-send-webhook! webhook-url rule new-state prev-state)))
+    (store/update-eval-result! sqlite id effective-state error prev-state)
+    ;; Send webhook notification with breach context from the query result
+    (notify/maybe-send-webhook! webhook-url rule effective-state prev-state result)))
 
 (defn run-evaluation-cycle!
   "Evaluate all due alert rules and send notifications.
