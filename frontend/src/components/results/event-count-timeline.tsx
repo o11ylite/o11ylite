@@ -122,9 +122,6 @@ export function EventCountTimeline({
         renderAs="bar"
         hideLegend
         containerClassName={`${CHART_HEIGHT_CLASS} w-full px-2 pb-2 touch-pan-y`}
-        // count(*) has no semantic unit; pass through whatever the API
-        // sent (typically `{}`).
-        units={result.units}
       />
     </div>
   )

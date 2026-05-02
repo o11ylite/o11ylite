@@ -61,7 +61,6 @@ export function ResultsTimeSeries({
         <TimeSeriesChart
           data={filteredResult}
           connectNulls={connectNulls}
-          units={filteredResult.units}
           renderAs={renderAs}
         />
       ) : (
@@ -73,7 +72,6 @@ export function ResultsTimeSeries({
               title={name}
               connectNulls={connectNulls}
               shortLegendLabels
-              units={filteredResult.units}
               renderAs={renderAs}
             />
           ))}

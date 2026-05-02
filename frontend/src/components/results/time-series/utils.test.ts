@@ -9,7 +9,6 @@ function makeResult(): TimeSeriesQueryResult {
     start_ms: 0,
     end_ms: 30,
     bucket_ms: 10,
-    units: { hits: null },
     series: [
       {
         name: "hits",

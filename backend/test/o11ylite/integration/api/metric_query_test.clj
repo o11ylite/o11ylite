@@ -137,9 +137,9 @@
                 :series [{:id "A"
                           :metric "cpu.utilization"
                           :name "avg(cpu.utilization)"
+                          :unit "%"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 20.0}]}]
-                :units {:cpu.utilization "%"}}
+                          :data [{:timestamp bucket-ms :value 20.0}]}]}
                data))))))
 
 (deftest metrics-query-gauge-with-group-by-test
@@ -181,14 +181,15 @@
                 :series [{:id "A"
                           :metric "memory.usage.grouped"
                           :name "sum(memory.usage.grouped)"
+                          :unit "bytes"
                           :labels {:service "grouped-service-1"}
                           :data [{:timestamp bucket-ms :value 100.0}]}
                          {:id "A"
                           :metric "memory.usage.grouped"
                           :name "sum(memory.usage.grouped)"
+                          :unit "bytes"
                           :labels {:service "grouped-service-2"}
-                          :data [{:timestamp bucket-ms :value 200.0}]}]
-                :units {:memory.usage.grouped "bytes"}}
+                          :data [{:timestamp bucket-ms :value 200.0}]}]}
                (update data :series
                        (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
 
@@ -228,10 +229,10 @@
                 :series [{:id "A"
                           :metric "disk.usage"
                           :name "avg(disk.usage)"
+                          :unit "bytes"
                           :labels {}
                           :data [{:timestamp bucket-1-ms :value 55.0}
-                                 {:timestamp bucket-2-ms :value 90.0}]}]
-                :units {:disk.usage "bytes"}}
+                                 {:timestamp bucket-2-ms :value 90.0}]}]}
                data))))))
 
 ;; ---------------------------------------------------------
@@ -271,9 +272,9 @@
                 :series [{:id "A"
                           :metric "http.requests.count"
                           :name "rate(http.requests.count)"
+                          :unit "1"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 10.0}]}]
-                :units {:http.requests.count "1"}}
+                          :data [{:timestamp bucket-ms :value 10.0}]}]}
                data))))))
 
 (deftest metrics-query-sum-aggregation-test
@@ -308,9 +309,9 @@
                 :series [{:id "A"
                           :metric "http.errors.count"
                           :name "sum(http.errors.count)"
+                          :unit "1"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 18.0}]}]
-                :units {:http.errors.count "1"}}
+                          :data [{:timestamp bucket-ms :value 18.0}]}]}
                data))))))
 
 ;; ---------------------------------------------------------
@@ -355,9 +356,9 @@
                 :series [{:id "A"
                           :metric "error.rate.filter"
                           :name "avg(error.rate.filter)"
+                          :unit "%"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 5.0}]}]
-                :units {:error.rate.filter "%"}}
+                          :data [{:timestamp bucket-ms :value 5.0}]}]}
                data))))))
 
 (deftest metrics-query-with-per-metric-filter-test
@@ -403,9 +404,9 @@
                 :series [{:id "A"
                           :metric "http.responses.permetric"
                           :name "sum(http.responses.permetric)"
+                          :unit "1"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 50.0}]}]
-                :units {:http.responses.permetric "1"}}
+                          :data [{:timestamp bucket-ms :value 50.0}]}]}
                data))))))
 
 ;; ---------------------------------------------------------
@@ -452,15 +453,15 @@
                 :series [{:id "A"
                           :metric "http.server.errors"
                           :name "sum(http.server.errors)"
+                          :unit "1"
                           :labels {}
                           :data [{:timestamp bucket-ms :value 50.0}]}
                          {:id "B"
                           :metric "http.server.requests"
                           :name "sum(http.server.requests)"
+                          :unit "1"
                           :labels {}
-                          :data [{:timestamp bucket-ms :value 1000.0}]}]
-                :units {:http.server.errors "1"
-                        :http.server.requests "1"}}
+                          :data [{:timestamp bucket-ms :value 1000.0}]}]}
                (update data :series (fn [s] (vec (sort-by :id s))))))))))
 
 ;; ---------------------------------------------------------
@@ -519,25 +520,27 @@
                 :series [{:id "A"
                           :metric "requests.complex"
                           :name "sum(requests.complex)"
+                          :unit "1"
                           :labels {:service "complex-api"}
                           :data [{:timestamp bucket-ms :value 100.0}]}
                          {:id "A"
                           :metric "requests.complex"
                           :name "sum(requests.complex)"
+                          :unit "1"
                           :labels {:service "complex-web"}
                           :data [{:timestamp bucket-ms :value 200.0}]}
                          {:id "B"
                           :metric "latency.complex"
                           :name "avg(latency.complex)"
+                          :unit "ms"
                           :labels {:service "complex-api"}
                           :data [{:timestamp bucket-ms :value 50.0}]}
                          {:id "B"
                           :metric "latency.complex"
                           :name "avg(latency.complex)"
+                          :unit "ms"
                           :labels {:service "complex-web"}
-                          :data [{:timestamp bucket-ms :value 30.0}]}]
-                :units {:requests.complex "1"
-                        :latency.complex "ms"}}
+                          :data [{:timestamp bucket-ms :value 30.0}]}]}
                (update data :series
                        (fn [s] (vec (sort-by (juxt :id #(get-in % [:labels :service])) s))))))))))
 
@@ -645,14 +648,15 @@
                 :series [{:id "A"
                           :metric "db.query.duration.grouped"
                           :name "count(db.query.duration.grouped)"
+                          :unit "s"
                           :labels {:service "histogram-grouped-api"}
                           :data [{:timestamp bucket-ms :value 375}]}
                          {:id "A"
                           :metric "db.query.duration.grouped"
                           :name "count(db.query.duration.grouped)"
+                          :unit "s"
                           :labels {:service "histogram-grouped-web"}
-                          :data [{:timestamp bucket-ms :value 185}]}]
-                :units {:db.query.duration.grouped "s"}}
+                          :data [{:timestamp bucket-ms :value 185}]}]}
                (update data :series
                        (fn [s] (vec (sort-by #(get-in % [:labels :service]) s))))))))))
 
@@ -816,14 +820,17 @@
                                    :formulas [{:id "F1"
                                                :expr "A / B * 100"
                                                :name "free mem %"
-                                               :unit "%"}]})
+                                               :unit "%"}
+                                              {:id "F2"
+                                               :expr "A - B"
+                                               :name "mem diff"}]})
             series (get-in response [:body :data :series])
             ids (set (map :id series))
             f1 (first (filter #(= "F1" (:id %)) series))
-            units (get-in response [:body :data :units])]
+            f2 (first (filter #(= "F2" (:id %)) series))]
         (is (= 200 (h/status response)))
-        ;; Source series A and B preserved, plus formula F1
-        (is (= #{"A" "B" "F1"} ids))
+        ;; Source series A and B preserved, plus formulas F1 and F2
+        (is (= #{"A" "B" "F1" "F2"} ids))
         (is (some? f1))
         (is (= "F1: free mem %" (:name f1)))
         (is (= "A / B * 100" (:formula f1)))
@@ -832,8 +839,11 @@
         (let [point (-> f1 :data first)]
           (is (some? point))
           (is (<= 89.9 (:value point) 90.1)))
-        ;; Unit propagated (JSON-roundtripped: string keys become keywords)
-        (is (= "%" (get units (keyword "F1: free mem %")))))))
+        ;; Explicit unit on the series itself
+        (is (= "%" (:unit f1)))
+        ;; F2 has no explicit unit — inferred from operands (both "By")
+        (is (some? f2))
+        (is (= "By" (:unit f2))))))
 
   (testing "POST /api/query/metrics with no matching label combos returns no formula series"
     ;; Request a formula but ingest only one of the two referenced metrics.
