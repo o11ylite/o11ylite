@@ -208,14 +208,58 @@
                :data (vec points)}
         unit (assoc :unit unit)))))
 
+(defn- -series->id-unit
+  "Build a {metric-ref => unit} map from source series.
+   When the same id appears across multiple label combinations, the first
+   non-nil unit wins (all series for one metric share its unit)."
+  [series]
+  (reduce (fn [acc s]
+            (let [id (:id s)
+                  u (:unit s)]
+              (if (and id (some? u) (not (contains? acc id)))
+                (assoc acc id u)
+                acc)))
+          {}
+          series))
+
+(defn- -infer-formula-unit
+  "Infer a formula's unit from its referenced metrics.
+   Returns the common unit if every referenced metric has a known unit
+   and all share the same unit. Returns nil otherwise."
+  [expr metric-id->unit]
+  (let [required (refs (parse expr))
+        ref-units (keep metric-id->unit required)]
+    (when (and (seq required)
+               (= (count ref-units) (count required))
+               (apply = ref-units)
+               (first ref-units))
+      (first ref-units))))
+
+(defn- -resolve-formula-unit
+  "Returns the formula with its :unit field set: explicit if provided,
+   otherwise inferred from referenced source series, otherwise unset."
+  [formula metric-id->unit]
+  (if (:unit formula)
+    formula
+    (if-let [inferred (-infer-formula-unit (:expr formula) metric-id->unit)]
+      (assoc formula :unit inferred)
+      formula)))
+
 (defn apply-formulas
   "Append one synthetic series per (formula × matching label combo) to
-   the input series. Source series are returned unchanged.
-   `formulas` is a vector of {:id :expr :name? :unit?}."
+    the input series. Source series are returned unchanged.
+    `formulas` is a vector of {:id :expr :name? :unit?}.
+
+    Each emitted formula series carries a :unit:
+      - the formula's explicit :unit if provided, else
+      - the common unit of all referenced source series (when they agree), else
+      - unset."
   [series formulas]
-  (let [series-by-id (-index-by-id series)]
+  (let [series-by-id (-index-by-id series)
+        metric-id->unit (-series->id-unit series)
+        resolved (map #(-resolve-formula-unit % metric-id->unit) formulas)]
     (vec (concat series
-                 (mapcat #(-evaluate-formula series-by-id %) formulas)))))
+                 (mapcat #(-evaluate-formula series-by-id %) resolved)))))
 
 ;; ---------------------------------------------------------
 ;; Having filter on formula series

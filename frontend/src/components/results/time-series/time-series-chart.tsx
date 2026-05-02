@@ -24,8 +24,6 @@ interface TimeSeriesChartProps {
   connectNulls?: boolean
   // Use shorter legend labels (omit metric name) when charts are split by metric
   shortLegendLabels?: boolean
-  // Metric name -> OTel unit string, from the query response
-  units?: Record<string, string | null>
   // How to draw each series. Defaults to "line".
   renderAs?: TimeSeriesRenderAs
   // Hide the legend even when there are multiple series. Useful for compact
@@ -42,7 +40,6 @@ export function TimeSeriesChart({
   title,
   connectNulls = false,
   shortLegendLabels = false,
-  units,
   renderAs = "line",
   hideLegend = false,
   containerClassName = "h-[240px] w-full py-2 px-2 touch-pan-y",
@@ -129,7 +126,7 @@ export function TimeSeriesChart({
   const formatTimestamp = useMemo(() => createTimestampFormatter(rangeMs), [rangeMs])
 
   // Unit-aware value formatting for Y-axis ticks and tooltip values
-  const chartUnit = useMemo(() => resolveChartUnit(data.series, units), [data.series, units])
+  const chartUnit = useMemo(() => resolveChartUnit(data.series), [data.series])
   const unitFormatter = useMemo(() => createUnitFormatter(chartUnit), [chartUnit])
 
   return (

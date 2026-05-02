@@ -276,6 +276,10 @@ export interface TimeSeriesSeries {
   // Metrics-specific fields (only present in metrics query results)
   id?: string // Metric query ID (e.g., "A", "B") - for formula references
   metric?: string // Metric name (e.g., "cpu.utilization")
+  // OTel unit string (e.g., "By" for bytes, "%" for percent). Present on
+  // metric series and on formula series when explicitly set or inferable
+  // from the formula's operands.
+  unit?: string | null
 }
 
 export interface TimeSeriesQueryResult {
@@ -283,9 +287,6 @@ export interface TimeSeriesQueryResult {
   start_ms: number
   end_ms: number
   series: TimeSeriesSeries[]
-  // Metric name -> OTel unit string (e.g., "By" for bytes, "%" for percent)
-  // Only present in metrics query responses.
-  units?: Record<string, string | null>
 }
 
 // Trace data - a single span or span_event in a trace waterfall

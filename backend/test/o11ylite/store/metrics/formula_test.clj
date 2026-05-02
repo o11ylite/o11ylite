@@ -137,6 +137,35 @@
       (is (= "F1: ratio" (:name f1)))
       (is (= "%" (:unit f1)))))
 
+  (testing "unit inferred from operands when all share the same unit"
+    (let [series [(assoc (-ts "A" {} [[1000 100.0]]) :unit "By")
+                  (assoc (-ts "B" {} [[1000 30.0]])  :unit "By")]
+          f1 (last (formula/apply-formulas series [{:id "F1" :expr "A - B"}]))]
+      (is (= "By" (:unit f1)))))
+
+  (testing "unit not inferred when operands have differing units"
+    (let [series [(assoc (-ts "A" {} [[1000 100.0]]) :unit "By")
+                  (assoc (-ts "B" {} [[1000 30.0]])  :unit "%")]
+          f1 (last (formula/apply-formulas series [{:id "F1" :expr "A + B"}]))]
+      (is (nil? (:unit f1)))))
+
+  (testing "unit not inferred when any operand has no unit"
+    (let [series [(assoc (-ts "A" {} [[1000 100.0]]) :unit "By")
+                  (-ts "B" {} [[1000 30.0]])]
+          f1 (last (formula/apply-formulas series [{:id "F1" :expr "A + B"}]))]
+      (is (nil? (:unit f1)))))
+
+  (testing "explicit unit wins over inferable common unit"
+    (let [series [(assoc (-ts "A" {} [[1000 100.0]]) :unit "By")
+                  (assoc (-ts "B" {} [[1000 30.0]])  :unit "By")]
+          f1 (last (formula/apply-formulas series [{:id "F1" :expr "A / B" :unit "%"}]))]
+      (is (= "%" (:unit f1)))))
+
+  (testing "single-ref formula inherits the operand's unit"
+    (let [series [(assoc (-ts "A" {} [[1000 7.0]]) :unit "ms")]
+          f1 (last (formula/apply-formulas series [{:id "F1" :expr "A * 2"}]))]
+      (is (= "ms" (:unit f1)))))
+
   (testing "missing operand series — formula yields zero series"
     ;; Only A present, formula references B
     (let [series [(-ts "A" {} [[1000 1.0]])]

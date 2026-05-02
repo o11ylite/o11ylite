@@ -158,8 +158,11 @@
    Creates one series per unique label combination.
 
    Rows use the original field names as column aliases (e.g., :attr.k8s.pod.name),
-   matching the events query approach."
-  [rows metric-id metric-name metric-agg group-by-fields]
+   matching the events query approach.
+
+   Each series carries its own :unit (nil if the metric has no declared unit)
+   so consumers can render unit-aware values without a side-channel lookup."
+  [rows metric-id metric-name metric-agg metric-unit group-by-fields]
   (let [label-keys (map keyword group-by-fields)
         grouped (group-by #(select-keys % label-keys) rows)
         series-name (-format-series-name metric-agg metric-name)]
@@ -167,6 +170,7 @@
       {:id metric-id
        :metric metric-name
        :name series-name
+       :unit metric-unit
        :labels labels
        :data (vec (for [row rows-for-series]
                     {:timestamp (:bucket row)
@@ -178,28 +182,28 @@
   (and (instance? java.sql.SQLException e)
        (some-> (.getMessage e) (.contains "not found in FROM clause"))))
 
-(defn- -execute-metric
-  "Execute query for a single metric and return its series and unit.
-   Looks up metric type from metadata to select appropriate aggregation columns.
-   Returns empty series if referenced columns don't exist (graceful degradation).
 
-   Returns {:series [...] :unit \"By\"|nil}"
+(defn- -execute-metric
+  "Execute query for a single metric, returning a seq of series.
+   Looks up metric type from metadata to select appropriate aggregation columns.
+   Each emitted series carries the metric's :unit so downstream consumers
+   are self-contained.
+   Returns empty seq if referenced columns don't exist (graceful degradation)."
   [duckdb sqlite query metric bucket-ms single-bucket?]
   (let [{:keys [id name agg]} metric
         ;; Lookup metric metadata; default to :gauge for unknown metrics (graceful degradation)
         metric-meta (metadata/get-metric sqlite name)
         metric-type (or (:metric_type metric-meta) :gauge)
+        metric-unit (:unit metric-meta)
         hsql-query (-build-metric-query query metric metric-type bucket-ms single-bucket?)
         [sql-str & params] (sql/format hsql-query {:dialect :ansi})
         group-by-fields (or (:group_by query) [])]
     (try
       (let [rows (jdbc/execute! duckdb (into [sql-str] params))]
-        {:series (-rows->series rows id name agg group-by-fields)
-         :unit (:unit metric-meta)})
+        (-rows->series rows id name agg metric-unit group-by-fields))
       (catch java.sql.SQLException e
         (if (-column-not-found? e)
-          ;; Return empty series for non-existent columns
-          {:series [] :unit (:unit metric-meta)}
+          []
           (throw e))))))
 
 ;; ---------------------------------------------------------
@@ -226,16 +230,15 @@
              :series [{:id \"A\"
                        :metric \"cpu.utilization\"
                        :name \"avg(cpu.utilization)\"
+                       :unit \"%\"
                        :labels {:attr.host.name \"server-1\"}
                        :data [{:timestamp N :value N} ...]}
                       ;; If :formulas were supplied, synthetic series are
                       ;; appended after metric series. They carry :id (e.g.
                       ;; \"F1\"), :metric nil, :formula <expr>, :name (\"F1\"
-                      ;; or \"F1: <user-name>\"), and a (possibly :unit) field.
-                      ...]
-             :units {\"cpu.utilization\" \"%\"
-                     ;; Formula units appear keyed as \"F1\" or \"F1: name\"
-                     \"network.io\" \"By\"}}
+                      ;; or \"F1: <user-name>\"), and a :unit (explicit or
+                      ;; inferred from operands when all share the same unit).
+                      ...]}
       :metadata {:query_time_ms N}}"
   ([duckdb sqlite query]
    (execute duckdb sqlite query nil))
@@ -250,34 +253,25 @@
                               :else (query-util/select-bucket-ms range-ms))
          start-ms (query-util/align-to-bucket (:start time_range) resolved-bucket-ms)
          end-ms (query-util/align-to-bucket (:end time_range) resolved-bucket-ms)
-         ;; Execute query for each metric, collecting series and units.
          ;; Per-metric SQL HAVING activates only when having.ref matches that
          ;; metric's id (handled inside -build-metric-query). Formula-targeted
          ;; HAVING is applied below, after formulas are evaluated.
-         results (map #(-execute-metric duckdb sqlite query % resolved-bucket-ms single-bucket?) metrics)
-         raw-series (vec (mapcat :series results))
+         raw-series (vec (mapcat #(-execute-metric duckdb sqlite query % resolved-bucket-ms single-bucket?)
+                                 metrics))
          formulas (or (:formulas query) [])
-         ;; Append synthetic formula series (one per formula × matching label combo)
+         ;; apply-formulas appends synthetic series and infers each formula's
+         ;; :unit from its operands when not explicitly set.
          with-formulas (formula/apply-formulas raw-series formulas)
          ;; Post-formula HAVING when ref points at a formula id
          formula-ids (set (map :id formulas))
          all-series (if (and having (formula-ids (:ref having)))
                       (formula/apply-having-to-formula with-formulas having)
                       with-formulas)
-         metric-units (into {} (map (fn [metric result]
-                                      [(:name metric) (:unit result)])
-                                    metrics results))
-         formula-units (into {} (for [f formulas
-                                      :when (:unit f)]
-                                  [(if (:name f) (str (:id f) ": " (:name f)) (:id f))
-                                   (:unit f)]))
-         units (merge metric-units formula-units)
          query-time-ms (- (System/currentTimeMillis) start-time)]
      {:data {:bucket_ms resolved-bucket-ms
              :start_ms start-ms
              :end_ms end-ms
-             :series all-series
-             :units units}
+             :series all-series}
       :metadata {:query_time_ms query-time-ms}})))
 
 ;; ---------------------------------------------------------

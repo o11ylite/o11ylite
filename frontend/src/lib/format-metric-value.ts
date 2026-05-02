@@ -198,22 +198,26 @@ export function createUnitFormatter(unit: string | null | undefined): UnitFormat
 }
 
 /**
- * Resolve the unit for a set of series from the units map.
- * Returns the unit if all series share the same metric (and thus unit),
- * or null if series span multiple metrics with different units.
+ * Resolve the unit shared by a set of series.
+ * Each series carries its own :unit (set by the backend for metric series
+ * and for formula series whose operand units agree). Returns the unit when
+ * every series with a unit shares the same value, or undefined when units
+ * differ or no series carries one.
  */
 export function resolveChartUnit(
-  series: { metric?: string }[],
-  units?: Record<string, string | null>,
+  series: { unit?: string | null }[],
 ): string | null | undefined {
-  if (!units || series.length === 0) return undefined
+  if (series.length === 0) return undefined
 
-  const metricNames = new Set(
-    series.map((s) => s.metric).filter((m): m is string => m !== undefined)
-  )
+  const unitSet = new Set<string | null>()
+  for (const s of series) {
+    if (s.unit !== undefined && s.unit !== null) {
+      unitSet.add(s.unit)
+    }
+  }
 
-  if (metricNames.size !== 1) return undefined
+  if (unitSet.size !== 1) return undefined
 
-  const [metricName] = metricNames
-  return units[metricName] ?? undefined
+  const [unit] = unitSet
+  return unit
 }
