@@ -147,7 +147,7 @@
     :env-var     "O11YLITE_DUCKLAKE_REPOSITORY"
     :default     nil
     :parser      identity
-    :description "Custom repository URL for installing the DuckLake extension. When set, uses 'FORCE INSTALL ducklake FROM <repo>'. When nil, uses the default repository."}
+    :description "Custom repository URL (e.g. https://extensions.duckdb.org) for installing the DuckLake extension. Must be a URL -- DuckDB named repository aliases such as core_nightly are not supported. When unset, uses the default repository."}
 
    {:key         :metrics-partition-buckets
     :env-var     "O11YLITE_METRICS_PARTITION_BUCKETS"

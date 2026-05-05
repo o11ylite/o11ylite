@@ -102,8 +102,12 @@
 
 (defn- -install-ducklake-sql
   "Build the INSTALL SQL for the DuckLake extension.
-   When ducklake-repository is set, install from that repository; otherwise
-   use the default extension repository."
+
+   When ducklake-repository is set, it must be a URL (e.g. https://...) and is
+   emitted as a single-quoted string. Named repository aliases like
+   `core_nightly` are intentionally NOT supported here -- DuckDB's set of named
+   repos can change between versions, and SQL syntax for them differs (bare
+   identifier vs quoted), so we keep the contract narrow and stable."
   [ducklake-repository]
   (if (str/blank? ducklake-repository)
     "INSTALL ducklake"
