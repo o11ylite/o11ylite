@@ -143,6 +143,12 @@
     :parser      #(Long/parseLong %)
     :description "DuckLake data inlining row limit (0 = disabled). Keep low if enabled."}
 
+   {:key         :ducklake-repository
+    :env-var     "O11YLITE_DUCKLAKE_REPOSITORY"
+    :default     nil
+    :parser      identity
+    :description "Custom repository URL for installing the DuckLake extension. When set, uses 'FORCE INSTALL ducklake FROM <repo>'. When nil, uses the default repository."}
+
    {:key         :metrics-partition-buckets
     :env-var     "O11YLITE_METRICS_PARTITION_BUCKETS"
     :default     20

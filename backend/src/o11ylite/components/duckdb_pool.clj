@@ -33,6 +33,7 @@
 
 (ns o11ylite.components.duckdb-pool
   (:require
+    [clojure.string :as str]
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
     [next.jdbc :as jdbc]
@@ -99,6 +100,15 @@
   (when (pos? pct)
     (quot (* (-system-memory-bytes) (min pct 100)) 100)))
 
+(defn- -install-ducklake-sql
+  "Build the INSTALL SQL for the DuckLake extension.
+   When ducklake-repository is set, install from that repository; otherwise
+   use the default extension repository."
+  [ducklake-repository]
+  (if (str/blank? ducklake-repository)
+    "INSTALL ducklake"
+    (format "FORCE INSTALL ducklake FROM '%s'" ducklake-repository)))
+
 (defn- init-root-connection!
   "Create the root DuckDB connection with DuckLake attached.
    This connection is used as the basis for duplicate() calls.
@@ -106,9 +116,11 @@
    Note: USE o11ylite won't carry over to duplicate() connections since USE is
    session-level state. We add connectionInitSql to HikariCP to run USE on each
    pooled connection checkout."
-  [data-path ducklake-file data-inlining-row-limit memory-limit-pct]
+  [{:keys [data-path ducklake-file data-inlining-row-limit memory-limit-pct
+           ducklake-repository]}]
   (let [conn (java.sql.DriverManager/getConnection "jdbc:duckdb:")
         attach-sql (-build-attach-sql ducklake-file data-inlining-row-limit)
+        install-sql (-install-ducklake-sql ducklake-repository)
         temp-dir (-temp-directory data-path)
         mem-bytes (-memory-limit-bytes memory-limit-pct)]
     (jdbc/execute! conn [(str "SET temp_directory = '" temp-dir "'")])
@@ -123,7 +135,7 @@
     ;; Disabling this reduced RSS by ~80% in load testing (3.1 GB -> 1.0 GB
     ;; over 500K events).
     (jdbc/execute! conn ["SET enable_external_file_cache = false"])
-    (jdbc/execute! conn ["INSTALL ducklake"])
+    (jdbc/execute! conn [install-sql])
     (jdbc/execute! conn ["LOAD ducklake"])
     (jdbc/execute! conn [attach-sql])
     ;; Set zstd compression for Parquet files written by DuckLake.
@@ -139,6 +151,7 @@
     (jdbc/execute! conn ["CALL o11ylite.set_option('sort_on_insert', 'false')"])
     (mulog/log ::root-connection-initialized
                :ducklake-file ducklake-file
+               :ducklake-repository ducklake-repository
                :data-inlining-row-limit data-inlining-row-limit
                :memory-limit-pct memory-limit-pct
                :memory-limit-bytes mem-bytes
@@ -179,10 +192,16 @@
 
 (defn- create-pool-datasource
   "Create a HikariCP-pooled datasource backed by DuckDB duplicate() connections."
-  [{:keys [data-path data-inlining-row-limit memory-limit-pct pool-size]
+  [{:keys [data-path data-inlining-row-limit memory-limit-pct pool-size
+           ducklake-repository]
     :or {data-inlining-row-limit 0 memory-limit-pct 0 pool-size 10}}]
   (let [ducklake-file (ducklake-path data-path)
-        root-conn (init-root-connection! data-path ducklake-file data-inlining-row-limit memory-limit-pct)
+        root-conn (init-root-connection!
+                    {:data-path data-path
+                     :ducklake-file ducklake-file
+                     :data-inlining-row-limit data-inlining-row-limit
+                     :memory-limit-pct memory-limit-pct
+                     :ducklake-repository ducklake-repository})
         ;; USE is session-level state that doesn't carry over from root to
         ;; duplicate() connections, so we run it on each connection checkout
         config (doto (HikariConfig.)
@@ -231,15 +250,18 @@
   [_ {:keys [core-config]}]
   (let [data-path (:data-path core-config)
         data-inlining-row-limit (:data-inlining-row-limit core-config 0)
-        memory-limit-pct (:duckdb-memory-limit-pct core-config 0)]
+        memory-limit-pct (:duckdb-memory-limit-pct core-config 0)
+        ducklake-repository (:ducklake-repository core-config)]
     (mulog/log ::duckdb-pool-starting
                :data-path data-path
                :data-inlining-row-limit data-inlining-row-limit
-               :memory-limit-pct memory-limit-pct)
+               :memory-limit-pct memory-limit-pct
+               :ducklake-repository ducklake-repository)
     (ensure-data-dir! data-path)
     (let [datasource (create-pool-datasource {:data-path data-path
                                               :data-inlining-row-limit data-inlining-row-limit
-                                              :memory-limit-pct memory-limit-pct})]
+                                              :memory-limit-pct memory-limit-pct
+                                              :ducklake-repository ducklake-repository})]
       ;; Validate pool by getting and closing a connection
       (.close (.getConnection datasource))
       (mulog/log ::duckdb-pool-started :data-path data-path)
