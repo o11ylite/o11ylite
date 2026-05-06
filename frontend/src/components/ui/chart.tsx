@@ -169,6 +169,21 @@ function ChartTooltipContent({
 
   const nestLabel = payload.length === 1 && indicator !== "dot"
 
+  // Sort visible items by numeric value descending so the largest series
+  // appears at the top of the hover panel. Non-numeric / nullish values
+  // sink to the bottom; ties break on name for a stable ordering.
+  const sortedPayload = payload
+    .filter((item) => item.type !== "none")
+    .slice()
+    .sort((a, b) => {
+      const av = typeof a.value === "number" ? a.value : -Infinity
+      const bv = typeof b.value === "number" ? b.value : -Infinity
+      if (bv !== av) return bv - av
+      const an = `${a.name ?? a.dataKey ?? ""}`
+      const bn = `${b.name ?? b.dataKey ?? ""}`
+      return an.localeCompare(bn)
+    })
+
   return (
     <div
       className={cn(
@@ -178,8 +193,7 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload
-          .filter((item) => item.type !== "none")
+        {sortedPayload
           .map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
@@ -251,6 +265,12 @@ function ChartTooltipContent({
 
 const ChartLegend = RechartsPrimitive.Legend
 
+// When the legend has more than this many series, collapse by default and
+// show a "Show all (N)" toggle. Tuned so the typical 8-series JVM-pool
+// chart stays inline; high-cardinality charts (DuckDB memory by tag,
+// HTTP routes, etc.) get the toggle.
+const LEGEND_COLLAPSE_THRESHOLD = 8
+
 function ChartLegendContent({
   className,
   hideIcon = false,
@@ -263,46 +283,71 @@ function ChartLegendContent({
     nameKey?: string
   }) {
   const { config } = useChart()
+  const [expanded, setExpanded] = React.useState(false)
 
-  if (!payload?.length) {
+  const visibleItems = React.useMemo(
+    () => payload?.filter((item) => item.type !== "none") ?? [],
+    [payload],
+  )
+
+  if (!visibleItems.length) {
     return null
   }
+
+  const isCollapsible = visibleItems.length > LEGEND_COLLAPSE_THRESHOLD
+  const shownItems =
+    isCollapsible && !expanded
+      ? visibleItems.slice(0, LEGEND_COLLAPSE_THRESHOLD)
+      : visibleItems
+  const hiddenCount = visibleItems.length - shownItems.length
 
   return (
     <div
       className={cn(
-        "flex items-center justify-center gap-4",
+        "flex flex-wrap items-center justify-center gap-x-4 gap-y-1",
+        // Cap the expanded legend so a 30+ series chart can't push the
+        // plot area off-screen; the user can scroll within the legend.
+        expanded && "max-h-24 overflow-y-auto",
         verticalAlign === "top" ? "pb-3" : "pt-3",
-        className
+        className,
       )}
     >
-      {payload
-        .filter((item) => item.type !== "none")
-        .map((item) => {
-          const key = `${nameKey || item.dataKey || "value"}`
-          const itemConfig = getPayloadConfigFromPayload(config, item, key)
+      {shownItems.map((item) => {
+        const key = `${nameKey || item.dataKey || "value"}`
+        const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
-          return (
-            <div
-              key={item.value}
-              className={cn(
-                "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
-              )}
-            >
-              {itemConfig?.icon && !hideIcon ? (
-                <itemConfig.icon />
-              ) : (
-                <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{
-                    backgroundColor: item.color,
-                  }}
-                />
-              )}
-              {itemConfig?.label}
-            </div>
-          )
-        })}
+        return (
+          <div
+            key={item.value}
+            className={cn(
+              "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3",
+            )}
+          >
+            {itemConfig?.icon && !hideIcon ? (
+              <itemConfig.icon />
+            ) : (
+              <div
+                className="h-2 w-2 shrink-0 rounded-[2px]"
+                style={{
+                  backgroundColor: item.color,
+                }}
+              />
+            )}
+            {itemConfig?.label}
+          </div>
+        )
+      })}
+      {isCollapsible && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-muted-foreground hover:text-foreground cursor-pointer text-xs underline-offset-2 hover:underline"
+          aria-expanded={expanded}
+        >
+          {expanded ? "Show less" : `Show all (${visibleItems.length})`}
+          {!expanded && hiddenCount > 0 ? ` · +${hiddenCount} more` : ""}
+        </button>
+      )}
     </div>
   )
 }
@@ -348,6 +393,7 @@ function getPayloadConfigFromPayload(
 
 export {
   ChartContainer,
+  ChartContext,
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
