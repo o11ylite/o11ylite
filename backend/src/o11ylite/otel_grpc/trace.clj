@@ -8,7 +8,8 @@
   (:require
     [com.brunobonacci.mulog :as mulog]
     [o11ylite.store.events.ingest :as events.ingest]
-    [o11ylite.otel-grpc.trace-events :as trace-events])
+    [o11ylite.otel-grpc.trace-events :as trace-events]
+    [o11ylite.util.telemetry :as telemetry])
   (:import
     [io.grpc.stub StreamObserver]
     [io.opentelemetry.proto.collector.trace.v1
@@ -26,8 +27,8 @@
         span-count (count (filter #(= :span (:meta.signal_type %)) events))
         span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
     (mulog/log ::traces-received
-               :span-count span-count
-               :span-event-count span-event-count)
+               :o11ylite.otlp_receiver.span_count span-count
+               :o11ylite.otlp_receiver.span_event_count span-event-count)
     (when (seq events)
       (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
     {:rejected-span-count 0}))
@@ -53,7 +54,7 @@
           (.onNext response-observer response)
           (.onCompleted response-observer))
         (catch Exception e
-          (mulog/log ::trace-export-error :error (.getMessage e))
+          (telemetry/report-error! ::trace-export-error e)
           (.onError response-observer e))))))
 
 ;; ---------------------------------------------------------

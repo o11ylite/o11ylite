@@ -77,7 +77,7 @@
                                                        :code_verifier verifier})
                 userinfo (oidc/fetch-userinfo oidc-config (:access_token tokens))
                 email (:email userinfo)]
-            (mulog/log ::oidc-login-success :sub (:sub userinfo) :email email)
+            (mulog/log ::oidc-login-success :o11ylite.oidc.sub (:sub userinfo) :o11ylite.oidc.email email)
             (-> (rr/redirect (or return-to "/"))
                 (assoc :session {:user {:sub (:sub userinfo)
                                         :email email

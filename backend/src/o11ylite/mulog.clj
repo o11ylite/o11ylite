@@ -76,8 +76,8 @@
   ;; Initialize mulog (checks O11YLITE_DEV env var)
   (init!)
 
-  ;; Test logging
-  (mulog/log ::test-event :foo "bar" :count 42)
+  ;; Test logging (attributes prefixed per AGENTS.md observability conventions)
+  (mulog/log ::test-event :o11ylite.example.message "bar" :o11ylite.example.count 42)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

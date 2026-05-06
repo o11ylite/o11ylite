@@ -26,7 +26,8 @@
   (:require
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
-    [o11ylite.store.schema :as schema]))
+    [o11ylite.store.schema :as schema]
+    [o11ylite.util.telemetry :as telemetry]))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -65,10 +66,10 @@
         (try
           (let [fields (schema/fetch-event-fields duckdb)]
             (reset! state fields)
-            (mulog/log ::events-schema-refreshed :field-count (count fields))
+            (mulog/log ::events-schema-refreshed :o11ylite.events_schema_cache.field_count (count fields))
             (deliver p {:ok true :fields fields}))
           (catch Exception e
-            (mulog/log ::events-schema-refresh-failed :error (.getMessage e))
+            (telemetry/report-error! ::events-schema-refresh-failed e)
             (deliver p {:ok false :error e}))))
       p)))
 
@@ -81,7 +82,7 @@
   (let [state (atom {})
         fields (schema/fetch-event-fields duckdb)]
     (reset! state fields)
-    (mulog/log ::events-schema-started :field-count (count fields))
+    (mulog/log ::events-schema-started :o11ylite.events_schema_cache.field_count (count fields))
     {:state state
      :refresh! (-make-refresh-fn duckdb state)}))
 

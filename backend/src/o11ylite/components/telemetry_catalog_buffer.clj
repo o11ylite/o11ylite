@@ -39,6 +39,7 @@
     [integrant.core :as ig]
     [o11ylite.store.services :as services]
     [o11ylite.store.telemetry-catalog :as catalog]
+    [o11ylite.util.telemetry :as telemetry]
     [o11ylite.util.ticker :as ticker]
     [steffan-westcott.clj-otel.api.trace.span :as span]))
 
@@ -114,7 +115,7 @@
     :events (-accumulate-events acc (:events msg))
     :metrics (-accumulate-data-points acc (:data-points msg))
     ;; Unknown signal — ignore. Surface via log for debugging.
-    (do (mulog/log ::catalog-buffer-unknown-signal :signal signal)
+    (do (mulog/log ::catalog-buffer-unknown-signal :o11ylite.catalog_buffer.signal signal)
         acc)))
 
 (defn- -diff-metrics
@@ -192,13 +193,13 @@
                             (update :metrics into metrics)
                             (update :event-fields -merge-event-fields-into-cache event-fields))))
         (mulog/log ::catalog-sweep-ok
-                   :services (count services)
-                   :metric-rows (count metric-rows)
-                   :field-rows (count field-rows)
-                   :new-metric-pairs (count metric-deltas)
-                   :new-field-pairs (reduce + (map count (vals field-deltas)))))
+                   :o11ylite.catalog_buffer.service_count (count services)
+                   :o11ylite.catalog_buffer.metric_row_count (count metric-rows)
+                   :o11ylite.catalog_buffer.field_row_count (count field-rows)
+                   :o11ylite.catalog_buffer.new_metric_pair_count (count metric-deltas)
+                   :o11ylite.catalog_buffer.new_field_pair_count (reduce + (map count (vals field-deltas)))))
       (catch Exception e
-        (mulog/log ::catalog-sweep-failed :error (.getMessage e))))))
+        (telemetry/report-error! ::catalog-sweep-failed e)))))
 
 ;; ---------------------------------------------------------
 ;; Event loop
@@ -243,7 +244,7 @@
             (or (= port ticker-ch) (= port sweep-ch))
             (do
               (span/with-span!
-                [::sweep {:trigger (if (= port sweep-ch) :manual :ticker)}]
+                [::sweep {:o11ylite.catalog_buffer.sweep_trigger (if (= port sweep-ch) :manual :ticker)}]
                 (-sweep! sqlite accumulator cache))
               (when (= port sweep-ch)
                 (deliver v true))
@@ -252,7 +253,7 @@
             (= port ingest-ch)
             (do
               (span/with-span!
-                [::accumulate {:signal (:signal v)}]
+                [::accumulate {:o11ylite.catalog_buffer.signal (:signal v)}]
                 (vswap! accumulator -accumulate! v))
               (recur))))))
     {:ingest-ch ingest-ch
@@ -270,7 +271,7 @@
                     (-sweep! sqlite accumulator cache)
                     (mulog/log ::catalog-buffer-stopped))
                   (mulog/log ::catalog-buffer-stop-timeout
-                             :error "Event loop did not stop within timeout"))))}))
+                             :o11ylite.catalog_buffer.error "Event loop did not stop within timeout"))))}))
 
 ;; ---------------------------------------------------------
 ;; Public fire-and-forget API
@@ -319,7 +320,7 @@
 (defmethod ig/init-key :discovery/telemetry-catalog-buffer
   [_ {:keys [sqlite sweep-interval-ms]}]
   (let [interval (or sweep-interval-ms default-sweep-interval-ms)]
-    (mulog/log ::catalog-buffer-starting :sweep-interval-ms interval)
+    (mulog/log ::catalog-buffer-starting :o11ylite.catalog_buffer.sweep_interval_ms interval)
     (let [state (-start-event-loop sqlite interval)]
       (mulog/log ::catalog-buffer-started)
       state)))

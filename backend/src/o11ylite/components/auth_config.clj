@@ -33,15 +33,15 @@
   [core-config sqlite]
   (if-let [explicit-secret (:session-secret core-config)]
     (do
-      (mulog/log ::session-secret-source :source :env-var)
+      (mulog/log ::session-secret-source :o11ylite.auth.session_secret_source :env-var)
       explicit-secret)
     (if-let [stored-secret (kv/get-value sqlite kv-session-secret-key)]
       (do
-        (mulog/log ::session-secret-source :source :kv-store)
+        (mulog/log ::session-secret-source :o11ylite.auth.session_secret_source :kv-store)
         stored-secret)
       (let [new-secret (-generate-session-secret)]
         (kv/set-value! sqlite kv-session-secret-key new-secret)
-        (mulog/log ::session-secret-source :source :generated)
+        (mulog/log ::session-secret-source :o11ylite.auth.session_secret_source :generated)
         new-secret))))
 
 (defn- -hex-to-bytes
@@ -58,12 +58,12 @@
   (when oidc-issuer-url
     (when-not oidc-client-id
       (throw (ex-info "O11YLITE_OIDC_CLIENT_ID is required when OIDC is enabled" {})))
-    (mulog/log ::oidc-discovering :issuer oidc-issuer-url)
+    (mulog/log ::oidc-discovering :o11ylite.oidc.issuer_url oidc-issuer-url)
     (let [server-meta (oidc/discover oidc-issuer-url)
           config (oidc/configuration server-meta oidc-client-id
                                      (cond-> {}
                                        oidc-client-secret (assoc :client-secret oidc-client-secret)))]
-      (mulog/log ::oidc-discovered :issuer oidc-issuer-url)
+      (mulog/log ::oidc-discovered :o11ylite.oidc.issuer_url oidc-issuer-url)
       config)))
 
 ;; ---------------------------------------------------------
@@ -77,7 +77,7 @@
         oidc-config (-discover-oidc core-config)
         open-mode? (nil? oidc-config)]
     (mulog/log ::auth-config-started
-               :open-mode? open-mode?)
+               :o11ylite.auth.open_mode open-mode?)
     {:oidc-config oidc-config
      :session-key session-key
      :jwt-signing-key (oauth/derive-signing-key session-key)

@@ -27,6 +27,7 @@
     [o11ylite.alert-rule :as alert-rule]
     [o11ylite.store.ducklake :as ducklake]
     [o11ylite.store.telemetry-catalog-gc :as catalog-gc]
+    [o11ylite.util.telemetry :as telemetry]
     [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
@@ -64,17 +65,16 @@
   "Execute a single job. Handles locking, execution, and result recording."
   [running-jobs sqlite job-name handler]
   (if-not (-try-acquire-lock! running-jobs job-name)
-    (mulog/log ::job-skipped-already-running :job job-name)
+    (mulog/log ::job-skipped-already-running :o11ylite.scheduler.job_name job-name)
     (future
       (try
-        (mulog/log ::job-starting :job job-name)
+        (mulog/log ::job-starting :o11ylite.scheduler.job_name job-name)
         (handler)
         (store/record-success! sqlite job-name)
-        (mulog/log ::job-succeeded :job job-name)
+        (mulog/log ::job-succeeded :o11ylite.scheduler.job_name job-name)
         (catch Exception e
-          (let [error-msg (.getMessage e)]
-            (store/record-failure! sqlite job-name error-msg)
-            (mulog/log ::job-failed :job job-name :error error-msg)))
+          (store/record-failure! sqlite job-name (.getMessage e))
+          (telemetry/report-error! ::job-failed e :o11ylite.scheduler.job_name job-name))
         (finally
           (-release-lock! running-jobs job-name))))))
 
@@ -87,7 +87,7 @@
             handler (get-in registry [job-key :handler])]
         (if handler
           (-run-job! running-jobs sqlite job-key handler)
-          (mulog/log ::job-handler-not-found :job job-key))))))
+          (mulog/log ::job-handler-not-found :o11ylite.scheduler.job_name job-key))))))
 
 (defn- -start-scheduler-loop!
   "Start the scheduler ticker loop."
@@ -99,7 +99,7 @@
           (try
             (-process-due-jobs! running-jobs sqlite registry)
             (catch Exception e
-              (mulog/log ::scheduler-tick-failed :error (.getMessage e))))
+              (telemetry/report-error! ::scheduler-tick-failed e)))
           (recur))))
     t))
 
@@ -110,12 +110,12 @@
   (doseq [[job-key job-def] registry]
     (let [interval (:interval-ms job-def)]
       (store/upsert-job! sqlite job-key interval)
-      (mulog/log ::job-registered :job job-key :interval-ms interval)))
+      (mulog/log ::job-registered :o11ylite.scheduler.job_name job-key :o11ylite.scheduler.interval_ms interval)))
   (let [job-names (mapv name (keys registry))
         result (store/delete-unrecognized-jobs! sqlite job-names)
         deleted-count (or (::jdbc/update-count (first result)) 0)]
     (when (pos? deleted-count)
-      (mulog/log ::orphaned-jobs-deleted :count deleted-count))))
+      (mulog/log ::orphaned-jobs-deleted :o11ylite.scheduler.deleted_count deleted-count))))
 
 ;; ---------------------------------------------------------
 ;; Registry Component
@@ -215,7 +215,7 @@
   ;; Start scheduler loop
   (let [running-jobs (atom #{})
         ticker (-start-scheduler-loop! running-jobs sqlite registry tick-interval-ms)]
-    (mulog/log ::scheduler-started :tick-interval-ms tick-interval-ms)
+    (mulog/log ::scheduler-started :o11ylite.scheduler.tick_interval_ms tick-interval-ms)
     {:ticker ticker
      :running-jobs running-jobs}))
 
@@ -248,14 +248,13 @@
         :already-running
         (do (future
               (try
-                (mulog/log ::job-manual-trigger :job job-key)
+                (mulog/log ::job-manual-trigger :o11ylite.scheduler.job_name job-key)
                 (handler)
                 (store/record-success! sqlite job-key)
-                (mulog/log ::job-succeeded :job job-key)
+                (mulog/log ::job-succeeded :o11ylite.scheduler.job_name job-key)
                 (catch Exception e
-                  (let [error-msg (.getMessage e)]
-                    (store/record-failure! sqlite job-key error-msg)
-                    (mulog/log ::job-failed :job job-key :error error-msg)))
+                  (store/record-failure! sqlite job-key (.getMessage e))
+                  (telemetry/report-error! ::job-failed e :o11ylite.scheduler.job_name job-key))
                 (finally
                   (-release-lock! running-jobs job-key))))
             :triggered)))))

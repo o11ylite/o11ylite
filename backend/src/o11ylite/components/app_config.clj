@@ -163,7 +163,7 @@
         ;; Check if runtime config override is enabled
         runtime-app-config? (get core-config :runtime-app-config? false)]
     (mulog/log ::app-config-loaded
-               :runtime-app-config? runtime-app-config?)
+               :o11ylite.app_config.runtime_override runtime-app-config?)
     {:sqlite sqlite
      :env-values merged-values
      :runtime-app-config? runtime-app-config?}))

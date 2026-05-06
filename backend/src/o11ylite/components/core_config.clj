@@ -193,11 +193,11 @@
                    (merge env-config)
                    (merge config-map))]
     (mulog/log ::core-config-loaded
-               :data-path (:data-path config)
-               :host (:host config)
-               :web-port (:web-port config)
-               :otel-grpc-port (:otel-grpc-port config)
-               :dev? (:dev? config))
+               :o11ylite.core_config.data_path (:data-path config)
+               :o11ylite.core_config.host (:host config)
+               :o11ylite.core_config.web_port (:web-port config)
+               :o11ylite.core_config.otel_grpc_port (:otel-grpc-port config)
+               :o11ylite.dev_mode (:dev? config))
     config))
 
 (defmethod ig/halt-key! :config/core

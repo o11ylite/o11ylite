@@ -23,6 +23,7 @@
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
     [next.jdbc :as jdbc]
+    [o11ylite.util.telemetry :as telemetry]
     [steffan-westcott.clj-otel.api.metrics.instrument :as instrument])
   (:import
     [io.opentelemetry.api.common AttributeKey]))
@@ -46,7 +47,7 @@
              :bytes (:memory_usage_bytes row)})
           (jdbc/execute! duckdb ["FROM duckdb_memory()"]))
     (catch Exception e
-      (mulog/log ::duckdb-memory-query-error :error (.getMessage e))
+      (telemetry/report-error! ::duckdb-memory-query-error e)
       [])))
 
 ;; ---------------------------------------------------------

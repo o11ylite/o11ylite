@@ -108,8 +108,8 @@
   (let [event-set (-load-set sqlite event-fields-key)
         metric-set (-load-set sqlite metric-fields-key)]
     (mulog/log ::blocked-fields-started
-               :blocked-event-field-count (count event-set)
-               :blocked-metric-field-count (count metric-set))
+               :o11ylite.blocked_fields.event_field_count (count event-set)
+               :o11ylite.blocked_fields.metric_field_count (count metric-set))
     {:event-fields (atom event-set)
      :metric-fields (atom metric-set)
      :metric-fields-kw (atom (-strings->keywords metric-set))}))

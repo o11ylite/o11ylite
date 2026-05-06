@@ -90,8 +90,10 @@
 
    See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
   [duckdb-ds {:keys [max-compacted-files target-file-size tier-name] :as opts}]
-  (span/with-span! [::merge-adjacent-files (select-keys opts [:max-compacted-files :target-file-size
-                                                              :min-file-size :max-file-size])]
+  (span/with-span! [::merge-adjacent-files {:o11ylite.ducklake.compaction.max_compacted_files (:max-compacted-files opts)
+                                            :o11ylite.ducklake.compaction.target_file_size    (:target-file-size opts)
+                                            :o11ylite.ducklake.compaction.min_file_size       (:min-file-size opts)
+                                            :o11ylite.ducklake.compaction.max_file_size       (:max-file-size opts)}]
     ;; Set target file size before merging (catalog-level setting)
     (jdbc/with-transaction [tx duckdb-ds]
       (-set-target-file-size! tx target-file-size))
@@ -99,9 +101,9 @@
                                                     (-merge-loop! duckdb-ds opts)
                                                     (-merge-once! duckdb-ds opts))]
       (when tier-name
-        (span/add-span-data! {:attributes {:tier            (name tier-name)
-                                           :files-created   files-created
-                                           :files-processed files-processed}}))
+        (span/add-span-data! {:attributes {:o11ylite.ducklake.compaction.tier_name       (name tier-name)
+                                           :o11ylite.ducklake.compaction.files_created   files-created
+                                           :o11ylite.ducklake.compaction.files_processed files-processed}}))
       {:files-created files-created :files-processed files-processed})))
 
 ;; ---------------------------------------------------------
@@ -213,7 +215,7 @@
    tier-intervals is a map of interval-key to interval in minutes,
    e.g. {:compaction-small-interval-minutes 5, ...}"
   [duckdb-ds sqlite max-compacted-files tier-intervals]
-  (span/with-span! [::run-tiered-compaction {:max-compacted-files max-compacted-files}]
+  (span/with-span! [::run-tiered-compaction {:o11ylite.ducklake.compaction.max_compacted_files max-compacted-files}]
     (doseq [{:keys [tier-name interval-key] :as tier} compaction-tiers]
       (let [interval-ms (* (get tier-intervals interval-key 60) 60000)]
         (when (-tier-due? sqlite tier-name interval-ms)
@@ -223,7 +225,7 @@
 (defn delete-old-data!
   "Delete events and metrics older than retention-days."
   [duckdb-ds retention-days]
-  (span/with-span! [::delete-old-data {:retention-days retention-days}]
+  (span/with-span! [::delete-old-data {:o11ylite.ducklake.retention_days retention-days}]
     (jdbc/with-transaction [tx duckdb-ds]
       ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
       ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type

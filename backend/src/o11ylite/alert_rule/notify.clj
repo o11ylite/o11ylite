@@ -15,7 +15,8 @@
   (:require
     [babashka.http-client :as http]
     [com.brunobonacci.mulog :as mulog]
-    [jsonista.core :as json])
+    [jsonista.core :as json]
+    [o11ylite.util.telemetry :as telemetry])
   (:import
     [java.time Instant]
     [java.time.format DateTimeFormatter]))
@@ -61,9 +62,9 @@
                                  :timeout 5000})]
     (when (>= (:status response) 400)
       (mulog/log ::webhook-error
-                 :url url
-                 :status (:status response)
-                 :body (:body response)))))
+                 :url.full url
+                 :http.response.status_code (:status response)
+                 :o11ylite.alert_rule.webhook_response_body (:body response)))))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -84,14 +85,13 @@
           (let [payload (-build-payload rule status)
                 body (json/write-value-as-string payload)]
             (mulog/log ::sending-webhook
-                       :rule-id (:id rule)
-                       :status status
-                       :url webhook-url)
+                       :o11ylite.alert_rule.id (:id rule)
+                       :o11ylite.alert_rule.webhook_status status
+                       :url.full webhook-url)
             (-send-http-post! webhook-url body))
           (catch Exception e
-            (mulog/log ::webhook-send-error
-                       :rule-id (:id rule)
-                       :error (.getMessage e))))))))
+            (telemetry/report-error! ::webhook-send-error e
+                                     :o11ylite.alert_rule.id (:id rule))))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

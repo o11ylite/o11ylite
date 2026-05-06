@@ -135,7 +135,7 @@
         success (batcher/->batcher! event-batcher {:events events
                                                    :fields fields})]
     (when (pos? skipped-field-count)
-      (mulog/log ::cleanse-summary :skipped-field-count skipped-field-count))
+      (mulog/log ::cleanse-summary :o11ylite.ingest.skipped_field_count skipped-field-count))
     {:success success
      :rejected-count 0
      :error-message nil}))
@@ -168,9 +168,9 @@
      OTLP clients are expected to retry on transient failures."
   [duckdb events-schema events fields]
   (span/with-span!
-    [::persist-batch {:event-count (count events)}]
+    [::persist-batch {:o11ylite.ingest.event_count (count events)}]
     (let [new-fields (-compute-schema-diff events-schema fields)]
-      (span/add-span-data! {:attributes {:new-field-count (count new-fields)}})
+      (span/add-span-data! {:attributes {:o11ylite.ingest.new_field_count (count new-fields)}})
 
       ;; Step 1: Schema evolution (if needed)
       (when new-fields

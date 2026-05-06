@@ -73,7 +73,7 @@
     (load-dev-assets asset-base-url entry-point)
     (let [assets (load-prod-assets manifest-path asset-base-url entry-point)]
       (when-not assets
-        (mulog/log ::manifest-not-found :path manifest-path))
+        (mulog/log ::manifest-not-found :o11ylite.inertia.manifest_path manifest-path))
       assets)))
 
 ;; ---------------------------------------------------------

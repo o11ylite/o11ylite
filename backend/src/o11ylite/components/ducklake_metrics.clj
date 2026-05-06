@@ -23,6 +23,7 @@
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
     [next.jdbc :as jdbc]
+    [o11ylite.util.telemetry :as telemetry]
     [steffan-westcott.clj-otel.api.metrics.instrument :as instrument])
   (:import
     [io.opentelemetry.api.common AttributeKey]))
@@ -51,7 +52,7 @@
                          " delete_file_count, delete_file_size_bytes"
                          " FROM ducklake_table_info('" -catalog "')")])
     (catch Exception e
-      (mulog/log ::ducklake-table-info-query-error :error (.getMessage e))
+      (telemetry/report-error! ::ducklake-table-info-query-error e)
       [])))
 
 (defn- -rows->measurements

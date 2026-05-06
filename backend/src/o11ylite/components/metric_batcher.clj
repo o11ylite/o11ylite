@@ -20,6 +20,7 @@
     [o11ylite.components.app-config :as app-config]
     [o11ylite.components.telemetry-catalog-buffer :as catalog-buffer]
     [o11ylite.store.metrics.ingest :as metrics.ingest]
+    [o11ylite.util.telemetry :as telemetry]
     [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
@@ -43,17 +44,16 @@
         ;; Fire-and-forget: buffer extracts per-service metric names internally.
         (catalog-buffer/track-data-points! catalog-buffer data-points)
         (mulog/log ::batch-flushed
-                   :data-point-count (count data-points)
-                   :field-count (count fields)
-                   :metadata-count (count metadata))
+                   :o11ylite.metric_batcher.data_point_count (count data-points)
+                   :o11ylite.metric_batcher.field_count (count fields)
+                   :o11ylite.metric_batcher.metadata_count (count metadata))
         ;; Notify all callers of success
         (doseq [done promises]
           (deliver done true))
         true
         (catch Exception e
-          (mulog/log ::flush-error
-                     :error (.getMessage e)
-                     :data-point-count (count data-points))
+          (telemetry/report-error! ::flush-error e
+                                   :o11ylite.metric_batcher.data_point_count (count data-points))
           ;; Notify all callers of failure
           (doseq [done promises]
             (deliver done false))
@@ -133,7 +133,7 @@
                     (mulog/log ::metric-batcher-stopped))
                   ;; Loop did not exit in time - log error
                   (mulog/log ::metric-batcher-stop-timeout
-                             :error "Failed to stop gracefully"))))}))
+                             :o11ylite.metric_batcher.error "Failed to stop gracefully"))))}))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -149,7 +149,7 @@
 (defmethod ig/init-key :ingest/metric-batcher
   [_ {:keys [duckdb sqlite normalizer telemetry-catalog-buffer app-config]}]
   (let [flush-interval-ms (app-config/get-setting-value app-config :metric-flush-interval-ms)]
-    (mulog/log ::metric-batcher-starting :flush-interval-ms flush-interval-ms)
+    (mulog/log ::metric-batcher-starting :o11ylite.metric_batcher.flush_interval_ms flush-interval-ms)
     (let [state (-start-event-loop {:duckdb duckdb
                                     :sqlite sqlite
                                     :norm normalizer
