@@ -33,6 +33,7 @@
     [o11ylite.routes.oauth :as oauth]
     [o11ylite.routes.scheduled-jobs :as scheduled-jobs]
     [o11ylite.routes.settings :as settings]
+    [o11ylite.routes.about :as about]
     [ring.middleware.session]
     [ring.middleware.session.cookie :as cookie]))
 
@@ -206,6 +207,9 @@
      (settings/routes {:core-config core-config
                        :app-config app-config
                        :auth-config auth-config})
+     (about/routes {:duckdb duckdb
+                    :sqlite sqlite
+                    :auth-config auth-config})
      ;; Data management — view/block/delete event fields and metric fields
      (data-management/routes {:sqlite sqlite
                               :duckdb duckdb

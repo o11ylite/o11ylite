@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock,
   Database,
+  Info,
   KeyRound,
   Settings,
   type LucideIcon,
@@ -64,6 +65,7 @@ const systemItems = [
   { title: "Scheduled Jobs", url: "/system/jobs", icon: Clock },
   { title: "Data Management", url: "/system/data-management", icon: Database },
   { title: "Settings", url: "/system/settings", icon: Settings },
+  { title: "About", url: "/system/about", icon: Info },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
