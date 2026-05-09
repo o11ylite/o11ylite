@@ -2,16 +2,21 @@
 
 <br />
 
-A lightweight, single-process observability engine that speaks [OpenTelemetry](https://opentelemetry.io/).
+<p align="center">
+  <strong>Free, open-source OpenTelemetry backend powered by DuckDB and SQLite</strong><br>
+  Logs, metrics, and traces all in a single process.
+</p>
 
-Ship traces, logs, and metrics to a single container. No distributed infrastructure. Just a Docker image and a volume.
+<p align="center">
+  <img src="docs/demo.gif" alt="Screenize demo" style="max-width: 100%; width: 520px;" />
+</p>
 
 ## Features
 
 - **Full OpenTelemetry support.** Ingests traces, logs, and metrics via OTLP/gRPC and OTLP/HTTP.
 - **Single process.** One container runs the entire stack: ingestion, storage, query, and UI.
 - **Automatic schema evolution.** New fields in your telemetry automatically become queryable columns. No manual schema management.
-- **Powered by DuckDB + SQLite.** Fast analytical queries on telemetry data without heavy infrastructure.
+- **DuckDB + DuckLake.** Telemetry stored as open Parquet files. Fast analytical queries, no heavy infrastructure.
 - **Explore.** Query and visualize traces, logs, and metrics with a built-in query builder and trace waterfall view.
 - **Alert Rules.** Define alert rules with Alertmanager-compatible webhook notifications.
 - **Notebooks.** Compose and share investigative workflows combining queries and notes.
