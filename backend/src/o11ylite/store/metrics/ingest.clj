@@ -35,7 +35,6 @@
   (:require
     [clojure.set :as set]
     [clojure.string :as str]
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.components.metric-temporality-normalizer :as normalizer]
     [o11ylite.store.batcher :as batcher]
@@ -148,10 +147,10 @@
     {:valid data-points :rejected-count 0 :error-message nil}
     (let [{valid true rejected false} (group-by #(not (contains? invalid-metrics (:name %))) data-points)
           rejected-count (count rejected)]
-      (mulog/log ::immutable-field-conflict
-                 :o11ylite.ingest.rejected_count rejected-count
-                 :o11ylite.ingest.metric_names (vec invalid-metrics)
-                 :o11ylite.ingest.errors errors)
+      (span/add-span-data!
+        {:attributes {:o11ylite.ingest.rejected_count rejected-count
+                      :o11ylite.ingest.metric_names (vec invalid-metrics)
+                      :o11ylite.ingest.errors (vec errors)}})
       {:valid (vec (or valid []))
        :rejected-count rejected-count
        :error-message (format "Rejected %d data points due to immutable field conflicts: %s"

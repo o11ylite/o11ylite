@@ -36,12 +36,12 @@
 
 (ns o11ylite.alert-rule.eval
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.alert-rule.notify :as notify]
     [o11ylite.alert-rule.store :as store]
     [o11ylite.store.events.query :as events.query]
     [o11ylite.store.metrics.query :as metrics.query]
-    [o11ylite.util.telemetry :as telemetry]))
+    [o11ylite.util.telemetry :as telemetry]
+    [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -150,18 +150,17 @@
    On evaluation failure (state is nil), preserves previous state."
   [duckdb sqlite events-schema webhook-url rule]
   (let [{:keys [id state]} rule
-        prev-state (keyword state)
-        {:keys [state error]} (evaluate-rule duckdb sqlite events-schema rule)
-        new-state (or state prev-state)]
-    (mulog/log ::rule-evaluated
-               :o11ylite.alert_rule.id id
-               :o11ylite.alert_rule.prev_state prev-state
-               :o11ylite.alert_rule.new_state new-state
-               :o11ylite.alert_rule.error error)
-    ;; Update DB state (records last_eval_at and error even on failure)
-    (store/update-eval-result! sqlite id new-state error prev-state)
-    ;; Send webhook notification
-    (notify/maybe-send-webhook! webhook-url rule new-state prev-state)))
+        prev-state (keyword state)]
+    (span/with-span! [::evaluate-rule {:o11ylite.alert_rule.id id
+                                       :o11ylite.alert_rule.prev_state prev-state}]
+      (let [{:keys [state error]} (evaluate-rule duckdb sqlite events-schema rule)
+            new-state (or state prev-state)]
+        (span/add-span-data! {:attributes {:o11ylite.alert_rule.new_state new-state
+                                           :o11ylite.alert_rule.error error}})
+        ;; Update DB state (records last_eval_at and error even on failure)
+        (store/update-eval-result! sqlite id new-state error prev-state)
+        ;; Send webhook notification
+        (notify/maybe-send-webhook! webhook-url rule new-state prev-state)))))
 
 (defn run-evaluation-cycle!
   "Evaluate all due alert rules and send notifications.
@@ -171,10 +170,9 @@
   [duckdb sqlite events-schema webhook-url]
   (let [due-rules (store/get-enabled-due sqlite)]
     (when (seq due-rules)
-      (mulog/log ::evaluation-cycle-start :o11ylite.alert_rule.rule_count (count due-rules))
-      (doseq [rule due-rules]
-        (-evaluate-and-notify! duckdb sqlite events-schema webhook-url rule))
-      (mulog/log ::evaluation-cycle-complete :o11ylite.alert_rule.rule_count (count due-rules)))))
+      (span/with-span! [::evaluation-cycle {:o11ylite.alert_rule.rule_count (count due-rules)}]
+        (doseq [rule due-rules]
+          (-evaluate-and-notify! duckdb sqlite events-schema webhook-url rule))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

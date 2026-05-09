@@ -17,7 +17,6 @@
 
 (ns o11ylite.store.events.cleanse
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.schema :as schema]))
 
@@ -91,35 +90,33 @@
 
 (defn cleanse-events
   "Cleanse all events by removing fields that violate schema constraints.
-   
+
    For each event:
    - Skips blocked fields (in the blocked set)
    - Skips fields with type conflicts (incoming type differs from schema)
    - Skips new fields if event exceeds 200 field limit
-   - Logs skipped fields for debugging
-   
+
    Arguments:
      events-schema       - The events schema cache component
      blocked-event-fields - Set of blocked field name strings (from cache, no I/O)
      events              - Collection of event maps to cleanse
-   
+
    Returns:
-     {:events [...] :skipped-field-count N}"
+     {:events [...]
+      :skipped-field-count N
+      :skipped-reason-counts {:reason-keyword count, ...}
+      :skipped-field-counts  {field-keyword count, ...}}"
   [events-schema blocked-event-fields events]
   (let [known-fields (events-schema-cache/get-fields events-schema)]
     (reduce
       (fn [acc event]
         (let [{:keys [event skipped-fields]} (-cleanse-event known-fields blocked-event-fields event)]
-          ;; Log skipped fields if any
-          (when (seq skipped-fields)
-            (mulog/log ::fields-skipped
-                       :o11ylite.ingest.skipped_count (count skipped-fields)
-                       :o11ylite.ingest.skipped_fields (mapv :field skipped-fields)
-                       :o11ylite.ingest.skipped_reasons (mapv :reason skipped-fields)))
           (-> acc
               (update :events conj event)
-              (update :skipped-field-count + (count skipped-fields)))))
-      {:events [] :skipped-field-count 0}
+              (update :skipped-field-count + (count skipped-fields))
+              (update :skipped-reason-counts (fn [m] (reduce (fn [m s] (update m (:reason s) (fnil inc 0))) m skipped-fields)))
+              (update :skipped-field-counts  (fn [m] (reduce (fn [m s] (update m (:field s)  (fnil inc 0))) m skipped-fields))))))
+      {:events [] :skipped-field-count 0 :skipped-reason-counts {} :skipped-field-counts {}}
       events)))
 
 ;; ---------------------------------------------------------

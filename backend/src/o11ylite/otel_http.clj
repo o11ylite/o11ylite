@@ -23,13 +23,13 @@
 
 (ns o11ylite.otel-http
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.store.events.ingest :as events.ingest]
     [o11ylite.store.metrics.ingest :as metrics.ingest]
     [o11ylite.otel-grpc.trace-events :as trace-events]
     [o11ylite.otel-grpc.log-events :as log-events]
     [o11ylite.otel-grpc.metric-proto :as metric-proto]
-    [o11ylite.util.telemetry :as telemetry])
+    [o11ylite.util.telemetry :as telemetry]
+    [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
     [com.google.protobuf.util JsonFormat]
     [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest]
@@ -196,9 +196,9 @@
           events (trace-events/trace-request->events proto-request)
           span-count (count (filter #(= :span (:meta.signal_type %)) events))
           span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
-      (mulog/log ::http-traces-received
-                 :o11ylite.otlp_receiver.span_count span-count
-                 :o11ylite.otlp_receiver.span_event_count span-event-count)
+      (span/add-span-data!
+        {:attributes {:o11ylite.otlp_receiver.span_count span-count
+                      :o11ylite.otlp_receiver.span_event_count span-event-count}})
       (when (seq events)
         (events.ingest/ingest-events! events-schema blocked-fields event-batcher id-generator events))
       (-trace-response request {:rejected-span-count 0}))
@@ -214,7 +214,7 @@
     (let [proto-request (-parse-log-request request)
           events (log-events/log-request->events proto-request)
           log-count (count events)]
-      (mulog/log ::http-logs-received :o11ylite.otlp_receiver.log_count log-count)
+      (span/add-span-data! {:attributes {:o11ylite.otlp_receiver.log_count log-count}})
       (when (seq events)
         (events.ingest/ingest-events! events-schema blocked-fields event-batcher id-generator events))
       (-log-response request {:rejected-log-count 0}))
@@ -229,7 +229,7 @@
   (try
     (let [proto-request (-parse-metric-request request)
           {:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request proto-request)]
-      (mulog/log ::http-metrics-received :o11ylite.otlp_receiver.data_point_count (count data-points))
+      (span/add-span-data! {:attributes {:o11ylite.otlp_receiver.data_point_count (count data-points)}})
       (if (or (seq data-points) (seq metrics-metadata))
         (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher blocked-fields sqlite metric-normalizer data-points metrics-metadata)]
           (-metric-response request {:rejected-data-point-count (or rejected-count 0)

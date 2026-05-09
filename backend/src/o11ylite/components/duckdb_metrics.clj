@@ -24,17 +24,10 @@
     [com.brunobonacci.mulog :as mulog]
     [next.jdbc :as jdbc]
     [o11ylite.util.telemetry :as telemetry]
-    [steffan-westcott.clj-otel.api.metrics.instrument :as instrument])
-  (:import
-    [io.opentelemetry.api.common AttributeKey]))
+    [steffan-westcott.clj-otel.api.metrics.instrument :as instrument]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
-
-;; Use AttributeKey directly to bypass clj-otel's camel-snake-kebab
-;; normalization which mangles "o11ylite" → "o_11ylite".
-(def ^:private -memory-type-key
-  (AttributeKey/stringKey "o11ylite.duckdb.memory.type"))
 
 (defn- -fetch-memory
   "Query duckdb_memory() and return a seq of {:tag \"...\" :bytes N} maps.
@@ -64,7 +57,7 @@
                 (fn []
                   (mapv (fn [{:keys [tag bytes]}]
                           {:value bytes
-                           :attributes {-memory-type-key tag}})
+                           :attributes {:o11ylite.duckdb.memory.type tag}})
                         (-fetch-memory duckdb))))]
     (mulog/log ::duckdb-metrics-started)
     gauge))

@@ -10,6 +10,7 @@
     [clojure.java.io :as io]
     [integrant.core :as ig]
     [com.brunobonacci.mulog :as mulog]
+    [o11ylite.util.telemetry :as telemetry]
     ;; Load component namespaces for ig/init-key methods
     [o11ylite.components.core-config]
     [o11ylite.components.app-config]
@@ -33,6 +34,11 @@
     [o11ylite.components.web-server])
   (:import
     [java.util.concurrent Executors]))
+
+;; Install the OTel attribute-name override before any spans/metrics
+;; are emitted. Top-level so it runs at namespace load, ensuring
+;; correctness even when components are started ad-hoc from the REPL.
+(telemetry/install-attribute-name-override!)
 
 ;; Make futures use virtual threads
 ;; How I know? Reading the source code found future use the same executor with agent

@@ -30,7 +30,6 @@
 
 (ns o11ylite.store.events.ingest
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.batcher :as batcher]
@@ -129,13 +128,17 @@
       :error-message \"...\" or nil}"
   [events-schema blocked-fields event-batcher id-generator events]
   (let [blocked-set (blocked-fields/get-blocked-event-fields blocked-fields)
-        {:keys [events skipped-field-count]} (cleanse/cleanse-events events-schema blocked-set events)
-        events (enrich/enrich-events id-generator events)
-        fields (-extract-fields events)
-        success (batcher/->batcher! event-batcher {:events events
+        {:keys [events skipped-field-count skipped-reason-counts skipped-field-counts]}
+        (cleanse/cleanse-events events-schema blocked-set events)
+        enriched (enrich/enrich-events id-generator events)
+        fields (-extract-fields enriched)
+        success (batcher/->batcher! event-batcher {:events enriched
                                                    :fields fields})]
     (when (pos? skipped-field-count)
-      (mulog/log ::cleanse-summary :o11ylite.ingest.skipped_field_count skipped-field-count))
+      (span/add-span-data!
+        {:attributes {:o11ylite.ingest.skipped_field_count skipped-field-count
+                      :o11ylite.ingest.skipped_reason_counts (pr-str skipped-reason-counts)
+                      :o11ylite.ingest.skipped_field_counts  (pr-str skipped-field-counts)}}))
     {:success success
      :rejected-count 0
      :error-message nil}))

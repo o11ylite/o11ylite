@@ -6,10 +6,10 @@
 
 (ns o11ylite.otel-grpc.trace
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.store.events.ingest :as events.ingest]
     [o11ylite.otel-grpc.trace-events :as trace-events]
-    [o11ylite.util.telemetry :as telemetry])
+    [o11ylite.util.telemetry :as telemetry]
+    [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
     [io.grpc.stub StreamObserver]
     [io.opentelemetry.proto.collector.trace.v1
@@ -26,9 +26,9 @@
   (let [events (trace-events/trace-request->events request)
         span-count (count (filter #(= :span (:meta.signal_type %)) events))
         span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
-    (mulog/log ::traces-received
-               :o11ylite.otlp_receiver.span_count span-count
-               :o11ylite.otlp_receiver.span_event_count span-event-count)
+    (span/add-span-data!
+      {:attributes {:o11ylite.otlp_receiver.span_count span-count
+                    :o11ylite.otlp_receiver.span_event_count span-event-count}})
     (when (seq events)
       (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
     {:rejected-span-count 0}))

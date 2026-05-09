@@ -6,10 +6,10 @@
 
 (ns o11ylite.otel-grpc.metric
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.otel-grpc.metric-proto :as metric-proto]
     [o11ylite.store.metrics.ingest :as metrics.ingest]
-    [o11ylite.util.telemetry :as telemetry])
+    [o11ylite.util.telemetry :as telemetry]
+    [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
     [io.grpc.stub StreamObserver]
     [io.opentelemetry.proto.collector.metrics.v1
@@ -24,9 +24,9 @@
    Parses metrics to internal format, ingests data, and returns rejection count."
   [metric-batcher blocked-fields sqlite normalizer ^ExportMetricsServiceRequest request]
   (let [{:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request request)]
-    (mulog/log ::metrics-received
-               :o11ylite.otlp_receiver.data_point_count (count data-points)
-               :o11ylite.otlp_receiver.metadata_count (count metrics-metadata))
+    (span/add-span-data!
+      {:attributes {:o11ylite.otlp_receiver.data_point_count (count data-points)
+                    :o11ylite.otlp_receiver.metadata_count (count metrics-metadata)}})
     (if (or (seq data-points) (seq metrics-metadata))
       (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher blocked-fields sqlite normalizer data-points metrics-metadata)]
         {:rejected-data-point-count (or rejected-count 0)

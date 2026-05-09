@@ -192,12 +192,12 @@
                         (-> c
                             (update :metrics into metrics)
                             (update :event-fields -merge-event-fields-into-cache event-fields))))
-        (mulog/log ::catalog-sweep-ok
-                   :o11ylite.catalog_buffer.service_count (count services)
-                   :o11ylite.catalog_buffer.metric_row_count (count metric-rows)
-                   :o11ylite.catalog_buffer.field_row_count (count field-rows)
-                   :o11ylite.catalog_buffer.new_metric_pair_count (count metric-deltas)
-                   :o11ylite.catalog_buffer.new_field_pair_count (reduce + (map count (vals field-deltas)))))
+        (span/add-span-data!
+          {:attributes {:o11ylite.catalog_buffer.service_count (count services)
+                        :o11ylite.catalog_buffer.metric_row_count (count metric-rows)
+                        :o11ylite.catalog_buffer.field_row_count (count field-rows)
+                        :o11ylite.catalog_buffer.new_metric_pair_count (count metric-deltas)
+                        :o11ylite.catalog_buffer.new_field_pair_count (reduce + (map count (vals field-deltas)))}}))
       (catch Exception e
         (telemetry/report-error! ::catalog-sweep-failed e)))))
 

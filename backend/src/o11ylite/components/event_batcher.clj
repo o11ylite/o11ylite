@@ -38,7 +38,8 @@
     [o11ylite.components.telemetry-catalog-buffer :as catalog-buffer]
     [o11ylite.store.events.ingest :as events.ingest]
     [o11ylite.util.telemetry :as telemetry]
-    [o11ylite.util.ticker :as ticker]))
+    [o11ylite.util.ticker :as ticker]
+    [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -56,22 +57,22 @@
     (vreset! batch {:events [] :fields {} :promises []})
     (if (empty? events)
       true
-      (try
-        (events.ingest/persist-batch! duckdb events-schema events fields)
-        ;; Fire-and-forget: buffer extracts per-service field sets internally.
-        (catalog-buffer/track-events! catalog-buffer events)
-        (mulog/log ::batch-flushed :o11ylite.event_batcher.event_count (count events)
-                   :o11ylite.event_batcher.field_count (count fields))
-        ;; Notify all callers of success
-        (doseq [done promises]
-          (deliver done true))
-        true
-        (catch Exception e
-          (telemetry/report-error! ::flush-error e :o11ylite.event_batcher.event_count (count events))
-          ;; Notify all callers of failure
+      (span/with-span! [::flush-batch {:o11ylite.event_batcher.event_count (count events)
+                                       :o11ylite.event_batcher.field_count (count fields)}]
+        (try
+          (events.ingest/persist-batch! duckdb events-schema events fields)
+          ;; Fire-and-forget: buffer extracts per-service field sets internally.
+          (catalog-buffer/track-events! catalog-buffer events)
+          ;; Notify all callers of success
           (doseq [done promises]
-            (deliver done false))
-          false)))))
+            (deliver done true))
+          true
+          (catch Exception e
+            (telemetry/report-error! ::flush-error e)
+            ;; Notify all callers of failure
+            (doseq [done promises]
+              (deliver done false))
+            false))))))
 
 (defn- -accumulate!
   "Accumulate an ingest message into the batch.
