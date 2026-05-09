@@ -25,7 +25,7 @@
       (if-let [error (events.query/validate events-schema-component query)]
         (response/json 400 error)
         (let [fields (events-schema-cache/get-fields events-schema-component)
-              query (query-util/coerce-filter-values fields query)]
+              query (query-util/normalize-filter fields query)]
           (response/json 200 (events.query/execute duckdb query)))))))
 
 (defn- -make-metrics-handler

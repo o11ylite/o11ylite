@@ -109,28 +109,49 @@
 
     :else value))
 
-(defn- -coerce-filter-expr
-  "Recursively walk a filter expression and coerce values based on field metadata."
+(defn- -rewrite-exists-op
+  "Specialize the 'exists' op based on field type so the SQL builder
+   can emit the cheapest correct predicate.
+
+   - For strings (the default when type is unknown), 'exists' must
+     reject both NULL and the empty string, because some VARCHAR
+     columns (notably trace_id/span_id for log events) are persisted
+     as '' rather than NULL.
+   - For non-strings, 'exists' is equivalent to IS NOT NULL.
+
+   Replaces :op with an internal sentinel so the SQL builder can
+   choose the right predicate without a second metadata lookup."
+  [filter-expr field-type]
+  (if (= "exists" (:op filter-expr))
+    (assoc filter-expr :op (if (or (nil? field-type) (= :string field-type))
+                             "_exists-non-empty-string"
+                             "_exists-not-null"))
+    filter-expr))
+
+(defn- -normalize-filter-expr
+  "Recursively walk a filter expression: coerce values and specialize
+   ops based on field metadata."
   [field-metadata filter-expr]
   (cond
     (:and filter-expr)
-    (update filter-expr :and (partial mapv #(-coerce-filter-expr field-metadata %)))
+    (update filter-expr :and (partial mapv #(-normalize-filter-expr field-metadata %)))
 
     (:or filter-expr)
-    (update filter-expr :or (partial mapv #(-coerce-filter-expr field-metadata %)))
+    (update filter-expr :or (partial mapv #(-normalize-filter-expr field-metadata %)))
 
     :else
-    (if-let [field-meta (get field-metadata (keyword (:field filter-expr)))]
-      (update filter-expr :value -coerce-value (:type field-meta))
-      filter-expr)))
+    (let [field-type (:type (get field-metadata (keyword (:field filter-expr))))]
+      (-> filter-expr
+          (update :value -coerce-value field-type)
+          (-rewrite-exists-op field-type)))))
 
-(defn coerce-filter-values
-  "Coerce filter values in a query to match their field types.
+(defn normalize-filter
+  "Coerce filter values and specialize 'exists' ops based on field types.
    field-metadata is a map of keyword -> {:type app-type}.
-   Returns the query with coerced filter values."
+   Returns the query with coerced filter values and rewritten ops."
   [field-metadata query]
   (if (:filter query)
-    (update query :filter (partial -coerce-filter-expr field-metadata))
+    (update query :filter (partial -normalize-filter-expr field-metadata))
     query))
 
 ;; ---------------------------------------------------------
@@ -147,19 +168,32 @@
     ">=" :>=
     "<=" :<=
     "contains" :like
-    "starts-with" :like
-    "exists" :is-not))
+    "starts-with" :like))
 
 (defn- -build-simple-filter
   "Build a HoneySQL clause from a simple filter."
   [{:keys [field op value]}]
-  (let [sql-op (-filter-op->sql op)
-        col (field->col field)]
+  (let [col (field->col field)]
     (cond
-      (= op "contains") [sql-op col (str "%" value "%")]
-      (= op "starts-with") [sql-op col (str value "%")]
-      (= op "exists") [sql-op col nil]
-      :else [sql-op col value])))
+      ;; "exists" is specialized by -rewrite-exists-op (during
+      ;; normalize-filter) into one of two internal ops based on
+      ;; the field's declared type. Both forms are direct-column
+      ;; predicates so DuckDB's optimizer keeps them eligible for
+      ;; predicate pushdown / zonemap pruning at scan time.
+      ;;
+      ;; If a caller invokes build-filter-clause without first running
+      ;; normalize-filter, op stays as "exists" and we fall back
+      ;; to the string-aware variant — that's the safe default since
+      ;; varchar columns can hold both NULL and '' in this schema.
+      (or (= op "_exists-non-empty-string") (= op "exists"))
+      [:<> col [:inline ""]]
+
+      (= op "_exists-not-null")
+      [:is-not col nil]
+
+      (= op "contains") [:like col (str "%" value "%")]
+      (= op "starts-with") [:like col (str value "%")]
+      :else [(-filter-op->sql op) col value])))
 
 (defn build-filter-clause
   "Recursively build HoneySQL WHERE clause from filter expression.
