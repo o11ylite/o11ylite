@@ -28,7 +28,8 @@
     [o11ylite.store.metrics.ingest :as metrics.ingest]
     [o11ylite.otel-grpc.trace-events :as trace-events]
     [o11ylite.otel-grpc.log-events :as log-events]
-    [o11ylite.otel-grpc.metric-proto :as metric-proto])
+    [o11ylite.otel-grpc.metric-proto :as metric-proto]
+    [o11ylite.util.telemetry :as telemetry])
   (:import
     [com.google.protobuf.util JsonFormat]
     [io.opentelemetry.proto.collector.trace.v1 ExportTraceServiceRequest]
@@ -196,13 +197,13 @@
           span-count (count (filter #(= :span (:meta.signal_type %)) events))
           span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
       (mulog/log ::http-traces-received
-                 :span-count span-count
-                 :span-event-count span-event-count)
+                 :o11ylite.otlp_receiver.span_count span-count
+                 :o11ylite.otlp_receiver.span_event_count span-event-count)
       (when (seq events)
         (events.ingest/ingest-events! events-schema blocked-fields event-batcher id-generator events))
       (-trace-response request {:rejected-span-count 0}))
     (catch Exception e
-      (mulog/log ::http-trace-error :error (.getMessage e))
+      (telemetry/report-error! ::http-trace-error e)
       (-error-response 400 (.getMessage e)))))
 
 (defn log-handler
@@ -213,12 +214,12 @@
     (let [proto-request (-parse-log-request request)
           events (log-events/log-request->events proto-request)
           log-count (count events)]
-      (mulog/log ::http-logs-received :log-count log-count)
+      (mulog/log ::http-logs-received :o11ylite.otlp_receiver.log_count log-count)
       (when (seq events)
         (events.ingest/ingest-events! events-schema blocked-fields event-batcher id-generator events))
       (-log-response request {:rejected-log-count 0}))
     (catch Exception e
-      (mulog/log ::http-log-error :error (.getMessage e))
+      (telemetry/report-error! ::http-log-error e)
       (-error-response 400 (.getMessage e)))))
 
 (defn metric-handler
@@ -228,14 +229,14 @@
   (try
     (let [proto-request (-parse-metric-request request)
           {:keys [data-points metrics-metadata]} (metric-proto/parse-metrics-request proto-request)]
-      (mulog/log ::http-metrics-received :data-point-count (count data-points))
+      (mulog/log ::http-metrics-received :o11ylite.otlp_receiver.data_point_count (count data-points))
       (if (or (seq data-points) (seq metrics-metadata))
         (let [{:keys [rejected-count error-message]} (metrics.ingest/ingest-metrics! metric-batcher blocked-fields sqlite metric-normalizer data-points metrics-metadata)]
           (-metric-response request {:rejected-data-point-count (or rejected-count 0)
                                      :error-message (or error-message "")}))
         (-metric-response request {})))
     (catch Exception e
-      (mulog/log ::http-metric-error :error (.getMessage e))
+      (telemetry/report-error! ::http-metric-error e)
       (-error-response 400 (.getMessage e)))))
 
 ;; ---------------------------------------------------------

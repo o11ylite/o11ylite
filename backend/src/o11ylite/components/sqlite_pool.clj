@@ -24,7 +24,7 @@
   (let [dir (File. data-path)]
     (when-not (.exists dir)
       (.mkdirs dir)
-      (mulog/log ::data-dir-created :path data-path))))
+      (mulog/log ::data-dir-created :o11ylite.sqlite_pool.data_path data-path))))
 
 (defn- sqlite-path
   "Construct the SQLite database file path."
@@ -52,7 +52,7 @@
 (defmethod ig/init-key :db/sqlite
   [_ {:keys [core-config]}]
   (let [data-path (:data-path core-config)]
-    (mulog/log ::sqlite-pool-starting :data-path data-path)
+    (mulog/log ::sqlite-pool-starting :o11ylite.sqlite_pool.data_path data-path)
     (ensure-data-dir! data-path)
     (let [db-file (sqlite-path data-path)
           jdbc-url (str "jdbc:sqlite:" db-file)
@@ -70,8 +70,8 @@
         ;; Validate connection pool and init SQL by getting a connection
         (.close (jdbc/get-connection datasource))
         (mulog/log ::sqlite-pool-started
-                   :data-path data-path
-                   :db-file db-file)
+                   :o11ylite.sqlite_pool.data_path data-path
+                   :o11ylite.sqlite_pool.db_file db-file)
         datasource
         (catch Exception e
           (.close datasource)

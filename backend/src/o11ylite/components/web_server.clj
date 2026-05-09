@@ -23,7 +23,7 @@
   [_ {:keys [core-config handler]}]
   (let [host (:host core-config)
         port (:web-port core-config)]
-    (mulog/log ::web-server-starting :host host :port port)
+    (mulog/log ::web-server-starting :server.address host :server.port port)
     (jetty/run-jetty handler
                      {:host host
                       :port port

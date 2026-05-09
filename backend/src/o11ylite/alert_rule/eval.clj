@@ -40,7 +40,8 @@
     [o11ylite.alert-rule.notify :as notify]
     [o11ylite.alert-rule.store :as store]
     [o11ylite.store.events.query :as events.query]
-    [o11ylite.store.metrics.query :as metrics.query]))
+    [o11ylite.store.metrics.query :as metrics.query]
+    [o11ylite.util.telemetry :as telemetry]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -138,7 +139,7 @@
         ;; Unknown mode
         {:state nil :error (str "Unknown query_mode: " qmode)}))
     (catch Exception e
-      (mulog/log ::evaluation-error :error (.getMessage e))
+      (telemetry/report-error! ::evaluation-error e)
       {:state nil :error (.getMessage e)})))
 
 ;; ---------------------------------------------------------
@@ -153,10 +154,10 @@
         {:keys [state error]} (evaluate-rule duckdb sqlite events-schema rule)
         new-state (or state prev-state)]
     (mulog/log ::rule-evaluated
-               :rule-id id
-               :prev-state prev-state
-               :new-state new-state
-               :error error)
+               :o11ylite.alert_rule.id id
+               :o11ylite.alert_rule.prev_state prev-state
+               :o11ylite.alert_rule.new_state new-state
+               :o11ylite.alert_rule.error error)
     ;; Update DB state (records last_eval_at and error even on failure)
     (store/update-eval-result! sqlite id new-state error prev-state)
     ;; Send webhook notification
@@ -170,10 +171,10 @@
   [duckdb sqlite events-schema webhook-url]
   (let [due-rules (store/get-enabled-due sqlite)]
     (when (seq due-rules)
-      (mulog/log ::evaluation-cycle-start :rule-count (count due-rules))
+      (mulog/log ::evaluation-cycle-start :o11ylite.alert_rule.rule_count (count due-rules))
       (doseq [rule due-rules]
         (-evaluate-and-notify! duckdb sqlite events-schema webhook-url rule))
-      (mulog/log ::evaluation-cycle-complete :rule-count (count due-rules)))))
+      (mulog/log ::evaluation-cycle-complete :o11ylite.alert_rule.rule_count (count due-rules)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

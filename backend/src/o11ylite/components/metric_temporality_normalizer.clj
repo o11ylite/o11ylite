@@ -45,7 +45,7 @@
                    state)))
     (let [evicted (- before-count (count @state-atom))]
       (when (pos? evicted)
-        (mulog/log ::ttl-eviction :evicted-count evicted))
+        (mulog/log ::ttl-eviction :o11ylite.metric_normalizer.evicted_count evicted))
       evicted)))
 
 (defn- -start-cleanup-ticker
@@ -135,8 +135,8 @@
                       by-series)]
     (swap! state-atom merge updates)
     (mulog/log ::batch-committed
-               :series-count (count updates)
-               :total-state-size (count @state-atom))))
+               :o11ylite.metric_normalizer.series_count (count updates)
+               :o11ylite.metric_normalizer.total_state_size (count @state-atom))))
 
 (defn clear!
   "Clear all state. For testing only."
@@ -158,8 +158,8 @@
   (let [ttl-ms (app-config/get-setting-value app-config :metric-normalizer-ttl-ms)
         cleanup-interval-ms (app-config/get-setting-value app-config :metric-normalizer-cleanup-ms)]
     (mulog/log ::normalizer-starting
-               :ttl-ms ttl-ms
-               :cleanup-interval-ms cleanup-interval-ms)
+               :o11ylite.metric_normalizer.ttl_ms ttl-ms
+               :o11ylite.metric_normalizer.cleanup_interval_ms cleanup-interval-ms)
     (let [state-atom (atom {})
           cleanup-ticker (-start-cleanup-ticker state-atom ttl-ms cleanup-interval-ms)]
       (mulog/log ::normalizer-started)

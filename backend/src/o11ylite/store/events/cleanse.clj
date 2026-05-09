@@ -113,9 +113,9 @@
           ;; Log skipped fields if any
           (when (seq skipped-fields)
             (mulog/log ::fields-skipped
-                       :skipped-count (count skipped-fields)
-                       :fields (mapv :field skipped-fields)
-                       :reasons (mapv :reason skipped-fields)))
+                       :o11ylite.ingest.skipped_count (count skipped-fields)
+                       :o11ylite.ingest.skipped_fields (mapv :field skipped-fields)
+                       :o11ylite.ingest.skipped_reasons (mapv :reason skipped-fields)))
           (-> acc
               (update :events conj event)
               (update :skipped-field-count + (count skipped-fields)))))

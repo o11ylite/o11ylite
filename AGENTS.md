@@ -49,6 +49,10 @@ Read the following file as it's relevant to all workflows: @README.md.
   - Keep enough trailing parts to make each alias unique.
 
 
+**Observability attribute keys (logs and spans):** Always namespaced. Use OTel semconv verbatim as a keyword where it applies (`:http.request.method`, `:server.port`, `:db.system`); otherwise `:o11ylite.<subsystem>.<key>` with snake_case tails (`:o11ylite.scheduler.job_name`), or top-level `:o11ylite.<key>` for cross-cutting attributes (`:o11ylite.dev_mode`). Applies to `mulog/log` kwargs and `span/with-span!` / `span/add-span-data!` attribute maps. Mulog internals (`:mulog/*`, `:log/*`, `:app-name`, `:version`) stay as-is.
+
+**Reporting exceptions:** In `catch` blocks, prefer `(o11ylite.util.telemetry/report-error! ::event-name e extra-kvs...)` over hand-rolled `mulog/log` + `span/add-exception!`. It records the exception on both the mulog event (with OTel `:exception.*` semconv attrs) and the current span in one call.
+
 **TypeScript/React:**
 - Functional components with default exports for pages
 - Inline object types for props (e.g., `{ greeting: string }`)

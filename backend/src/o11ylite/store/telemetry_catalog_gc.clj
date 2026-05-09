@@ -66,11 +66,11 @@
   [{:keys [sqlite]} threshold-ms]
   (let [stale (catalog/get-stale-metrics sqlite threshold-ms)]
     (span/with-span!
-      [::gc-stale-metrics {:count (count stale)}]
+      [::gc-stale-metrics {:o11ylite.gc.stale_count (count stale)}]
       (when (seq stale)
         (metrics-metadata/delete-metrics! sqlite stale)
         (catalog/delete-metrics! sqlite stale)
-        (mulog/log ::stale-metrics-reclaimed :count (count stale) :names stale))
+        (mulog/log ::stale-metrics-reclaimed :o11ylite.gc.stale_count (count stale) :o11ylite.gc.metric_names stale))
       stale)))
 
 (defn- -gc-stale-event-fields!
@@ -80,14 +80,14 @@
   [{:keys [sqlite duckdb events-schema]} threshold-ms]
   (let [stale (catalog/get-stale-event-fields sqlite threshold-ms)]
     (span/with-span!
-      [::gc-stale-event-fields {:count (count stale)}]
+      [::gc-stale-event-fields {:o11ylite.gc.stale_count (count stale)}]
       (when (seq stale)
         (schema/drop-event-fields! duckdb stale)
         (catalog/delete-event-fields! sqlite stale)
         @(events-schema-cache/refresh! events-schema)
         (mulog/log ::stale-event-fields-reclaimed
-                   :count (count stale)
-                   :names stale))
+                   :o11ylite.gc.stale_count (count stale)
+                   :o11ylite.gc.event_field_names stale))
       stale)))
 
 (defn- -gc-stale-services!
@@ -98,10 +98,10 @@
   [{:keys [sqlite]} threshold-ms]
   (let [stale (services/get-stale-services sqlite threshold-ms)]
     (span/with-span!
-      [::gc-stale-services {:count (count stale)}]
+      [::gc-stale-services {:o11ylite.gc.stale_count (count stale)}]
       (when (seq stale)
         (services/delete-services! sqlite stale)
-        (mulog/log ::stale-services-reclaimed :count (count stale) :names stale))
+        (mulog/log ::stale-services-reclaimed :o11ylite.gc.stale_count (count stale) :o11ylite.gc.service_names stale))
       stale)))
 
 ;; ---------------------------------------------------------
@@ -123,16 +123,16 @@
    cascade-cleans leftover per-service catalog rows."
   [deps stale-days]
   (span/with-span!
-    [::run-gc {:stale-days stale-days}]
+    [::run-gc {:o11ylite.gc.stale_days stale-days}]
     (let [threshold-ms (- (-now-ms) (-days->ms stale-days))
           metrics (-gc-stale-metrics! deps threshold-ms)
           event-fields (-gc-stale-event-fields! deps threshold-ms)
           svcs (-gc-stale-services! deps threshold-ms)]
       (mulog/log ::gc-finished
-                 :stale-days stale-days
-                 :metrics-reclaimed (count metrics)
-                 :event-fields-reclaimed (count event-fields)
-                 :services-reclaimed (count svcs))
+                 :o11ylite.gc.stale_days stale-days
+                 :o11ylite.gc.metrics_reclaimed_count (count metrics)
+                 :o11ylite.gc.event_fields_reclaimed_count (count event-fields)
+                 :o11ylite.gc.services_reclaimed_count (count svcs))
       {:metrics metrics
        :event-fields event-fields
        :services svcs})))

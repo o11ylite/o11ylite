@@ -37,6 +37,7 @@
     [o11ylite.components.app-config :as app-config]
     [o11ylite.components.telemetry-catalog-buffer :as catalog-buffer]
     [o11ylite.store.events.ingest :as events.ingest]
+    [o11ylite.util.telemetry :as telemetry]
     [o11ylite.util.ticker :as ticker]))
 
 ;; ---------------------------------------------------------
@@ -59,14 +60,14 @@
         (events.ingest/persist-batch! duckdb events-schema events fields)
         ;; Fire-and-forget: buffer extracts per-service field sets internally.
         (catalog-buffer/track-events! catalog-buffer events)
-        (mulog/log ::batch-flushed :event-count (count events)
-                   :field-count (count fields))
+        (mulog/log ::batch-flushed :o11ylite.event_batcher.event_count (count events)
+                   :o11ylite.event_batcher.field_count (count fields))
         ;; Notify all callers of success
         (doseq [done promises]
           (deliver done true))
         true
         (catch Exception e
-          (mulog/log ::flush-error :error (.getMessage e) :event-count (count events))
+          (telemetry/report-error! ::flush-error e :o11ylite.event_batcher.event_count (count events))
           ;; Notify all callers of failure
           (doseq [done promises]
             (deliver done false))
@@ -145,7 +146,7 @@
                     (mulog/log ::event-batcher-stopped))
                   ;; Loop did not exit in time - log error, don't drain/flush
                   (mulog/log ::event-batcher-stop-timeout
-                             :error "Failed to stop gracefully, event loop did not stop within timeout"))))}))
+                             :o11ylite.event_batcher.error "Failed to stop gracefully, event loop did not stop within timeout"))))}))
 
 ;; ---------------------------------------------------------
 ;; Public API
@@ -161,7 +162,7 @@
 (defmethod ig/init-key :ingest/event-batcher
   [_ {:keys [duckdb events-schema telemetry-catalog-buffer app-config]}]
   (let [flush-interval-ms (app-config/get-setting-value app-config :ingest-flush-interval-ms)]
-    (mulog/log ::event-batcher-starting :flush-interval-ms flush-interval-ms)
+    (mulog/log ::event-batcher-starting :o11ylite.event_batcher.flush_interval_ms flush-interval-ms)
     (let [state (-start-event-loop {:duckdb duckdb
                                     :events-schema events-schema
                                     :catalog-buffer telemetry-catalog-buffer

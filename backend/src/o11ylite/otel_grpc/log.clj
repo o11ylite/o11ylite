@@ -8,7 +8,8 @@
   (:require
     [com.brunobonacci.mulog :as mulog]
     [o11ylite.store.events.ingest :as events.ingest]
-    [o11ylite.otel-grpc.log-events :as log-events])
+    [o11ylite.otel-grpc.log-events :as log-events]
+    [o11ylite.util.telemetry :as telemetry])
   (:import
     [io.grpc.stub StreamObserver]
     [io.opentelemetry.proto.collector.logs.v1
@@ -24,7 +25,7 @@
   [events-schema blocked-fields batcher id-generator ^ExportLogsServiceRequest request]
   (let [events (log-events/log-request->events request)
         log-count (count events)]
-    (mulog/log ::logs-received :log-count log-count)
+    (mulog/log ::logs-received :o11ylite.otlp_receiver.log_count log-count)
     (when (seq events)
       (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
     {:rejected-log-count 0}))
@@ -50,7 +51,7 @@
           (.onNext response-observer response)
           (.onCompleted response-observer))
         (catch Exception e
-          (mulog/log ::log-export-error :error (.getMessage e))
+          (telemetry/report-error! ::log-export-error e)
           (.onError response-observer e))))))
 
 ;; ---------------------------------------------------------

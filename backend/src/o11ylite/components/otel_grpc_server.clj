@@ -71,7 +71,7 @@
 (defmethod ig/init-key :server/otel-grpc
   [_ {:keys [core-config events-schema blocked-fields event-batcher id-generator metric-batcher metric-normalizer sqlite api-key-cache]}]
   (let [port (:otel-grpc-port core-config)]
-    (mulog/log ::otel-grpc-server-starting :port port)
+    (mulog/log ::otel-grpc-server-starting :server.port port)
     (let [executor (Executors/newVirtualThreadPerTaskExecutor)
           server (-> (ServerBuilder/forPort port)
                      (.executor executor)
@@ -81,7 +81,7 @@
                      (.addService (metric/create-service metric-batcher blocked-fields sqlite metric-normalizer))
                      (.build)
                      (.start))]
-      (mulog/log ::otel-grpc-server-started :port port)
+      (mulog/log ::otel-grpc-server-started :server.port port)
       {:server server
        :executor executor})))
 

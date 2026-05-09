@@ -54,7 +54,7 @@
   (let [dir (File. data-path)]
     (when-not (.exists dir)
       (.mkdirs dir)
-      (mulog/log ::data-dir-created :path data-path))))
+      (mulog/log ::data-dir-created :o11ylite.ducklake.data_path data-path))))
 
 (defn- ducklake-path
   "Construct the DuckLake database file path."
@@ -154,12 +154,12 @@
     ;; still sort data into optimal Parquet layout for time-range queries.
     (jdbc/execute! conn ["CALL o11ylite.set_option('sort_on_insert', 'false')"])
     (mulog/log ::root-connection-initialized
-               :ducklake-file ducklake-file
-               :ducklake-repository ducklake-repository
-               :data-inlining-row-limit data-inlining-row-limit
-               :memory-limit-pct memory-limit-pct
-               :memory-limit-bytes mem-bytes
-               :temp-directory temp-dir)
+               :o11ylite.ducklake.file ducklake-file
+               :o11ylite.ducklake.repository ducklake-repository
+               :o11ylite.ducklake.data_inlining_row_limit data-inlining-row-limit
+               :o11ylite.ducklake.memory_limit_pct memory-limit-pct
+               :o11ylite.ducklake.memory_limit_bytes mem-bytes
+               :o11ylite.ducklake.temp_directory temp-dir)
     conn))
 
 (defn- duplicating-datasource
@@ -257,10 +257,10 @@
         memory-limit-pct (:duckdb-memory-limit-pct core-config 0)
         ducklake-repository (:ducklake-repository core-config)]
     (mulog/log ::duckdb-pool-starting
-               :data-path data-path
-               :data-inlining-row-limit data-inlining-row-limit
-               :memory-limit-pct memory-limit-pct
-               :ducklake-repository ducklake-repository)
+               :o11ylite.ducklake.data_path data-path
+               :o11ylite.ducklake.data_inlining_row_limit data-inlining-row-limit
+               :o11ylite.ducklake.memory_limit_pct memory-limit-pct
+               :o11ylite.ducklake.repository ducklake-repository)
     (ensure-data-dir! data-path)
     (let [datasource (create-pool-datasource {:data-path data-path
                                               :data-inlining-row-limit data-inlining-row-limit
@@ -268,7 +268,7 @@
                                               :ducklake-repository ducklake-repository})]
       ;; Validate pool by getting and closing a connection
       (.close (.getConnection datasource))
-      (mulog/log ::duckdb-pool-started :data-path data-path)
+      (mulog/log ::duckdb-pool-started :o11ylite.ducklake.data_path data-path)
       ;; Wrap with default options for automatic Timestamp -> epoch-ms conversion.
       ;; Note: jdbc/with-options returns a wrapper that applies these options to
       ;; all next.jdbc operations. However, raw Java calls like .getConnection

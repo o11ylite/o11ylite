@@ -18,7 +18,7 @@
                           :entry-point (:frontend-entry-point core-config)))
         assets (template/load-assets config)
         version (:version assets)]
-    (mulog/log ::inertia-init :dev? (:dev? config) :version version)
+    (mulog/log ::inertia-init :o11ylite.dev_mode (:dev? config) :o11ylite.inertia.version version)
     (assoc config
            :template-fn (template/make-template-fn assets)
            :version version)))

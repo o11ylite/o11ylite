@@ -57,9 +57,9 @@
           effective-delta (if reset? (:value data-point) delta)]
       (when reset?
         (mulog/log ::monotonic-reset-detected
-                   :metric-name (:name data-point)
-                   :previous-value (+ (:value data-point) (- delta)) ; reconstruct previous
-                   :current-value (:value data-point)))
+                   :o11ylite.temporality.metric_name (:name data-point)
+                   :o11ylite.temporality.previous_value (+ (:value data-point) (- delta)) ; reconstruct previous
+                   :o11ylite.temporality.current_value (:value data-point)))
       {:normalized (assoc data-point :value effective-delta)
        :original data-point})
     ;; First observation - drop but track for state initialization
@@ -92,7 +92,7 @@
         ;; Reset detected - use current values as delta
         (do
           (mulog/log ::histogram-reset-detected
-                     :metric-name (:name data-point))
+                     :o11ylite.temporality.metric_name (:name data-point))
           {:normalized data-point
            :original data-point})
         ;; Normal case - apply computed deltas

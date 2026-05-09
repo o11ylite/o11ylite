@@ -107,7 +107,7 @@
    Events are partitioned by day + service.
    Metrics are partitioned by day + bucket(N, name) where N comes from core config."
   [duckdb-ds {:keys [metrics-partition-buckets]}]
-  (mulog/log ::init-store-starting :metrics-partition-buckets metrics-partition-buckets)
+  (mulog/log ::init-store-starting :o11ylite.store_init.metrics_partition_buckets metrics-partition-buckets)
   (jdbc/execute! duckdb-ds [create-events-table-sql])
   (jdbc/execute! duckdb-ds [set-events-partition-sql])
   (jdbc/execute! duckdb-ds [set-events-sorted-sql])

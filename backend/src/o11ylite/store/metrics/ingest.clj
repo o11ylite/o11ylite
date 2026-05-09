@@ -149,9 +149,9 @@
     (let [{valid true rejected false} (group-by #(not (contains? invalid-metrics (:name %))) data-points)
           rejected-count (count rejected)]
       (mulog/log ::immutable-field-conflict
-                 :rejected-count rejected-count
-                 :metric-names (vec invalid-metrics)
-                 :errors errors)
+                 :o11ylite.ingest.rejected_count rejected-count
+                 :o11ylite.ingest.metric_names (vec invalid-metrics)
+                 :o11ylite.ingest.errors errors)
       {:valid (vec (or valid []))
        :rejected-count rejected-count
        :error-message (format "Rejected %d data points due to immutable field conflicts: %s"
@@ -273,9 +273,9 @@
      Exception on failure (batcher will catch and notify callers)."
   [duckdb sqlite norm data-points fields metrics-metadata cumulative-to-commit]
   (span/with-span!
-    [::persist-batch {:data-point-count (count data-points)
-                      :field-count (count fields)
-                      :metadata-count (count metrics-metadata)}]
+    [::persist-batch {:o11ylite.ingest.data_point_count (count data-points)
+                      :o11ylite.ingest.field_count (count fields)
+                      :o11ylite.ingest.metadata_count (count metrics-metadata)}]
     ;; Step 1: Schema evolution - add new attr.* columns if needed
     (let [existing-columns (schema/fetch-metrics-field-names duckdb)
           batch-attr-fields (-attr-fields fields)

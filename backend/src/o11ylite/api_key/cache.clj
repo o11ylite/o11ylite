@@ -27,7 +27,7 @@
   [cache-atom sqlite]
   (let [new-cache (-build-cache sqlite)]
     (reset! cache-atom new-cache)
-    (mulog/log ::refreshed :count (count new-cache))
+    (mulog/log ::refreshed :o11ylite.api_key_cache.entry_count (count new-cache))
     new-cache))
 
 (defn lookup-by-hash
