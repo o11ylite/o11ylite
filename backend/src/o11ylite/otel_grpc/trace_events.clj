@@ -48,8 +48,7 @@
   (let [trace-id (proto/bytestring->hex (.getTraceId span))
         span-id (proto/bytestring->hex (.getSpanId span))
         event-attrs (proto/extract-attributes (.getAttributesList span-event))
-        span-attrs (proto/extract-attributes (.getAttributesList span))
-        prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs span-attrs event-attrs)]
+        prefixed-attrs (proto/prefix-attributes resource-attrs scope-attrs event-attrs)]
     (merge
       {:service service-name
        :timestamp (proto/nanos->instant (.getTimeUnixNano span-event))
