@@ -28,7 +28,8 @@
     [o11ylite.store.ducklake :as ducklake]
     [o11ylite.store.telemetry-catalog-gc :as catalog-gc]
     [o11ylite.util.telemetry :as telemetry]
-    [o11ylite.util.ticker :as ticker]))
+    [o11ylite.util.ticker :as ticker]
+    [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Configuration
@@ -67,16 +68,16 @@
   (if-not (-try-acquire-lock! running-jobs job-name)
     (mulog/log ::job-skipped-already-running :o11ylite.scheduler.job_name job-name)
     (future
-      (try
-        (mulog/log ::job-starting :o11ylite.scheduler.job_name job-name)
-        (handler)
-        (store/record-success! sqlite job-name)
-        (mulog/log ::job-succeeded :o11ylite.scheduler.job_name job-name)
-        (catch Exception e
-          (store/record-failure! sqlite job-name (.getMessage e))
-          (telemetry/report-error! ::job-failed e :o11ylite.scheduler.job_name job-name))
-        (finally
-          (-release-lock! running-jobs job-name))))))
+      (span/with-span! [::run-job {:o11ylite.scheduler.job_name job-name
+                                   :o11ylite.scheduler.trigger :scheduled}]
+        (try
+          (handler)
+          (store/record-success! sqlite job-name)
+          (catch Exception e
+            (store/record-failure! sqlite job-name (.getMessage e))
+            (telemetry/report-error! ::job-failed e))
+          (finally
+            (-release-lock! running-jobs job-name)))))))
 
 (defn- -process-due-jobs!
   "Check for due jobs and run them in parallel."
@@ -247,16 +248,16 @@
       (if-not (-try-acquire-lock! running-jobs job-key)
         :already-running
         (do (future
-              (try
-                (mulog/log ::job-manual-trigger :o11ylite.scheduler.job_name job-key)
-                (handler)
-                (store/record-success! sqlite job-key)
-                (mulog/log ::job-succeeded :o11ylite.scheduler.job_name job-key)
-                (catch Exception e
-                  (store/record-failure! sqlite job-key (.getMessage e))
-                  (telemetry/report-error! ::job-failed e :o11ylite.scheduler.job_name job-key))
-                (finally
-                  (-release-lock! running-jobs job-key))))
+              (span/with-span! [::run-job {:o11ylite.scheduler.job_name job-key
+                                           :o11ylite.scheduler.trigger :manual}]
+                (try
+                  (handler)
+                  (store/record-success! sqlite job-key)
+                  (catch Exception e
+                    (store/record-failure! sqlite job-key (.getMessage e))
+                    (telemetry/report-error! ::job-failed e))
+                  (finally
+                    (-release-lock! running-jobs job-key)))))
             :triggered)))))
 
 ;; ---------------------------------------------------------

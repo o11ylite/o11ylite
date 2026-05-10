@@ -41,7 +41,6 @@
 
 (ns o11ylite.store.telemetry-catalog-gc
   (:require
-    [com.brunobonacci.mulog :as mulog]
     [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
@@ -66,11 +65,11 @@
   [{:keys [sqlite]} threshold-ms]
   (let [stale (catalog/get-stale-metrics sqlite threshold-ms)]
     (span/with-span!
-      [::gc-stale-metrics {:o11ylite.gc.stale_count (count stale)}]
+      [::gc-stale-metrics {:o11ylite.gc.stale_count (count stale)
+                           :o11ylite.gc.metric_names stale}]
       (when (seq stale)
         (metrics-metadata/delete-metrics! sqlite stale)
-        (catalog/delete-metrics! sqlite stale)
-        (mulog/log ::stale-metrics-reclaimed :o11ylite.gc.stale_count (count stale) :o11ylite.gc.metric_names stale))
+        (catalog/delete-metrics! sqlite stale))
       stale)))
 
 (defn- -gc-stale-event-fields!
@@ -80,14 +79,12 @@
   [{:keys [sqlite duckdb events-schema]} threshold-ms]
   (let [stale (catalog/get-stale-event-fields sqlite threshold-ms)]
     (span/with-span!
-      [::gc-stale-event-fields {:o11ylite.gc.stale_count (count stale)}]
+      [::gc-stale-event-fields {:o11ylite.gc.stale_count (count stale)
+                                :o11ylite.gc.event_field_names stale}]
       (when (seq stale)
         (schema/drop-event-fields! duckdb stale)
         (catalog/delete-event-fields! sqlite stale)
-        @(events-schema-cache/refresh! events-schema)
-        (mulog/log ::stale-event-fields-reclaimed
-                   :o11ylite.gc.stale_count (count stale)
-                   :o11ylite.gc.event_field_names stale))
+        @(events-schema-cache/refresh! events-schema))
       stale)))
 
 (defn- -gc-stale-services!
@@ -98,10 +95,10 @@
   [{:keys [sqlite]} threshold-ms]
   (let [stale (services/get-stale-services sqlite threshold-ms)]
     (span/with-span!
-      [::gc-stale-services {:o11ylite.gc.stale_count (count stale)}]
+      [::gc-stale-services {:o11ylite.gc.stale_count (count stale)
+                            :o11ylite.gc.service_names stale}]
       (when (seq stale)
-        (services/delete-services! sqlite stale)
-        (mulog/log ::stale-services-reclaimed :o11ylite.gc.stale_count (count stale) :o11ylite.gc.service_names stale))
+        (services/delete-services! sqlite stale))
       stale)))
 
 ;; ---------------------------------------------------------
@@ -128,11 +125,10 @@
           metrics (-gc-stale-metrics! deps threshold-ms)
           event-fields (-gc-stale-event-fields! deps threshold-ms)
           svcs (-gc-stale-services! deps threshold-ms)]
-      (mulog/log ::gc-finished
-                 :o11ylite.gc.stale_days stale-days
-                 :o11ylite.gc.metrics_reclaimed_count (count metrics)
-                 :o11ylite.gc.event_fields_reclaimed_count (count event-fields)
-                 :o11ylite.gc.services_reclaimed_count (count svcs))
+      (span/add-span-data!
+        {:attributes {:o11ylite.gc.metrics_reclaimed_count (count metrics)
+                      :o11ylite.gc.event_fields_reclaimed_count (count event-fields)
+                      :o11ylite.gc.services_reclaimed_count (count svcs)}})
       {:metrics metrics
        :event-fields event-fields
        :services svcs})))

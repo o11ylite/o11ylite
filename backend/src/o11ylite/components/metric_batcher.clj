@@ -21,7 +21,8 @@
     [o11ylite.components.telemetry-catalog-buffer :as catalog-buffer]
     [o11ylite.store.metrics.ingest :as metrics.ingest]
     [o11ylite.util.telemetry :as telemetry]
-    [o11ylite.util.ticker :as ticker]))
+    [o11ylite.util.ticker :as ticker]
+    [steffan-westcott.clj-otel.api.trace.span :as span]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
@@ -38,26 +39,24 @@
     (vreset! batch {:data-points [] :fields #{} :metadata {} :promises [] :cumulative-to-commit []})
     (if (and (empty? data-points) (empty? metadata) (empty? cumulative-to-commit))
       true
-      (try
-        ;; persist-batch! handles both persistence and normalizer state update
-        (metrics.ingest/persist-batch! duckdb sqlite norm data-points fields metadata cumulative-to-commit)
-        ;; Fire-and-forget: buffer extracts per-service metric names internally.
-        (catalog-buffer/track-data-points! catalog-buffer data-points)
-        (mulog/log ::batch-flushed
-                   :o11ylite.metric_batcher.data_point_count (count data-points)
-                   :o11ylite.metric_batcher.field_count (count fields)
-                   :o11ylite.metric_batcher.metadata_count (count metadata))
-        ;; Notify all callers of success
-        (doseq [done promises]
-          (deliver done true))
-        true
-        (catch Exception e
-          (telemetry/report-error! ::flush-error e
-                                   :o11ylite.metric_batcher.data_point_count (count data-points))
-          ;; Notify all callers of failure
+      (span/with-span! [::flush-batch {:o11ylite.metric_batcher.data_point_count (count data-points)
+                                       :o11ylite.metric_batcher.field_count (count fields)
+                                       :o11ylite.metric_batcher.metadata_count (count metadata)}]
+        (try
+          ;; persist-batch! handles both persistence and normalizer state update
+          (metrics.ingest/persist-batch! duckdb sqlite norm data-points fields metadata cumulative-to-commit)
+          ;; Fire-and-forget: buffer extracts per-service metric names internally.
+          (catalog-buffer/track-data-points! catalog-buffer data-points)
+          ;; Notify all callers of success
           (doseq [done promises]
-            (deliver done false))
-          false)))))
+            (deliver done true))
+          true
+          (catch Exception e
+            (telemetry/report-error! ::flush-error e)
+            ;; Notify all callers of failure
+            (doseq [done promises]
+              (deliver done false))
+            false))))))
 
 (defn- -accumulate!
   "Accumulate an ingest message into the batch.

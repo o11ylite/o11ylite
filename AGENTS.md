@@ -53,6 +53,8 @@ Read the following file as it's relevant to all workflows: @README.md.
 
 **Reporting exceptions:** In `catch` blocks, prefer `(o11ylite.util.telemetry/report-error! ::event-name e extra-kvs...)` over hand-rolled `mulog/log` + `span/add-exception!`. It records the exception on both the mulog event (with OTel `:exception.*` semconv attrs) and the current span in one call.
 
+**One wide event per operation:** Prefer one rich event per unit of work (request, job, batch flush) over many small log lines along the way. Inside a `mulog/trace` or `span/with-span!` block, accumulate context with `span/add-span-data!` rather than emitting fresh `mulog/log` events for sub-steps. The wrapping span *is* the event — let it carry the attributes. Rule of thumb: emit a separate `mulog/log` only if the event would be a useful row by itself when queried without its parent's context (e.g. lifecycle transitions, scheduled-job milestones, unsolicited signals). Step-of-N progress and intermediate values inside a single operation should be span attributes, not standalone events.
+
 **TypeScript/React:**
 - Functional components with default exports for pages
 - Inline object types for props (e.g., `{ greeting: string }`)
@@ -64,20 +66,3 @@ Read the following file as it's relevant to all workflows: @README.md.
 ## Agent Skill Maintenance
 
 O11yLite ships an agent skill package in `skills/o11ylite/`. When you change a route, schema, or protocol that agents consume, update the matching file in that directory. `SKILL.md` is the entry point (keep it under 60 lines); `docs/*.md` files hold per-domain API reference.
-
-## Special notes
-
-### Stuck in parenthesis mismatch issue?
-
-The command `clj-paren-repair` is installed on your path.
-
-Examples:
-`clj-paren-repair <files>`
-`clj-paren-repair path/to/file1.clj path/to/file2.clj path/to/file3.clj`
-
-**IMPORTANT:** Do NOT try to manually repair parenthesis errors.
-If you encounter unbalanced delimiters, run `clj-paren-repair` on the file
-instead of attempting to fix them yourself. If the tool doesn't work,
-report to the user that they need to fix the delimiter error manually.
-
-The tool automatically formats files with cljfmt when it processes them.

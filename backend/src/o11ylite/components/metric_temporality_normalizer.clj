@@ -23,7 +23,8 @@
     [com.brunobonacci.mulog :as mulog]
     [o11ylite.components.app-config :as app-config]
     [o11ylite.store.metrics.series :as series]
-    [o11ylite.util.ticker :as ticker])
+    [o11ylite.util.ticker :as ticker]
+    [steffan-westcott.clj-otel.api.trace.span :as span])
   (:import
     [java.time Instant]))
 
@@ -134,9 +135,9 @@
                              [key (-data-point->state-entry (last dps) now)]))
                       by-series)]
     (swap! state-atom merge updates)
-    (mulog/log ::batch-committed
-               :o11ylite.metric_normalizer.series_count (count updates)
-               :o11ylite.metric_normalizer.total_state_size (count @state-atom))))
+    (span/add-span-data!
+      {:attributes {:o11ylite.metric_normalizer.series_count (count updates)
+                    :o11ylite.metric_normalizer.total_state_size (count @state-atom)}})))
 
 (defn clear!
   "Clear all state. For testing only."

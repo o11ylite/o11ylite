@@ -24,20 +24,10 @@
     [com.brunobonacci.mulog :as mulog]
     [next.jdbc :as jdbc]
     [o11ylite.util.telemetry :as telemetry]
-    [steffan-westcott.clj-otel.api.metrics.instrument :as instrument])
-  (:import
-    [io.opentelemetry.api.common AttributeKey]))
+    [steffan-westcott.clj-otel.api.metrics.instrument :as instrument]))
 
 ;; ---------------------------------------------------------
 ;; Private Helpers
-
-;; Use AttributeKey directly to bypass clj-otel's camel-snake-kebab
-;; normalization which mangles "o11ylite" → "o_11ylite".
-(def ^:private -table-key
-  (AttributeKey/stringKey "o11ylite.ducklake.table"))
-
-(def ^:private -type-key
-  (AttributeKey/stringKey "o11ylite.ducklake.file.type"))
 
 (def ^:private -catalog "o11ylite")
 
@@ -63,11 +53,11 @@
         (mapcat (fn [row]
                   (let [table (:table_name row)]
                     [{:value (get row data-key 0)
-                      :attributes {-table-key table
-                                   -type-key "data"}}
+                      :attributes {:o11ylite.ducklake.table table
+                                   :o11ylite.ducklake.file.type "data"}}
                      {:value (get row delete-key 0)
-                      :attributes {-table-key table
-                                   -type-key "delete"}}])))
+                      :attributes {:o11ylite.ducklake.table table
+                                   :o11ylite.ducklake.file.type "delete"}}])))
         rows))
 
 ;; ---------------------------------------------------------
