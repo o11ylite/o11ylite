@@ -108,9 +108,9 @@
 
    {:key         :duckdb-memory-limit-pct
     :env-var     "O11YLITE_DUCKDB_MEMORY_LIMIT_PCT"
-    :default     0
+    :default     60
     :parser      #(Long/parseLong %)
-    :description "DuckDB memory limit as percentage of system RAM (1-100). 0 = unlimited (DuckDB default: ~80%)."}
+    :description "DuckDB memory limit as percentage of system RAM (1-100; 0 = unlimited)."}
 
    ;; DuckLake data inlining row limit (opt-in, default 0 = disabled).
    ;;
