@@ -99,9 +99,9 @@
       (is (= "test-service" (:service span-event)))
       (is (= "0af7651916cd43dd8448eb211c80319c" (:trace_id span-event)))
       (is (= "b7ad6b7169203331" (:span_id span-event)))
-      ;; Should have merged and prefixed attributes from resource + span + event
+      ;; Resource + scope + event attributes, span attributes are NOT propagated
       (is (= "test-service" (:attr.service.name span-event)))
-      (is (= "GET" (:attr.http.method span-event)))
+      (is (nil? (:attr.http.method span-event)))
       (is (= "event-value" (:attr.event.attr span-event))))))
 
 (deftest trace-request->events-defaults-service-name-test
