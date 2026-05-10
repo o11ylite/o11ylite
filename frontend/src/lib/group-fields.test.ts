@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest"
 import type { Field } from "@/types"
-import { groupAttributeFields } from "./group-fields"
+import {
+  groupAttributeFields,
+  UNNAMESPACED_GROUP,
+} from "./group-fields"
 
 const f = (name: string): Field => ({ name, type: "string" })
 
@@ -21,7 +24,7 @@ describe("groupAttributeFields", () => {
     ])
   })
 
-  it("groups attr.<ns>.* with 2+ siblings under attr.<ns>", () => {
+  it("groups attr.<ns>.* under attr.<ns>, sorted within each group", () => {
     const result = groupAttributeFields([
       f("attr.buildkite.build.id"),
       f("attr.buildkite.pipeline.slug"),
@@ -48,32 +51,55 @@ describe("groupAttributeFields", () => {
     ])
   })
 
-  it("leaves singleton attr.<ns>.x ungrouped (no folding for one item)", () => {
+  it("groups singleton attr.<ns>.x under attr.<ns> (consistent namespace headers)", () => {
     const result = groupAttributeFields([
       f("attr.region.us"),
       f("attr.host.id"),
       f("attr.host.name"),
     ])
-    expect(result.ungrouped.map((x) => x.name)).toEqual(["attr.region.us"])
-    expect(result.groups).toHaveLength(1)
-    expect(result.groups[0].prefix).toBe("attr.host")
+    expect(result.ungrouped).toEqual([])
+    expect(result.groups).toHaveLength(2)
+
+    const [host, region] = result.groups
+    expect(host.prefix).toBe("attr.host")
+    expect(host.fields.map((x) => x.name)).toEqual([
+      "attr.host.id",
+      "attr.host.name",
+    ])
+    expect(region.prefix).toBe("attr.region")
+    expect(region.fields.map((x) => x.name)).toEqual(["attr.region.us"])
   })
 
-  it("treats attr.foo (no second segment) as ungrouped", () => {
+  it("buckets attr.<x> (no namespace) into the (unnamespaced) group", () => {
     const result = groupAttributeFields([
       f("attr.foo"),
       f("attr.bar"),
       f("attr.host.id"),
       f("attr.host.name"),
     ])
-    expect(result.ungrouped.map((x) => x.name)).toEqual([
-      "attr.bar",
-      "attr.foo",
+    expect(result.ungrouped).toEqual([])
+    // (unnamespaced) sorts to the bottom — readers see well-formed
+    // namespaces first, the violation bucket last.
+    expect(result.groups.map((g) => g.prefix)).toEqual([
+      "attr.host",
+      UNNAMESPACED_GROUP,
     ])
-    expect(result.groups.map((g) => g.prefix)).toEqual(["attr.host"])
+    const unns = result.groups.find((g) => g.prefix === UNNAMESPACED_GROUP)!
+    expect(unns.fields.map((x) => x.name)).toEqual(["attr.bar", "attr.foo"])
   })
 
-  it("sorts groups alphabetically by prefix", () => {
+  it("groups even a single unnamespaced attr.x", () => {
+    const result = groupAttributeFields([
+      f("attr.environment"),
+      f("attr.host.id"),
+      f("attr.host.name"),
+    ])
+    expect(result.ungrouped).toEqual([])
+    const unns = result.groups.find((g) => g.prefix === UNNAMESPACED_GROUP)!
+    expect(unns.fields.map((x) => x.name)).toEqual(["attr.environment"])
+  })
+
+  it("sorts groups alphabetically; (unnamespaced) sinks to the bottom", () => {
     const result = groupAttributeFields([
       f("attr.zoo.a"),
       f("attr.zoo.b"),
@@ -81,11 +107,13 @@ describe("groupAttributeFields", () => {
       f("attr.alpha.y"),
       f("attr.middle.p"),
       f("attr.middle.q"),
+      f("attr.orphan"),
     ])
     expect(result.groups.map((g) => g.prefix)).toEqual([
       "attr.alpha",
       "attr.middle",
       "attr.zoo",
+      UNNAMESPACED_GROUP,
     ])
   })
 
