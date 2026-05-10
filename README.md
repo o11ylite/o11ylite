@@ -57,6 +57,6 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for setup instructions, architecture detail
 
 ## License
 
-O11yLite is licensed under the [GNU Affero General Public License v3.0](./LICENSE).
+O11yLite is licensed under the [GNU Affero General Public License v3.0](./LICENSE). It's free for both personal and commercial use under AGPL copyleft terms.
 
 For commercial use without AGPL obligations, contact [zhming0](https://github.com/zhming0).
