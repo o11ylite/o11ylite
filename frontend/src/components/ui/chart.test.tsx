@@ -1,6 +1,7 @@
 import { render, fireEvent } from "@testing-library/react"
 import { describe, it, expect } from "vitest"
 import * as React from "react"
+import type { TooltipPayloadEntry, LegendPayload } from "recharts"
 
 import {
   ChartContext,
@@ -18,6 +19,15 @@ const config: ChartConfig = {
   delta: { label: "Delta", color: "#ffff00" },
 }
 
+// Recharts v3's Payload<> type adds many internal fields (`graphicalItemId`,
+// etc.) that our customisation logic never reads. These helpers build the
+// minimal shape our code touches and cast to the real type so tests stay
+// readable.
+const tooltipPayload = (items: Partial<TooltipPayloadEntry>[]) =>
+  items as unknown as TooltipPayloadEntry[]
+const legendPayload = (items: Partial<LegendPayload>[]) =>
+  items as unknown as LegendPayload[]
+
 // Lightweight ChartContext provider — both ChartTooltipContent and
 // ChartLegendContent only call useChart() to read config; we don't need
 // the full ChartContainer + ResponsiveContainer + SVG plumbing for unit
@@ -32,11 +42,11 @@ function withChart(node: React.ReactNode) {
 
 describe("ChartTooltipContent", () => {
   it("sorts visible series by value descending", () => {
-    const payload = [
+    const payload = tooltipPayload([
       { name: "alpha", dataKey: "alpha", value: 10, color: "#ff0000", payload: {} },
       { name: "beta", dataKey: "beta", value: 100, color: "#00ff00", payload: {} },
       { name: "gamma", dataKey: "gamma", value: 50, color: "#0000ff", payload: {} },
-    ]
+    ])
 
     const { container } = withChart(
       <ChartTooltipContent active payload={payload} hideLabel />,
@@ -53,12 +63,12 @@ describe("ChartTooltipContent", () => {
     // Recharts emits `value: undefined` for gaps in a series — verify our
     // sort treats those as -Infinity so they sink rather than scrambling
     // the order.
-    const payload = [
+    const payload = tooltipPayload([
       { name: "alpha", dataKey: "alpha", value: 10, color: "#ff0000", payload: {} },
       { name: "beta", dataKey: "beta", value: undefined, color: "#00ff00", payload: {} },
       { name: "gamma", dataKey: "gamma", value: 50, color: "#0000ff", payload: {} },
       { name: "delta", dataKey: "delta", value: undefined, color: "#ffff00", payload: {} },
-    ]
+    ])
 
     const { container } = withChart(
       <ChartTooltipContent active payload={payload} hideLabel />,
@@ -73,11 +83,11 @@ describe("ChartTooltipContent", () => {
   })
 
   it("breaks ties on name for stable ordering", () => {
-    const payload = [
+    const payload = tooltipPayload([
       { name: "gamma", dataKey: "gamma", value: 5, color: "#0000ff", payload: {} },
       { name: "alpha", dataKey: "alpha", value: 5, color: "#ff0000", payload: {} },
       { name: "beta", dataKey: "beta", value: 5, color: "#00ff00", payload: {} },
-    ]
+    ])
 
     const { container } = withChart(
       <ChartTooltipContent active payload={payload} hideLabel />,
@@ -91,11 +101,11 @@ describe("ChartTooltipContent", () => {
   })
 
   it("uses the formatter prop (covers TimeSeriesChart's render path)", () => {
-    const payload = [
+    const payload = tooltipPayload([
       { name: "alpha", dataKey: "alpha", value: 10, color: "#ff0000", payload: {} },
       { name: "beta", dataKey: "beta", value: 100, color: "#00ff00", payload: {} },
       { name: "gamma", dataKey: "gamma", value: 50, color: "#0000ff", payload: {} },
-    ]
+    ])
 
     const formatter = (value: unknown, name: unknown) => (
       <span data-testid="row">{`${String(name)}=${String(value)}`}</span>
@@ -124,12 +134,14 @@ describe("ChartTooltipContent", () => {
 describe("ChartLegendContent", () => {
   it("renders inline when at or below the collapse threshold", () => {
     // 8 series — exactly at the threshold, no toggle expected.
-    const payload = Array.from({ length: 8 }, (_, i) => ({
-      value: `series-${i}`,
-      dataKey: `series-${i}`,
-      type: "line" as const,
-      color: "#ff0000",
-    }))
+    const payload = legendPayload(
+      Array.from({ length: 8 }, (_, i) => ({
+        value: `series-${i}`,
+        dataKey: `series-${i}`,
+        type: "line" as const,
+        color: "#ff0000",
+      })),
+    )
 
     const { container, queryByRole } = withChart(
       <ChartLegendContent payload={payload} />,
@@ -148,12 +160,14 @@ describe("ChartLegendContent", () => {
 
   it("collapses long legends with a 'Show all (N)' toggle", () => {
     // 16 series mirrors the bug repro (DuckDB memory by tag).
-    const payload = Array.from({ length: 16 }, (_, i) => ({
-      value: `series-${i}`,
-      dataKey: `series-${i}`,
-      type: "line" as const,
-      color: "#ff0000",
-    }))
+    const payload = legendPayload(
+      Array.from({ length: 16 }, (_, i) => ({
+        value: `series-${i}`,
+        dataKey: `series-${i}`,
+        type: "line" as const,
+        color: "#ff0000",
+      })),
+    )
 
     const { container, getByRole } = withChart(
       <ChartLegendContent payload={payload} />,
@@ -173,12 +187,14 @@ describe("ChartLegendContent", () => {
   })
 
   it("shows all series when the toggle is clicked", () => {
-    const payload = Array.from({ length: 16 }, (_, i) => ({
-      value: `series-${i}`,
-      dataKey: `series-${i}`,
-      type: "line" as const,
-      color: "#ff0000",
-    }))
+    const payload = legendPayload(
+      Array.from({ length: 16 }, (_, i) => ({
+        value: `series-${i}`,
+        dataKey: `series-${i}`,
+        type: "line" as const,
+        color: "#ff0000",
+      })),
+    )
 
     const { container, getByRole } = withChart(
       <ChartLegendContent payload={payload} />,
