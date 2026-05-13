@@ -14,7 +14,10 @@
   (:import
     [java.time Instant]))
 
-(use-fixtures :each h/with-system)
+;; Use a partial system so the scheduler can't race with the batcher's
+;; flush loop on constrained CI runners. The partial system still starts
+;; all components needed for event ingestion plus transitive deps.
+(use-fixtures :each (h/with-partial-system h/event-ingest-components))
 
 ;; ---------------------------------------------------------
 ;; Helpers
