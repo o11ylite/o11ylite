@@ -222,15 +222,29 @@
           (merge-adjacent-files! duckdb-ds (-tier-merge-opts tier max-compacted-files))
           (-record-tier-run! sqlite tier-name))))))
 
+(defn- -delete-table-older-than!
+  "Delete rows from `table` whose `timestamp` column is older than
+   retention-days. The threshold is cast to `ts-type` to match the
+   column's type."
+  [duckdb-ds table retention-days ts-type]
+  (jdbc/with-transaction [tx duckdb-ds]
+    (jdbc/execute! tx [(format "DELETE FROM o11ylite.%s WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::%s"
+                               table retention-days ts-type)])))
+
 (defn delete-old-data!
-  "Delete events and metrics older than retention-days."
+  "Delete events and metrics older than retention-days.
+
+   Each table is deleted in its own transaction. Combining both into one
+   transaction widened the conflict window against concurrent DuckLake
+   catalog mutations (compaction, snapshot cleanup), which surfaced as
+   'cannot rollback - no transaction is active' once the server-side
+   transaction was aborted under load."
   [duckdb-ds retention-days]
   (span/with-span! [::delete-old-data {:o11ylite.ducklake.retention_days retention-days}]
-    (jdbc/with-transaction [tx duckdb-ds]
-      ;; events.timestamp is TIMESTAMP_NS, metrics.timestamp is TIMESTAMP
-      ;; NOW() returns TIMESTAMP WITH TIME ZONE, so cast to TIMESTAMP first, then to target type
-      (jdbc/execute! tx [(format "DELETE FROM o11ylite.events WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::TIMESTAMP_NS" retention-days)])
-      (jdbc/execute! tx [(format "DELETE FROM o11ylite.metrics WHERE timestamp < (NOW() - INTERVAL '%d days')::TIMESTAMP" retention-days)]))))
+    ;; NOW() is TIMESTAMP WITH TIME ZONE; cast to each column's type.
+    (-delete-table-older-than! duckdb-ds "events"  retention-days "TIMESTAMP_NS")
+    (-delete-table-older-than! duckdb-ds "metrics" retention-days "TIMESTAMP")
+    true))
 
 (defn run-checkpoint!
   "Run DuckLake maintenance operations for comprehensive cleanup.
