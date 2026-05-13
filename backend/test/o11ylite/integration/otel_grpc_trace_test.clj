@@ -24,7 +24,10 @@
                  ["SELECT * FROM o11ylite.events WHERE trace_id = ? ORDER BY name"
                   trace-id]))
 
-(use-fixtures :each h/with-system)
+;; Use a partial system rooted at the gRPC server so the scheduler doesn't
+;; race with ingestion. :server/otel-grpc pulls in all required ingestion
+;; components transitively but not :scheduler/*.
+(use-fixtures :each (h/with-partial-system [:server/otel-grpc]))
 
 ;; ---------------------------------------------------------
 ;; Tests

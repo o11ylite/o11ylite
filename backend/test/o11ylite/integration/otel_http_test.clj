@@ -16,7 +16,14 @@
     [java.io ByteArrayOutputStream]
     [java.util.zip GZIPOutputStream]))
 
-(use-fixtures :each h/with-system)
+;; Use a partial system rooted at the HTTP server so the scheduler doesn't
+;; race with ingestion. :router/routes normally pulls in :scheduler/{registry,
+;; executor} for the /system/scheduled-jobs admin page; we override those
+;; refs to nil since this test never hits that page.
+(use-fixtures :each (h/with-partial-system
+                      [:server/web]
+                      {:router/routes {:scheduler-registry nil
+                                       :scheduler-executor nil}}))
 
 ;; ---------------------------------------------------------
 ;; Helpers
