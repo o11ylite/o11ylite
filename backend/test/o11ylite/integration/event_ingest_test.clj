@@ -14,7 +14,12 @@
   (:import
     [java.time Instant]))
 
-(use-fixtures :each h/with-system)
+;; Use a partial system so scheduled jobs (notably daily-maintenance, which
+;; deletes events older than the retention window) cannot race with the tests
+;; under tight CI resources. The partial system still starts all components
+;; needed for event ingestion plus their transitive dependencies (DuckDB,
+;; SQLite, storage init, etc.).
+(use-fixtures :each (h/with-partial-system h/event-ingest-components))
 
 ;; ---------------------------------------------------------
 ;; Helpers
