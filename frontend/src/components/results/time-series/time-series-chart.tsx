@@ -77,7 +77,7 @@ export function TimeSeriesChart({
     }
   }, [])
 
-  type RechartsMouseEvent = { activeLabel?: string } | null
+  type RechartsMouseEvent = { activeLabel?: string | number } | null
 
   // Recharts passes (chartState, nativeEvent) -- we read both.
   const handleMouseDown = useCallback((e: RechartsMouseEvent, nativeEvent?: React.MouseEvent) => {
