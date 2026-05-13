@@ -1,6 +1,5 @@
-// @ts-expect-error - vite/modulepreload-polyfill has no type definitions
 import 'vite/modulepreload-polyfill'
-import { createInertiaApp, router } from '@inertiajs/react'
+import { createInertiaApp, router, type ResolvedComponent } from '@inertiajs/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -33,9 +32,12 @@ router.on('before', (event) => {
 
 void createInertiaApp({
   resolve: async (name) => {
-    const pages = import.meta.glob(['./pages/**/*.tsx', '!./pages/**/*.test.tsx'])
+    const pages = import.meta.glob<{ default: ResolvedComponent }>([
+      './pages/**/*.tsx',
+      '!./pages/**/*.test.tsx',
+    ])
     const page = await pages[`./pages/${name}.tsx`]()
-    return page
+    return page.default
   },
   setup({ el, App, props }) {
     createRoot(el).render(

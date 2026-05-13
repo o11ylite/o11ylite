@@ -109,7 +109,7 @@ export function FilterChip({
     onUpdate({
       ...filter,
       field: fieldName,
-      op: needsReset ? ("=" as FilterOp) : filter.op,
+      op: needsReset ? "=" : filter.op,
       value: needsReset ? "" : filter.value,
     })
   }

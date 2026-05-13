@@ -183,7 +183,7 @@ export function useQueryExecution({
       const payload = cursor
         ? { ...eventsBase!, cursor, time_range: timeRange }
         : { ...eventsBase!, time_range: timeRange }
-      return fetchEventsQuery(payload as EventsQuery)
+      return fetchEventsQuery(payload)
     },
     enabled: eventsBase !== null,
     refetchInterval: effectiveRefetchInterval,
@@ -200,7 +200,7 @@ export function useQueryExecution({
       return fetchMetricsQuery({
         ...metricsBase!,
         time_range: timeRange,
-      } as MetricsQuery)
+      })
     },
     enabled: metricsBase !== null,
     refetchInterval: effectiveRefetchInterval,

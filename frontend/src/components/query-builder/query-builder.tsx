@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Play, Table, LineChart } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -61,9 +61,14 @@ export function QueryBuilder({
 
   const [state, setState] = useState(initialState)
 
-  useEffect(() => {
+  // Reset internal state when the initialState prop changes (e.g. parent
+  // navigates between saved queries). See:
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevInitialState, setPrevInitialState] = useState(initialState)
+  if (initialState !== prevInitialState) {
+    setPrevInitialState(initialState)
     setState(initialState)
-  }, [initialState])
+  }
 
   // Auto-submit only when state is complete (no incomplete filters/aggregations)
   const updateState = (newState: QueryBuilderState) => {

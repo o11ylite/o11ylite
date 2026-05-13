@@ -81,14 +81,15 @@
 
 ;; React Refresh preamble - required for HMR when serving HTML from backend.
 ;; Sets up window.$RefreshReg$ and $RefreshSig$ before any React code loads.
-;; Per: https://vite.dev/guide/backend-integration.html
+;; The shape here must match what @vitejs/plugin-react expects, see its
+;; `preambleCode` constant. Per:
+;; https://vite.dev/guide/backend-integration.html
 (defn- react-refresh-preamble
   [react-refresh-url]
-  (str "import RefreshRuntime from '" react-refresh-url "';
-RefreshRuntime.injectIntoGlobalHook(window);
+  (str "import { injectIntoGlobalHook } from '" react-refresh-url "';
+injectIntoGlobalHook(window);
 window.$RefreshReg$ = () => {};
-window.$RefreshSig$ = () => (type) => type;
-window.__vite_plugin_react_preamble_installed__ = true;"))
+window.$RefreshSig$ = () => (type) => type;"))
 
 (defn- render-html
   "Generate the HTML template for Inertia."
@@ -113,7 +114,11 @@ window.__vite_plugin_react_preamble_installed__ = true;"))
           [:script {:type "module"}
            (raw-string (react-refresh-preamble react-refresh))])]
        [:body.h-full
-        [:div#app {:data-page page-data}]
+        ;; Inertia v3 reads initial page data from a <script type="application/json">
+        ;; tag; `data-page` here is the mount element id, not the payload.
+        [:script {:data-page "app" :type "application/json"}
+         (raw-string page-data)]
+        [:div#app]
         [:script {:type "module" :src (:js assets)}]]])))
 
 (defn make-template-fn
