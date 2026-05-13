@@ -65,7 +65,7 @@ export function withServiceFilter(
   const serviceFilter: SimpleFilter = { field: "service", op: "=", value: service }
   if (!filter) return serviceFilter
   if ("and" in filter) return { and: [...filter.and, serviceFilter] }
-  return { and: [filter as SimpleFilter, serviceFilter] }
+  return { and: [filter, serviceFilter] }
 }
 
 // ============================================================================

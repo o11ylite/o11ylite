@@ -28,7 +28,7 @@ export function CollapsiblePanel({
     >
       <div
         className="h-full overflow-auto p-4"
-        style={{ width: "var(--panel-width)" } as React.CSSProperties}
+        style={{ width: "var(--panel-width)" }}
       >
         {children}
       </div>

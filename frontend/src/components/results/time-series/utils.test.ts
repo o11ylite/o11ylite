@@ -28,7 +28,7 @@ function makeResult(): TimeSeriesQueryResult {
         ],
       },
     ],
-  } as TimeSeriesQueryResult
+  }
 }
 
 describe("transformData", () => {

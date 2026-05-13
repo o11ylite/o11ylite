@@ -18,7 +18,7 @@ export default defineConfig({
   build: {
     manifest: true,
     outDir: 'dist',
-    rollupOptions: {
+    rolldownOptions: {
       // overwrite default .html entry
       input: 'src/main.tsx',
     },
