@@ -36,6 +36,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { useLocalStorage } from "@/hooks/use-local-storage"
 import type { AuthSharedData } from "@/types"
 
 type NavItem = {
@@ -72,6 +73,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { url, props: pageProps } = usePage()
   const auth = (pageProps as { auth?: AuthSharedData }).auth
   const user = auth?.user
+
+  // Persist the System submenu open/closed state across page navigations and
+  // reloads. When the current route matches any system item, force the menu
+  // open so the active item is always visible (e.g. deep-linking into
+  // /system/api-keys).
+  const isOnSystemRoute = systemItems.some(
+    (item) => url === item.url || url.startsWith(item.url + "/")
+  )
+  const [systemOpenStored, setSystemOpenStored] = useLocalStorage(
+    "o11ylite.sidebar.system-open",
+    false
+  )
+  const systemOpen = isOnSystemRoute || systemOpenStored
 
   return (
     <Sidebar {...props}>
@@ -118,7 +132,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel>System</SidebarGroupLabel>
           <SidebarMenu>
-            <Collapsible defaultOpen={false} className="group/collapsible">
+            <Collapsible
+              open={systemOpen}
+              onOpenChange={setSystemOpenStored}
+              className="group/collapsible"
+            >
               <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton tooltip="System">
