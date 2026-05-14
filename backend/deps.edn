@@ -37,16 +37,16 @@
   camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
 
   ;; gRPC
-  io.grpc/grpc-netty-shaded {:mvn/version "1.72.0"}
-  io.grpc/grpc-protobuf {:mvn/version "1.72.0"}
-  io.grpc/grpc-stub {:mvn/version "1.72.0"}
+  io.grpc/grpc-netty-shaded {:mvn/version "1.81.0"}
+  io.grpc/grpc-protobuf {:mvn/version "1.81.0"}
+  io.grpc/grpc-stub {:mvn/version "1.81.0"}
 
   ;; Protobuf - version must match vendored protoc in Makefile
   ;; Update PROTOC_VERSION in Makefile when changing this version
-  ;; protoc 33.x maps to protobuf-java 4.33.x (protoc X.Y = protobuf-java 4.X.Y)
-  com.google.protobuf/protobuf-java {:mvn/version "4.33.1"}
+  ;; protoc 34.x maps to protobuf-java 4.34.x (protoc X.Y = protobuf-java 4.X.Y)
+  com.google.protobuf/protobuf-java {:mvn/version "4.34.1"}
   ;; Protobuf JSON support for OTLP HTTP
-  com.google.protobuf/protobuf-java-util {:mvn/version "4.33.1"}
+  com.google.protobuf/protobuf-java-util {:mvn/version "4.34.1"}
 
   ;; javax.annotation for generated gRPC code
   javax.annotation/javax.annotation-api {:mvn/version "1.3.2"}

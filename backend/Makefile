@@ -107,7 +107,7 @@ JAVA_CLASSES_DIR := classes
 PROTO_FILES := $(shell find $(PROTO_SRC_DIR) -name '*.proto')
 
 # OpenTelemetry proto version
-OTEL_PROTO_VERSION := 1.9.0
+OTEL_PROTO_VERSION := 1.10.0
 OTEL_PROTO_MODULES := common logs metrics resource trace
 OTEL_PROTO_BASE_URL := https://raw.githubusercontent.com/open-telemetry/opentelemetry-proto/v$(OTEL_PROTO_VERSION)
 
@@ -131,12 +131,12 @@ else
 endif
 
 # Protoc version - must match protobuf-java version in deps.edn
-# protobuf-java 4.33.1 requires protoc 33.1
-PROTOC_VERSION := 33.1
+# protobuf-java 4.34.1 requires protoc 34.1
+PROTOC_VERSION := 34.1
 PROTOC_BIN := .bin/protoc
 
 # grpc-java plugin
-GRPC_JAVA_VERSION := 1.72.0
+GRPC_JAVA_VERSION := 1.81.0
 GRPC_JAVA_PLUGIN := .bin/protoc-gen-grpc-java
 
 # Download protoc compiler
