@@ -7,8 +7,8 @@
  :deps
  {;; Application
   org.clojure/clojure {:mvn/version "1.12.5"}
-  org.clojure/core.async {:mvn/version "1.8.741"}
-  org.clojure/core.memoize {:mvn/version "1.1.266"}
+  org.clojure/core.async {:mvn/version "1.9.865"}
+  org.clojure/core.memoize {:mvn/version "1.2.281"}
   com.brunobonacci/mulog {:mvn/version "0.10.1"}
   com.brunobonacci/mulog-adv-console {:mvn/version "0.10.1"}
   com.brunobonacci/mulog-opentelemetry {:mvn/version "0.10.1"}
@@ -18,22 +18,22 @@
   aero/aero {:mvn/version "1.1.6"}
 
   ;; HTTP Server
-  ring/ring-core {:mvn/version "1.15.3"}
-  ring/ring-jetty-adapter {:mvn/version "1.15.3"}
+  ring/ring-core {:mvn/version "1.15.4"}
+  ring/ring-jetty-adapter {:mvn/version "1.15.4"}
   ring/ring-defaults {:mvn/version "0.7.0"}
 
   ;; Http Client
-  org.babashka/http-client {:mvn/version "0.4.22"}
+  org.babashka/http-client {:mvn/version "0.4.23"}
 
   ;; Routing
-  metosin/reitit-ring {:mvn/version "0.9.2"}
-  metosin/reitit-middleware {:mvn/version "0.9.2"}
+  metosin/reitit-ring {:mvn/version "0.10.1"}
+  metosin/reitit-middleware {:mvn/version "0.10.1"}
 
   ;; JSON
-  metosin/jsonista {:mvn/version "0.3.13"}
+  metosin/jsonista {:mvn/version "1.0.0"}
 
   ;; Inertia
-  hiccup/hiccup {:mvn/version "2.0.0-RC4"}
+  hiccup/hiccup {:mvn/version "2.0.0"}
   camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
 
   ;; gRPC
@@ -52,30 +52,30 @@
   javax.annotation/javax.annotation-api {:mvn/version "1.3.2"}
 
   ;; DuckDB
-  org.duckdb/duckdb_jdbc {:mvn/version "1.5.2.0"}
+  org.duckdb/duckdb_jdbc {:mvn/version "1.5.2.1"}
 
   ;; SQLite
-  org.xerial/sqlite-jdbc {:mvn/version "3.51.1.0"}
+  org.xerial/sqlite-jdbc {:mvn/version "3.53.1.0"}
 
   ;; Connection pooling & JDBC
   com.zaxxer/HikariCP {:mvn/version "7.0.2"}
-  com.github.seancorfield/next.jdbc {:mvn/version "1.3.1070"}
-  com.github.seancorfield/honeysql {:mvn/version "2.7.1364"}
+  com.github.seancorfield/next.jdbc {:mvn/version "1.3.1093"}
+  com.github.seancorfield/honeysql {:mvn/version "2.7.1368"}
 
   ;; Migrations
-  migratus/migratus {:mvn/version "1.6.4"}
+  migratus/migratus {:mvn/version "1.6.6"}
 
   ;; Schema validation
-  metosin/malli {:mvn/version "0.18.0"}
+  metosin/malli {:mvn/version "0.20.1"}
 
   ;; Serialization
-  com.taoensso/nippy {:mvn/version "3.5.0"}
+  com.taoensso/nippy {:mvn/version "3.6.2"}
 
   ;; Utility for time
-  tick/tick {:mvn/version "0.7.5"}
+  tick/tick {:mvn/version "1.0.1"}
 
   ;; UUID v7 generation
-  com.github.f4b6a3/uuid-creator {:mvn/version "6.0.0"}
+  com.github.f4b6a3/uuid-creator {:mvn/version "6.1.1"}
 
   ;; OpenTelemetry manual instrumentation
   com.github.steffan-westcott/clj-otel-api {:mvn/version "0.2.10"}
@@ -115,7 +115,7 @@
   ;; tools.build `build.clj` built script
   :build/task
   {:replace-paths ["."]
-   :replace-deps  {io.github.clojure/tools.build {:mvn/version "0.10.11"}}
+   :replace-deps  {io.github.clojure/tools.build {:mvn/version "0.10.13"}}
    :ns-default    build}
 
   ;; ------------
@@ -131,23 +131,23 @@
   ;; Development environment paths
   :dev/env
   {:extra-paths ["dev"]
-   :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.0"}}}
+   :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.1"}}}
 
   ;; ------------
   ;; REPL with reloaded workflow support
   :repl/reloaded
   {:extra-paths ["dev" "test"]
-   :extra-deps {nrepl/nrepl                  {:mvn/version "1.5.1"}
-                cider/cider-nrepl            {:mvn/version "0.58.0"}
+   :extra-deps {nrepl/nrepl                  {:mvn/version "1.7.0"}
+                cider/cider-nrepl            {:mvn/version "0.59.0"}
                 com.bhauman/rebel-readline   {:mvn/version "0.1.7"}
-                djblue/portal                {:mvn/version "0.62.0"}   ; portal data inspector
+                djblue/portal                {:mvn/version "0.64.1"}   ; portal data inspector
                 clj-commons/clj-yaml         {:mvn/version "1.0.29"}   ; portal yaml support (optional)
-                org.clojure/tools.namespace  {:mvn/version "1.5.0"}
-                org.clojure/tools.trace      {:mvn/version "0.8.0"}
-                org.slf4j/slf4j-nop          {:mvn/version "2.0.17"}
+                org.clojure/tools.namespace  {:mvn/version "1.5.1"}
+                org.clojure/tools.trace      {:mvn/version "0.9.0"}
+                org.slf4j/slf4j-nop          {:mvn/version "2.0.18"}
                 com.brunobonacci/mulog       {:mvn/version "0.10.1"}
                 lambdaisland/kaocha          {:mvn/version "1.91.1392"}
-                org.clojure/test.check       {:mvn/version "1.1.2"}
+                org.clojure/test.check       {:mvn/version "1.1.3"}
                 ring/ring-mock               {:mvn/version "0.6.2"}
                 criterium/criterium          {:mvn/version "0.4.6"}}
    :main-opts  ["--eval" "(apply require clojure.main/repl-requires)"
@@ -159,7 +159,7 @@
   ;; ------------
   ;; Integrant REPL utilities for system lifecycle management
   :lib/integrant-repl
-  {:extra-deps {integrant/repl {:mvn/version "0.5.0"}}}}}
+  {:extra-deps {integrant/repl {:mvn/version "0.5.1"}}}}}
 
 ;; ------------
 ;; ---------------------------------------------------------
