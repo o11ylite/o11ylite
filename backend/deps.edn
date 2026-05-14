@@ -139,7 +139,7 @@
   {:extra-paths ["dev" "test"]
    :extra-deps {nrepl/nrepl                  {:mvn/version "1.5.1"}
                 cider/cider-nrepl            {:mvn/version "0.58.0"}
-                com.bhauman/rebel-readline   {:mvn/version "0.1.5"}
+                com.bhauman/rebel-readline   {:mvn/version "0.1.7"}
                 djblue/portal                {:mvn/version "0.62.0"}   ; portal data inspector
                 clj-commons/clj-yaml         {:mvn/version "1.0.29"}   ; portal yaml support (optional)
                 org.clojure/tools.namespace  {:mvn/version "1.5.0"}
