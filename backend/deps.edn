@@ -139,7 +139,6 @@
   {:extra-paths ["dev" "test"]
    :extra-deps {nrepl/nrepl                  {:mvn/version "1.7.0"}
                 cider/cider-nrepl            {:mvn/version "0.59.0"}
-                com.bhauman/rebel-readline   {:mvn/version "0.1.7"}
                 djblue/portal                {:mvn/version "0.64.1"}   ; portal data inspector
                 clj-commons/clj-yaml         {:mvn/version "1.0.29"}   ; portal yaml support (optional)
                 org.clojure/tools.namespace  {:mvn/version "1.5.1"}
@@ -152,9 +151,7 @@
                 criterium/criterium          {:mvn/version "0.4.6"}}
    :main-opts  ["--eval" "(apply require clojure.main/repl-requires)"
                 "--main" "nrepl.cmdline"
-                "--middleware" "[cider.nrepl/cider-middleware,portal.nrepl/wrap-portal]"
-                "--interactive"
-                "-f" "rebel-readline.main/-main"]}
+                "--middleware" "[cider.nrepl/cider-middleware,portal.nrepl/wrap-portal]"]}
 
   ;; ------------
   ;; Integrant REPL utilities for system lifecycle management
