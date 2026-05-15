@@ -107,11 +107,13 @@
 
 (deftest flush-job-handles-empty-data-test
   (testing "Flush job succeeds with no inlined data"
-    ;; Wait for scheduler to trigger job with no data
-    (Thread/sleep 250)
-
-    ;; Job should still succeed
-    (let [job (get-flush-job-status)]
+    ;; Wait for the scheduler to trigger the job. Poll rather than
+    ;; sleeping a fixed budget — the tick + job future + DB write can
+    ;; exceed any fixed sleep under load, which is the historical flake.
+    (let [job (h/wait-until
+                #(let [j (get-flush-job-status)]
+                   (when (some? (:last_success_at j)) j))
+                {:label "inlined-data-flush success"})]
       (is (some? (:last_success_at job)) "Job should have succeeded")
       (is (nil? (:last_error job)) "Job should have no error"))))
 

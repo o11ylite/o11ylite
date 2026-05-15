@@ -185,6 +185,39 @@
   (json/write-value-as-string data))
 
 ;; ---------------------------------------------------------
+;; Polling Helpers
+;;
+;; Prefer polling over fixed `Thread/sleep` waits in tests. A fixed
+;; sleep either wastes time on the happy path or flakes under load
+;; when an async step (scheduler tick + job future + DB write) runs
+;; slower than the budget. `wait-until` returns as soon as the
+;; predicate is truthy, and throws on timeout — failing fast with a
+;; useful error rather than asserting against stale state.
+
+(defn wait-until
+  "Poll `pred-fn` every `interval-ms` until it returns truthy, then
+   return that value. Throws `ex-info` if `timeout-ms` elapses first.
+
+   Defaults: timeout 5000 ms, interval 25 ms.
+
+   Usage:
+     (h/wait-until #(some? (:last_success_at (get-job-status))))
+     (h/wait-until pred {:timeout-ms 2000 :interval-ms 50 :label \"flush\"})"
+  ([pred-fn]
+   (wait-until pred-fn {}))
+  ([pred-fn {:keys [timeout-ms interval-ms label]
+             :or {timeout-ms 5000 interval-ms 25 label "condition"}}]
+   (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+     (loop []
+       (let [v (pred-fn)]
+         (cond
+           v v
+           (>= (System/currentTimeMillis) deadline)
+           (throw (ex-info (str "wait-until timed out waiting for " label)
+                           {:timeout-ms timeout-ms :label label}))
+           :else (do (Thread/sleep interval-ms) (recur))))))))
+
+;; ---------------------------------------------------------
 ;; Re-exports: HTTP helpers
 
 (def url http/url)
