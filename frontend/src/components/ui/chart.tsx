@@ -107,7 +107,27 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+// Wrap Recharts' Tooltip so the tooltip wrapper always paints above the
+// chart's own legend (and any other absolutely-positioned chrome that
+// Recharts renders inside `.recharts-wrapper`). Both `.recharts-
+// tooltip-wrapper` and `.recharts-legend-wrapper` are absolute-
+// positioned siblings with no z-index of their own, so paint order
+// follows DOM order — and Recharts mounts the legend *after* the
+// tooltip, so without intervention the legend wins and obscures the
+// bottom of the hover popover. Recharts exposes `wrapperStyle` as the
+// supported API for tooltip wrapper styling; setting z-index here means
+// callers don't have to remember to.
+function ChartTooltip({
+  wrapperStyle,
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.Tooltip>) {
+  return (
+    <RechartsPrimitive.Tooltip
+      wrapperStyle={{ zIndex: 10, ...wrapperStyle }}
+      {...props}
+    />
+  )
+}
 
 function ChartTooltipContent({
   active,
