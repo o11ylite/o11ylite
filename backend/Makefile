@@ -37,8 +37,8 @@ CLOJURE_EXEC_TEST_RUNNER := clojure -X:test/env:test/run
 # -- Clojure Workflow ------------------ #
 repl: reloaded
 
-reloaded:  ## Run Clojure REPL with rich terminal UI (Rebel Readline)
-	$(info -- Run Rebel REPL ------------------------)
+reloaded:  ## Start an nREPL server (connect from your editor / CIDER)
+	$(info -- Start nREPL server --------------------)
 	clojure -M:otel:repl/reloaded:lib/integrant-repl
 
 deps: deps.edn  ## Prepare dependencies for test and dist targets
