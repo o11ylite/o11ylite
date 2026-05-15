@@ -24,7 +24,7 @@ RUN npm run build
 # Stage 2: Backend Build
 # =============================================================================
 # Use non-Alpine image because grpc-java plugin requires glibc
-FROM clojure:temurin-21-tools-deps AS backend-build
+FROM clojure:temurin-25-tools-deps AS backend-build
 
 # Application version baked into the uberjar (override at build time)
 ARG VERSION=dev
@@ -59,7 +59,7 @@ RUN clojure -J-Do11ylite.version=${VERSION} -T:build/task uberjar
 # Stage 3: Runtime Image
 # =============================================================================
 # Use Debian-based image for DuckDB glibc compatibility
-FROM eclipse-temurin:21-jre-noble AS runtime
+FROM eclipse-temurin:25-jre-noble AS runtime
 
 # s6-overlay version
 ARG S6_OVERLAY_VERSION=3.2.0.2
