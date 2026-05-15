@@ -16,7 +16,7 @@ OTLP Client  ──►  O11yLite  ──►  DuckDB / SQLite
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Clojure, Java 21 (virtual threads), Integrant |
+| Backend | Clojure, Java 25 (virtual threads), Integrant |
 | Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui |
 | Storage | DuckDB (analytics), SQLite (metadata) |
 | Ingestion | OTLP/gRPC, OTLP/HTTP (protobuf) |
@@ -243,7 +243,7 @@ docker run -d \
 
 The image includes:
 - **Caddy** - Reverse proxy serving frontend static assets and proxying to backend
-- **Backend** - Clojure uberjar running on Java 21 with virtual threads
+- **Backend** - Clojure uberjar running on Java 25 with virtual threads
 - **s6-overlay** - Process supervisor managing both services
 
 **Note:** The container is configured to exit on backend crash (rather than silently restarting), allowing container orchestrators (Docker, Kubernetes) to handle failures appropriately.
