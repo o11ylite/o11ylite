@@ -59,7 +59,7 @@ RUN clojure -J-Do11ylite.version=${VERSION} -T:build/task uberjar
 # Stage 3: Runtime Image
 # =============================================================================
 # Use Debian-based image for DuckDB glibc compatibility
-FROM eclipse-temurin:25-jre-noble AS runtime
+FROM eclipse-temurin:25.0.3_9-jre-noble AS runtime
 
 # s6-overlay version
 ARG S6_OVERLAY_VERSION=3.2.0.2
