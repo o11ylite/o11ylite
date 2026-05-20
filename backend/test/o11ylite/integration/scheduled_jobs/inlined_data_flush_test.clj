@@ -93,14 +93,13 @@
     (ingest-small-batch! "api-gateway" 3)
     (ingest-small-batch! "payment-service" 2)
 
-    ;; Wait for scheduler to trigger job (test uses 100ms tick/interval)
-    (Thread/sleep 250)
+    ;; Poll until the scheduler has fired the job at least once.
+    (let [job (h/wait-until #(let [j (get-flush-job-status)]
+                               (when (some? (:last_run_at j)) j))
+                            {:label "inlined-data-flush first run"})]
+      ;; Events should still be queryable after flush
+      (is (= 5 (count-events)))
 
-    ;; Events should still be queryable after flush
-    (is (= 5 (count-events)))
-
-    ;; Job should have recorded success
-    (let [job (get-flush-job-status)]
       (is (some? (:last_run_at job)) "Job should have run")
       (is (some? (:last_success_at job)) "Job should have succeeded")
       (is (nil? (:last_error job)) "Job should have no error"))))

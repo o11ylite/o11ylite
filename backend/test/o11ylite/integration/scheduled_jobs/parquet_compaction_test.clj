@@ -59,10 +59,10 @@
 
 (deftest compaction-job-runs-periodically-test
   (testing "Scheduler triggers the compaction job and records success"
-    ;; Wait for scheduler to trigger job (test uses 100ms tick/interval)
-    (Thread/sleep 250)
-
-    (let [job (get-compaction-job-status)]
+    ;; Poll until the scheduler has fired the job at least once.
+    (let [job (h/wait-until #(let [j (get-compaction-job-status)]
+                               (when (some? (:last_run_at j)) j))
+                            {:label "parquet-compaction first run"})]
       (is (some? (:last_run_at job)) "Job should have run")
       (is (some? (:last_success_at job)) "Job should have succeeded")
       (is (nil? (:last_error job)) "Job should have no error"))))
