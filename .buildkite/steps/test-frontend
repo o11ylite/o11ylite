@@ -10,6 +10,7 @@ mise install
 cd frontend
 
 echo "--- :package: Installing dependencies"
+npm config set registry "http://content-cache.content-cache.svc.cluster.local:8080/npm/"
 npm ci
 
 echo "--- :eslint: Linting"
