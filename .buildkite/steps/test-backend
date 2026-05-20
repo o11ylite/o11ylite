@@ -10,6 +10,10 @@ export PATH="$HOME/.local/bin:$PATH"
 eval "$(mise activate bash)"
 mise install
 
+echo "--- :mirror: Configuring Maven, Clojar mirror (content-cache)"
+mkdir -p "$HOME/.m2"
+cp .buildkite/maven-settings.xml "$HOME/.m2/settings.xml"
+
 cd backend
 
 echo "--- :package: Fetching dependencies"
