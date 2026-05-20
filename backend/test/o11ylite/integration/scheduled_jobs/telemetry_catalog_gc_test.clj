@@ -72,9 +72,12 @@
 
   (testing "Scheduler triggers the GC job and records success"
     ;; Scheduler is configured with 1-minute interval and 100ms tick;
-    ;; the job runs immediately because last_run_at is NULL.
-    (Thread/sleep 250)
-    (let [job (get-gc-job-status)]
+    ;; the job runs immediately because last_run_at is NULL. Poll
+    ;; rather than fixed-sleep — the tick + GC + SQLite write can take
+    ;; longer than a tight budget under load.
+    (let [job (h/wait-until #(let [j (get-gc-job-status)]
+                               (when (some? (:last_run_at j)) j))
+                            {:label "telemetry-catalog-gc first run"})]
       (is (some? (:last_run_at job)) "Job should have run")
       (is (some? (:last_success_at job)) "Job should have succeeded")
       (is (nil? (:last_error job)) "Job should have no error"))))

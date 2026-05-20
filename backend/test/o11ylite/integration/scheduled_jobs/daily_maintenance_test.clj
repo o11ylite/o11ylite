@@ -46,11 +46,12 @@
 
 (deftest maintenance-job-runs-periodically-test
   (testing "Scheduler triggers the maintenance job and records success"
-    ;; Wait for scheduler to trigger job (test uses 100ms tick/interval)
-    (Thread/sleep 250)
-
-    ;; Job should have recorded success
-    (let [job (get-maintenance-job-status)]
+    ;; Poll until the scheduler tick has fired the job and the job's
+    ;; future has recorded a result. Avoids fixed-sleep flakiness when
+    ;; the tick + DuckDB checkpoint takes longer than expected.
+    (let [job (h/wait-until #(let [j (get-maintenance-job-status)]
+                               (when (some? (:last_run_at j)) j))
+                            {:label "daily-maintenance first run"})]
       (is (some? (:last_run_at job)) "Job should have run")
       (is (some? (:last_success_at job)) "Job should have succeeded")
       (is (nil? (:last_error job)) "Job should have no error"))))
