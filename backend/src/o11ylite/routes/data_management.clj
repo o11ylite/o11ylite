@@ -117,12 +117,12 @@
 
 (defn- -make-page-handler
   "GET /system/data-management — render the Data Management page with all props."
-  [{:keys [sqlite events-schema duckdb blocked-fields]}]
+  [{:keys [sqlite events-schema duckdb-reader blocked-fields]}]
   (fn [_request]
     (response/inertia "DataManagement"
                       {:event_fields (-build-event-fields events-schema blocked-fields sqlite)
                        :metrics (-build-metrics sqlite)
-                       :metric_attributes (-build-metric-attributes duckdb blocked-fields)
+                       :metric_attributes (-build-metric-attributes duckdb-reader blocked-fields)
                        :services (-build-services sqlite)})))
 
 (defn- -make-event-fields-status-handler
@@ -140,14 +140,15 @@
 
 (defn- -make-event-fields-delete-handler
   "DELETE /system/data-management/event-fields — drop columns + auto-block."
-  [{:keys [sqlite duckdb events-schema blocked-fields]}]
+  [{:keys [sqlite duckdb-writer-events events-schema blocked-fields]}]
   (fn [request]
     (let [fields (get-in request [:body :fields])
           n (count fields)]
       ;; 1. Block first to prevent schema evolution from re-adding
       (blocked-fields/block-event-fields! blocked-fields sqlite fields)
-      ;; 2. DROP COLUMN from DuckDB
-      (schema/drop-event-fields! duckdb fields)
+      ;; 2. DROP COLUMN from DuckDB via the events writer to serialize with
+      ;; concurrent INSERTs from the event-batcher.
+      (schema/drop-event-fields! duckdb-writer-events fields)
       ;; 3. Refresh events-schema cache so dropped columns disappear (sync)
       @(events-schema-cache/refresh! events-schema)
       (-flash-message (str "Deleted " (-pluralize n "event field"))))))
@@ -167,14 +168,15 @@
 
 (defn- -make-metric-attrs-delete-handler
   "DELETE /system/data-management/metric-attributes — drop columns + auto-block."
-  [{:keys [sqlite duckdb blocked-fields]}]
+  [{:keys [sqlite duckdb-writer-metrics blocked-fields]}]
   (fn [request]
     (let [fields (get-in request [:body :fields])
           n (count fields)]
       ;; 1. Block first to prevent schema evolution from re-adding
       (blocked-fields/block-metric-fields! blocked-fields sqlite fields)
-      ;; 2. DROP COLUMN from DuckDB
-      (schema/drop-metric-fields! duckdb fields)
+      ;; 2. DROP COLUMN from DuckDB via the metrics writer to serialize with
+      ;; concurrent INSERTs from the metric-batcher.
+      (schema/drop-metric-fields! duckdb-writer-metrics fields)
       (-flash-message (str "Deleted " (-pluralize n "metric attribute"))))))
 
 (defn- -make-metrics-remove-handler

@@ -26,7 +26,10 @@
 
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
+(defn- writer-events
+  []
+  (:db/duckdb-writer-events h/*system*))
 (defn- events-schema
   []
   (:cache/events-schema h/*system*))
@@ -70,7 +73,7 @@
                   :meta.observed_time {:type :instant}
                   :name {:type :string}
                   :trace_id {:type :string}}]
-      (events.ingest/persist-batch! (duckdb) (events-schema) events fields)
+      (events.ingest/persist-batch! (writer-events) (events-schema) events fields)
       (let [rows (query-events)]
         (is (= 2 (count rows)))
         (is (= "span-1" (:name (first rows))))
@@ -92,7 +95,7 @@
                   :meta.observed_time {:type :instant}
                   :name {:type :string}
                   custom-field {:type :string}}]
-      (events.ingest/persist-batch! (duckdb) (events-schema) events fields)
+      (events.ingest/persist-batch! (writer-events) (events-schema) events fields)
       (let [rows (query-events)
             row (first rows)]
         (is (= 1 (count rows)))

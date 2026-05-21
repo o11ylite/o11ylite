@@ -207,7 +207,7 @@
 
   (require '[integrant.repl.state :refer [system]])
 
-  (def ds (:db/duckdb system))
+  (def ds (:db/duckdb-reader system))
 
   ;; Fetch fields with normalized types
   (fetch-event-fields ds)

@@ -10,15 +10,15 @@
     [o11ylite.store.schema :as schema]
     [o11ylite.test-helpers :as h]))
 
-;; Only start storage (creates events table) and duckdb
-(use-fixtures :each (h/with-partial-system [:storage/init]))
+;; Only start storage (creates events table) and the read pool we exercise.
+(use-fixtures :each (h/with-partial-system [:storage/init :db/duckdb-reader]))
 
 ;; ---------------------------------------------------------
 ;; Helper to get DuckDB datasource from system
 
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
 
 ;; ---------------------------------------------------------
 ;; Tests

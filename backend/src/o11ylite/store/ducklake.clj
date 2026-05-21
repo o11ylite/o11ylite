@@ -15,6 +15,29 @@
     [java.time Instant]))
 
 ;; ---------------------------------------------------------
+;; Writer coordination
+;;
+;; All writes against a DuckLake table must be serialized through that table's
+;; writer pool (size 1). Per-table operations (e.g. DELETE FROM events) use
+;; just the matching writer. Catalog-wide operations (compaction, checkpoint,
+;; snapshot cleanup, inlined-data flush) touch both tables and must block
+;; both writers for the duration of the call.
+;;
+;; Always acquire the events writer first, then the metrics writer, to avoid
+;; lock-order deadlocks. with-both-writers enforces this convention.
+
+(defmacro ^:private with-both-writers
+  "Bind `conn-sym` to a JDBC connection on the events writer and run `body`
+   while also holding the metrics writer's connection. The events connection
+   is the one used for the actual SQL — DuckLake catalog ops are
+   namespace-scoped to o11ylite so either writer's connection will see the
+   same catalog state."
+  [[conn-sym events-writer metrics-writer] & body]
+  `(with-open [~conn-sym (jdbc/get-connection ~events-writer)
+               _mw# (jdbc/get-connection ~metrics-writer)]
+     ~@body))
+
+;; ---------------------------------------------------------
 ;; Public API
 
 (defn flush-inlined-data!
@@ -23,14 +46,15 @@
    DuckLake stores small writes directly in the metadata catalog (data inlining).
    This function flushes that inlined data to Parquet files in the data path.
 
-   Note: Uses with-transaction to ensure the flush operation runs in its own
-   transaction context, avoiding DuckLake's 'scanning after transaction ended' error.
+   Catalog-wide operation: holds both writer pools so concurrent INSERTs into
+   either table can't conflict with the flush.
 
    See: https://ducklake.select/docs/stable/duckdb/advanced_features/data_inlining"
-  [duckdb-ds]
+  [writer-events writer-metrics]
   (span/with-span! [::flush-inlined-data]
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"]))))
+    (with-both-writers [conn writer-events writer-metrics]
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_flush_inlined_data('o11ylite')"])))))
 
 (defn- -set-target-file-size!
   "Set the DuckLake target_file_size for the next merge operation."
@@ -49,20 +73,23 @@
       "CALL ducklake_merge_adjacent_files('o11ylite')")))
 
 (defn- -merge-once!
-  "Run a single merge call. Returns a map of :files-created and :files-processed."
-  [duckdb-ds opts]
+  "Run a single merge call. Returns a map of :files-created and :files-processed.
+   Runs on the events writer connection while also holding the metrics writer
+   to serialize against all ingest writers."
+  [writer-events writer-metrics opts]
   (let [sql (-build-merge-sql opts)
-        rows (jdbc/with-transaction [tx duckdb-ds]
-               (jdbc/execute! tx [sql]))]
+        rows (with-both-writers [conn writer-events writer-metrics]
+               (jdbc/with-transaction [tx conn]
+                 (jdbc/execute! tx [sql])))]
     {:files-created (count rows)
      :files-processed (reduce + 0 (map :files_processed rows))}))
 
 (defn- -merge-loop!
   "Repeatedly merge in bounded batches until a batch produces fewer output
    files than max-compacted-files, meaning the backlog is drained."
-  [duckdb-ds {:keys [max-compacted-files] :as opts}]
+  [writer-events writer-metrics {:keys [max-compacted-files] :as opts}]
   (loop [total-created 0 total-processed 0]
-    (let [{:keys [files-created files-processed]} (-merge-once! duckdb-ds opts)]
+    (let [{:keys [files-created files-processed]} (-merge-once! writer-events writer-metrics opts)]
       (if (< files-created max-compacted-files)
         {:files-created   (+ total-created files-created)
          :files-processed (+ total-processed files-processed)}
@@ -82,6 +109,8 @@
      is drained. Use for medium/large tiers where output file count is
      inherently bounded.
 
+   Catalog-wide operation: holds both writer pools.
+
    Options:
      :target-file-size    - target output size, e.g. \"5MB\" (required)
      :max-compacted-files - max output files per batch (optional)
@@ -89,17 +118,19 @@
      :max-file-size       - exclude files at or larger than this (bytes, optional)
 
    See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
-  [duckdb-ds {:keys [max-compacted-files target-file-size tier-name] :as opts}]
+  [writer-events writer-metrics {:keys [max-compacted-files target-file-size tier-name] :as opts}]
   (span/with-span! [::merge-adjacent-files {:o11ylite.ducklake.compaction.max_compacted_files (:max-compacted-files opts)
                                             :o11ylite.ducklake.compaction.target_file_size    (:target-file-size opts)
                                             :o11ylite.ducklake.compaction.min_file_size       (:min-file-size opts)
                                             :o11ylite.ducklake.compaction.max_file_size       (:max-file-size opts)}]
-    ;; Set target file size before merging (catalog-level setting)
-    (jdbc/with-transaction [tx duckdb-ds]
-      (-set-target-file-size! tx target-file-size))
+    ;; Set target file size before merging (catalog-level setting). Run on
+    ;; the events writer with both held — set_option mutates ducklake_metadata.
+    (with-both-writers [conn writer-events writer-metrics]
+      (jdbc/with-transaction [tx conn]
+        (-set-target-file-size! tx target-file-size)))
     (let [{:keys [files-created files-processed]} (if max-compacted-files
-                                                    (-merge-loop! duckdb-ds opts)
-                                                    (-merge-once! duckdb-ds opts))]
+                                                    (-merge-loop! writer-events writer-metrics opts)
+                                                    (-merge-once! writer-events writer-metrics opts))]
       (when tier-name
         (span/add-span-data! {:attributes {:o11ylite.ducklake.compaction.tier_name       (name tier-name)
                                            :o11ylite.ducklake.compaction.files_created   files-created
@@ -214,36 +245,41 @@
 
    tier-intervals is a map of interval-key to interval in minutes,
    e.g. {:compaction-small-interval-minutes 5, ...}"
-  [duckdb-ds sqlite max-compacted-files tier-intervals]
+  [writer-events writer-metrics sqlite max-compacted-files tier-intervals]
   (span/with-span! [::run-tiered-compaction {:o11ylite.ducklake.compaction.max_compacted_files max-compacted-files}]
     (doseq [{:keys [tier-name interval-key] :as tier} compaction-tiers]
       (let [interval-ms (* (get tier-intervals interval-key 60) 60000)]
         (when (-tier-due? sqlite tier-name interval-ms)
-          (merge-adjacent-files! duckdb-ds (-tier-merge-opts tier max-compacted-files))
+          (merge-adjacent-files! writer-events writer-metrics
+                                 (-tier-merge-opts tier max-compacted-files))
           (-record-tier-run! sqlite tier-name))))))
 
 (defn- -delete-table-older-than!
   "Delete rows from `table` whose `timestamp` column is older than
    retention-days. The threshold is cast to `ts-type` to match the
-   column's type."
-  [duckdb-ds table retention-days ts-type]
-  (jdbc/with-transaction [tx duckdb-ds]
+   column's type.
+
+   `writer-ds` must be the matching table's writer pool, so the DELETE
+   serializes with concurrent INSERTs going through the same pool. This
+   eliminates the DuckLake table-level conflict that previously surfaced
+   as 'cannot rollback - no transaction is active'."
+  [writer-ds table retention-days ts-type]
+  (jdbc/with-transaction [tx writer-ds]
     (jdbc/execute! tx [(format "DELETE FROM o11ylite.%s WHERE timestamp < ((NOW() - INTERVAL '%d days')::TIMESTAMP)::%s"
                                table retention-days ts-type)])))
 
 (defn delete-old-data!
   "Delete events and metrics older than retention-days.
 
-   Each table is deleted in its own transaction. Combining both into one
-   transaction widened the conflict window against concurrent DuckLake
-   catalog mutations (compaction, snapshot cleanup), which surfaced as
-   'cannot rollback - no transaction is active' once the server-side
-   transaction was aborted under load."
-  [duckdb-ds retention-days]
+   Each table is deleted on its own writer pool. The events DELETE serializes
+   with the event-batcher; the metrics DELETE serializes with the
+   metric-batcher. Cross-table writes can run in parallel because DuckLake
+   conflict-checks per table."
+  [writer-events writer-metrics retention-days]
   (span/with-span! [::delete-old-data {:o11ylite.ducklake.retention_days retention-days}]
     ;; NOW() is TIMESTAMP WITH TIME ZONE; cast to each column's type.
-    (-delete-table-older-than! duckdb-ds "events"  retention-days "TIMESTAMP_NS")
-    (-delete-table-older-than! duckdb-ds "metrics" retention-days "TIMESTAMP")
+    (-delete-table-older-than! writer-events  "events"  retention-days "TIMESTAMP_NS")
+    (-delete-table-older-than! writer-metrics "metrics" retention-days "TIMESTAMP")
     true))
 
 (defn run-checkpoint!
@@ -257,6 +293,8 @@
    - Rewrite data files with deletions to reclaim storage
    - Clean up old/orphaned files (1-day threshold)
 
+   Catalog-wide operation: holds both writer pools across the four steps.
+
    Note: Does not call ducklake_flush_inlined_data or ducklake_merge_adjacent_files
    since those already run via their own scheduled jobs.
 
@@ -265,64 +303,68 @@
    individual ducklake_* functions instead.
 
    See: https://ducklake.select/docs/stable/duckdb/maintenance/checkpoint"
-  [duckdb-ds]
+  [writer-events writer-metrics]
   (span/with-span! [::run-checkpoint]
-    ;; Each operation runs in its own transaction to avoid DuckLake scanning issues
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_rewrite_data_files('o11ylite')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
+    (with-both-writers [conn writer-events writer-metrics]
+      ;; Each operation runs in its own transaction to avoid DuckLake scanning issues
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_rewrite_data_files('o11ylite')"]))
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 day')"]))
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"])))))
 
 (defn run-snapshot-cleanup!
   "Expire old snapshots and remove superseded files on a shorter cadence
    than daily maintenance. Keeps the DuckLake catalog lean between daily
-   runs, preventing unbounded metadata growth."
-  [duckdb-ds]
+   runs, preventing unbounded metadata growth.
+
+   Catalog-wide operation: holds both writer pools."
+  [writer-events writer-metrics]
   (span/with-span! [::run-snapshot-cleanup]
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
-    (jdbc/with-transaction [tx duckdb-ds]
-      (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"]))))
+    (with-both-writers [conn writer-events writer-metrics]
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_expire_snapshots('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_cleanup_old_files('o11ylite', older_than := NOW() - INTERVAL '1 hour')"]))
+      (jdbc/with-transaction [tx conn]
+        (jdbc/execute! tx ["CALL ducklake_delete_orphaned_files('o11ylite')"])))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
   ;; Requires dev system running via (user/go)
   (require '[integrant.repl.state :refer [system]])
-  (def duckdb (:db/duckdb system))
-
-  ;; Flush inlined data to Parquet files
-  (flush-inlined-data! duckdb)
-
+  (def we (:db/duckdb-writer-events system))
+  (def wm (:db/duckdb-writer-metrics system))
   (def sqlite (:db/sqlite system))
 
+  ;; Flush inlined data to Parquet files (catalog-wide)
+  (flush-inlined-data! we wm)
+
   ;; Run tiered compaction (skips tiers not yet due)
-  (run-tiered-compaction! duckdb sqlite 10
+  (run-tiered-compaction! we wm sqlite 10
                           {:compaction-small-interval-minutes 5
                            :compaction-medium-interval-minutes 15
                            :compaction-large-interval-minutes 60})
 
   ;; Single unbounded merge (small tier style — no loop, no max_compacted_files)
-  (merge-adjacent-files! duckdb {:target-file-size "5MB"
-                                 :max-file-size 1048576})
+  (merge-adjacent-files! we wm {:target-file-size "5MB"
+                                :max-file-size 1048576})
 
   ;; Bounded looping merge (medium/large tier style)
-  (merge-adjacent-files! duckdb {:max-compacted-files 10
-                                 :target-file-size "32MB"
-                                 :min-file-size 1048576
-                                 :max-file-size 10485760})
+  (merge-adjacent-files! we wm {:max-compacted-files 10
+                                :target-file-size "32MB"
+                                :min-file-size 1048576
+                                :max-file-size 10485760})
 
-  ;; Delete old data (retention)
-  (delete-old-data! duckdb 30)
+  ;; Delete old data (retention) — each table on its own writer
+  (delete-old-data! we wm 30)
 
   ;; Run checkpoint (comprehensive maintenance)
-  (run-checkpoint! duckdb)
+  (run-checkpoint! we wm)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

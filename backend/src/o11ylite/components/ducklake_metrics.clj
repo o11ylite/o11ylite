@@ -104,10 +104,10 @@
 
   ;; Start manually
   (def gauges
-    (ig/init-key :metrics/ducklake {:duckdb (:db/duckdb state/system)}))
+    (ig/init-key :metrics/ducklake {:duckdb (:db/duckdb-reader state/system)}))
 
   ;; Inspect what the callback would emit
-  (-rows->measurements (-fetch-table-info (:db/duckdb state/system))
+  (-rows->measurements (-fetch-table-info (:db/duckdb-reader state/system))
                        :file_count
                        :delete_file_count)
 

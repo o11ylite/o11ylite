@@ -126,7 +126,7 @@
 (defn api-routes
   "API routes - no CSRF. Auth via API key header or session cookie.
    In open mode, no auth middleware. Otherwise: session + identity + scope check."
-  [{:keys [duckdb sqlite events-schema blocked-fields auth-config api-key-cache]}]
+  [{:keys [duckdb-reader sqlite events-schema blocked-fields auth-config api-key-cache]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-session  (when-not open-mode? (make-wrap-api-session (:session-key auth-config)))
         wrap-identity (when-not open-mode? (auth-mw/make-wrap-identity {:api-key-cache api-key-cache
@@ -139,7 +139,7 @@
                                          -api-exception-middleware])}
      (api.events/routes {:events-schema events-schema :blocked-fields blocked-fields})
      (api.metrics/routes {:sqlite sqlite})
-     (api.query/routes {:duckdb duckdb :sqlite sqlite :events-schema events-schema})
+     (api.query/routes {:duckdb duckdb-reader :sqlite sqlite :events-schema events-schema})
      (api.services/routes {:sqlite sqlite})]))
 
 (defn otlp-routes
@@ -168,7 +168,9 @@
 (defn page-routes
   "Page routes - site defaults + Inertia middleware + auth.
    In open mode, no identity middleware (all pages accessible)."
-  [{:keys [inertia sqlite duckdb events-schema blocked-fields id-generator auth-config app-config core-config api-key-cache scheduler-registry scheduler-executor]}]
+  [{:keys [inertia sqlite duckdb-reader duckdb-writer-events duckdb-writer-metrics
+           events-schema blocked-fields id-generator auth-config app-config
+           core-config api-key-cache scheduler-registry scheduler-executor]}]
   (let [open-mode? (:open-mode? auth-config)
         wrap-site (make-wrap-site-defaults (:session-key auth-config))
         wrap-identity (when-not open-mode?
@@ -207,12 +209,14 @@
      (settings/routes {:core-config core-config
                        :app-config app-config
                        :auth-config auth-config})
-     (about/routes {:duckdb duckdb
+     (about/routes {:duckdb duckdb-reader
                     :sqlite sqlite
                     :auth-config auth-config})
      ;; Data management — view/block/delete event fields and metric fields
      (data-management/routes {:sqlite sqlite
-                              :duckdb duckdb
+                              :duckdb-reader duckdb-reader
+                              :duckdb-writer-events duckdb-writer-events
+                              :duckdb-writer-metrics duckdb-writer-metrics
                               :events-schema events-schema
                               :blocked-fields blocked-fields
                               :auth-config auth-config})

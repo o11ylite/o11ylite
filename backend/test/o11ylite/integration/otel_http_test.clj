@@ -30,7 +30,7 @@
 
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
 
 (defn- query-events-by-service
   "Query events from DuckLake by service name."

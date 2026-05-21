@@ -28,7 +28,13 @@
   (:db/sqlite h/*system*))
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
+(defn- writer-events
+  []
+  (:db/duckdb-writer-events h/*system*))
+(defn- writer-metrics
+  []
+  (:db/duckdb-writer-metrics h/*system*))
 
 (defn- get-compaction-job-status
   []
@@ -73,7 +79,7 @@
       (is (nil? (tier-last-run tier-name))
           (str tier-name " should have no last-run before first compaction")))
 
-    (ducklake/run-tiered-compaction! (duckdb) (sqlite) 5 all-tiers-due)
+    (ducklake/run-tiered-compaction! (writer-events) (writer-metrics) (sqlite) 5 all-tiers-due)
 
     (doseq [{:keys [tier-name]} ducklake/compaction-tiers]
       (let [last-run (tier-last-run tier-name)]
@@ -85,14 +91,14 @@
 (deftest tiered-compaction-skips-tiers-not-due-test
   (testing "Tiers with recent last-run are skipped"
     ;; Run once to seed all timestamps
-    (ducklake/run-tiered-compaction! (duckdb) (sqlite) 5 all-tiers-due)
+    (ducklake/run-tiered-compaction! (writer-events) (writer-metrics) (sqlite) 5 all-tiers-due)
 
     (let [small-after-first  (tier-last-run :small)
           medium-after-first (tier-last-run :medium)
           large-after-first  (tier-last-run :large)]
 
       ;; Run again with long intervals — no tier should be due
-      (ducklake/run-tiered-compaction! (duckdb) (sqlite) 5
+      (ducklake/run-tiered-compaction! (writer-events) (writer-metrics) (sqlite) 5
                                        {:compaction-small-interval-minutes  9999
                                         :compaction-medium-interval-minutes 9999
                                         :compaction-large-interval-minutes  9999})
@@ -113,7 +119,7 @@
           large-before    (tier-last-run :large)]
 
       ;; Small interval is 5 min (elapsed), medium/large are 60 min (not elapsed)
-      (ducklake/run-tiered-compaction! (duckdb) (sqlite) 5
+      (ducklake/run-tiered-compaction! (writer-events) (writer-metrics) (sqlite) 5
                                        {:compaction-small-interval-minutes  5
                                         :compaction-medium-interval-minutes 60
                                         :compaction-large-interval-minutes  60})
@@ -128,7 +134,7 @@
 (deftest manual-merge-adjacent-files-test
   (testing "Bounded merge returns 0 when nothing to compact"
     (let [result (ducklake/merge-adjacent-files!
-                   (duckdb)
+                   (writer-events) (writer-metrics)
                    {:max-compacted-files 5
                     :target-file-size    "5MB"
                     :max-file-size       1048576})]
@@ -137,7 +143,7 @@
 
   (testing "Unbounded merge (no max-compacted-files) returns 0 when nothing to compact"
     (let [result (ducklake/merge-adjacent-files!
-                   (duckdb)
+                   (writer-events) (writer-metrics)
                    {:target-file-size "5MB"
                     :max-file-size    1048576})]
       (is (zero? (:files-created result)))
@@ -157,7 +163,7 @@
 
     ;; Compact small files
     (let [result (ducklake/merge-adjacent-files!
-                   (duckdb)
+                   (writer-events) (writer-metrics)
                    {:target-file-size "5MB"
                     :max-file-size    1048576})]
       (is (map? result) "Should return a map")

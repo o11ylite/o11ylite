@@ -74,7 +74,7 @@
   (require '[integrant.repl.state :refer [system]])
 
   ;; Example: wrap a datasource with timestamp conversion
-  (def raw-ds (:db/duckdb system))
+  (def raw-ds (:db/duckdb-reader system))
   (def ds (jdbc/with-options raw-ds {:builder-fn as-unqualified-maps}))
 
   ;; Now all queries automatically convert Timestamps (interpreted as UTC)

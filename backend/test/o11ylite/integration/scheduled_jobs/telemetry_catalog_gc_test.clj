@@ -30,7 +30,7 @@
   (:db/sqlite h/*system*))
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
 (defn- events-schema
   []
   (:cache/events-schema h/*system*))
@@ -38,7 +38,7 @@
 (defn- gc-deps
   []
   {:sqlite (sqlite)
-   :duckdb (duckdb)
+   :duckdb-writer-events (:db/duckdb-writer-events h/*system*)
    :events-schema (events-schema)})
 
 (defn- get-gc-job-status

@@ -158,7 +158,8 @@
    failures in race conditions (field blocked between cleanse and flush).
 
    Arguments:
-     duckdb        - DuckDB datasource
+     duckdb        - DuckDB datasource (must be the events single-writer pool;
+                     ALTER and INSERT run through it)
      events-schema - Events schema cache (for diff and refresh)
      events        - Collection of event maps to insert
      fields        - Map of field-name -> {:type ...} for all fields in batch

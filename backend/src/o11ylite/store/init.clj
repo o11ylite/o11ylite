@@ -105,15 +105,19 @@
   "Initialize DuckLake database schema.
    Creates the events and metrics tables if they don't exist.
    Events are partitioned by day + service.
-   Metrics are partitioned by day + bucket(N, name) where N comes from core config."
-  [duckdb-ds {:keys [metrics-partition-buckets]}]
+   Metrics are partitioned by day + bucket(N, name) where N comes from core config.
+
+   Each table's DDL goes through its own writer pool to keep the writer
+   contract (one connection per table) consistent. At startup no batchers
+   are running yet, so there's no contention."
+  [writer-events writer-metrics {:keys [metrics-partition-buckets]}]
   (mulog/log ::init-store-starting :o11ylite.store_init.metrics_partition_buckets metrics-partition-buckets)
-  (jdbc/execute! duckdb-ds [create-events-table-sql])
-  (jdbc/execute! duckdb-ds [set-events-partition-sql])
-  (jdbc/execute! duckdb-ds [set-events-sorted-sql])
-  (jdbc/execute! duckdb-ds [create-metrics-table-sql])
-  (jdbc/execute! duckdb-ds [(-set-metrics-partition-sql metrics-partition-buckets)])
-  (jdbc/execute! duckdb-ds [set-metrics-sorted-sql])
+  (jdbc/execute! writer-events [create-events-table-sql])
+  (jdbc/execute! writer-events [set-events-partition-sql])
+  (jdbc/execute! writer-events [set-events-sorted-sql])
+  (jdbc/execute! writer-metrics [create-metrics-table-sql])
+  (jdbc/execute! writer-metrics [(-set-metrics-partition-sql metrics-partition-buckets)])
+  (jdbc/execute! writer-metrics [set-metrics-sorted-sql])
   (mulog/log ::init-store-completed))
 
 ;; ---------------------------------------------------------
@@ -125,7 +129,7 @@
            '[next.jdbc.date-time]
            '[integrant.repl.state :refer [system]])
 
-  (def ds (:db/duckdb system))
+  (def ds (:db/duckdb-reader system))
 
   ;; Check table exists
   (jdbc/execute! ds ["SHOW TABLES"])

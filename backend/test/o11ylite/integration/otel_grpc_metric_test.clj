@@ -28,7 +28,7 @@
                        :metrics [(h/build-gauge-metric
                                    {:name metric-name
                                     :data-points [{:value 100}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -48,7 +48,7 @@
                                     :unit "%"
                                     :data-points [{:value 75.5
                                                    :attributes {"host.name" "server-1"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, service, value FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -132,7 +132,7 @@
                                     :data-points [{:value 1500
                                                    :attributes {"disk.device" "sda1"
                                                                 "disk.type" "ssd"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, service, value, \"attr.disk.device\", \"attr.disk.type\"
                                 FROM o11ylite.metrics WHERE name = ?"
@@ -160,7 +160,7 @@
                                    :monotonic? true
                                    :data-points [{:value 100
                                                   :attributes {"http.method" "GET"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -184,7 +184,7 @@
                                     :monotonic? true
                                     :data-points [{:value 1000
                                                    :attributes {"cpu.core" "0"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -216,7 +216,7 @@
                             :temporality :cumulative
                             :data-points [{:value 1500
                                            :attributes {"cpu.core" "0"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -277,7 +277,7 @@
                             :monotonic? true
                             :data-points [{:value 50
                                            :attributes {"instance" "pod-1"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -305,7 +305,7 @@
                                                   {:value 20
                                                    :time-ns (+ now-ns 1000000)  ; 1ms later
                                                    :attributes {"endpoint" "/api/v1"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -344,7 +344,7 @@
                             :monotonic? false
                             :data-points [{:value 75
                                            :attributes {"pid" "1234"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ? ORDER BY timestamp"
                                metric-name])
@@ -384,7 +384,7 @@
                                                   :min 0.001
                                                   :max 1.5
                                                   :attributes {"http.method" "GET"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT name, service, \"hist.count\", \"hist.sum\", \"hist.min\", \"hist.max\"
                                 FROM o11ylite.metrics WHERE name = ?"
@@ -447,7 +447,7 @@
                                     :data-points [{:bucket-counts [100 200 50 25 25]
                                                    :count 400
                                                    :sum 45.0}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT * FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -484,7 +484,7 @@
                                            :count 150
                                            :sum 40.0
                                            :attributes {"rpc.method" "GetUser"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -526,7 +526,7 @@
                                            :count 28
                                            :sum 25.0
                                            :attributes {"worker.id" "w1"}}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT \"hist.count\", \"hist.sum\" FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -562,7 +562,7 @@
                                    :data-points [{:bucket-counts [10 20 30 25 15 5]
                                                   :count 105
                                                   :sum 12.5}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           gauge-rows (jdbc/execute! duckdb
                                     ["SELECT name, value FROM o11ylite.metrics WHERE name = ?"
                                      gauge-name])
@@ -603,7 +603,7 @@
                                   {:name metric-name
                                    :unit "s"
                                    :data-points [{:value 0.1}]})]})
-          duckdb (:db/duckdb h/*system*)
+          duckdb (:db/duckdb-reader h/*system*)
           rows (jdbc/execute! duckdb
                               ["SELECT value FROM o11ylite.metrics WHERE name = ?"
                                metric-name])]
@@ -633,7 +633,7 @@
                       :data-points [{:value 42.0
                                      :attributes {"disk.device" "sda1"
                                                   "disk.type" "ssd"}}]})]})
-      (let [duckdb (:db/duckdb h/*system*)
+      (let [duckdb (:db/duckdb-reader h/*system*)
             rows (jdbc/execute! duckdb
                                 ["SELECT * FROM o11ylite.metrics WHERE name = ?"
                                  metric-name])

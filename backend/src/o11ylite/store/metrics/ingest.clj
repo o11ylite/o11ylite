@@ -257,7 +257,8 @@
    so they never appear in the fields set.
 
    Arguments:
-     duckdb               - DuckDB datasource
+     duckdb               - DuckDB datasource (must be the metrics single-writer pool;
+                            DESCRIBE, ALTER, and INSERT run through it)
      sqlite               - SQLite datasource
      norm                 - Temporality normalizer component
      data-points          - Collection of data point maps to persist
@@ -275,7 +276,7 @@
     [::persist-batch {:o11ylite.ingest.data_point_count (count data-points)
                       :o11ylite.ingest.field_count (count fields)
                       :o11ylite.ingest.metadata_count (count metrics-metadata)}]
-    ;; Step 1: Schema evolution - add new attr.* columns if needed
+    ;; Step 1: Schema evolution - add new attr.* columns if needed.
     (let [existing-columns (schema/fetch-metrics-field-names duckdb)
           batch-attr-fields (-attr-fields fields)
           new-attr-fields (set/difference batch-attr-fields existing-columns)]

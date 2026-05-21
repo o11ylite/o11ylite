@@ -44,17 +44,17 @@
 
 (defn- -init-duckdb
   "Initialize DuckDB schema (idempotent)."
-  [duckdb-ds core-config]
-  (store/init-store! duckdb-ds core-config))
+  [writer-events writer-metrics core-config]
+  (store/init-store! writer-events writer-metrics core-config))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
 
 (defmethod ig/init-key :storage/init
-  [_ {:keys [sqlite duckdb core-config]}]
+  [_ {:keys [sqlite duckdb-writer-events duckdb-writer-metrics core-config]}]
   (mulog/log ::storage-init-starting)
   (-run-migrations sqlite)
-  (-init-duckdb duckdb core-config)
+  (-init-duckdb duckdb-writer-events duckdb-writer-metrics core-config)
   (mulog/log ::storage-init-completed)
   nil)
 
@@ -73,7 +73,7 @@
            '[integrant.repl.state :refer [system]])
 
   (def sqlite-ds (:db/sqlite system))
-  (def duckdb-ds (:db/duckdb system))
+  (def duckdb-ds (:db/duckdb-reader system))
 
   ;; Test migratus config
   (def config (-migratus-config sqlite-ds))
@@ -91,7 +91,7 @@
   (jdbc/execute! duckdb-ds ["SHOW TABLES"])
   (jdbc/execute! duckdb-ds ["DESCRIBE o11ylite.events"])
   (ig/halt-key! :db/sqlite sqlite-ds)
-  (ig/halt-key! :db/duckdb duckdb-ds)
+  (ig/halt-key! :db/duckdb-reader duckdb-ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
