@@ -88,7 +88,7 @@
   ([{:keys [event-counts system]
      :or {event-counts default-event-counts}}]
    (let [system (or system (-system))
-         duckdb (:db/duckdb system)
+         duckdb (:db/duckdb-writer-events system)
          events-schema (:cache/events-schema system)
          id-generator (:id/generator system)]
 

@@ -130,7 +130,8 @@
   (partial * 60000))
 
 (defmethod ig/init-key :scheduler/registry
-  [_ {:keys [core-config duckdb sqlite events-schema app-config]}]
+  [_ {:keys [core-config duckdb-reader duckdb-writer-events duckdb-writer-metrics
+             sqlite events-schema app-config]}]
   (mulog/log ::registry-initializing)
   (let [data-inlining-row-limit (:data-inlining-row-limit core-config 0)
         inlined-data-flush-interval-minutes (app-config/get-setting-value app-config :inlined-data-flush-interval-minutes)
@@ -143,7 +144,9 @@
         daily-maintenance-interval-minutes (app-config/get-setting-value app-config :daily-maintenance-interval-minutes)
         data-retention-days (app-config/get-setting-value app-config :data-retention-days)
         catalog-gc-interval-minutes (app-config/get-setting-value app-config :telemetry-catalog-gc-interval-minutes)
-        catalog-gc-deps {:sqlite sqlite :duckdb duckdb :events-schema events-schema}
+        catalog-gc-deps {:sqlite sqlite
+                         :duckdb-writer-events duckdb-writer-events
+                         :events-schema events-schema}
         webhook-url (app-config/get-setting-value app-config :webhook-url)]
     (cond->
       {;; Tiered compaction: runs small → medium → large tiers sequentially.
@@ -157,7 +160,9 @@
        :parquet-compaction
        {:interval-ms (minutes->ms compaction-small-interval)
         :description "Tiered compaction of small Parquet files"
-        :handler (fn [] (ducklake/run-tiered-compaction! duckdb sqlite compaction-max-files tier-intervals))}
+        :handler (fn []
+                   (ducklake/run-tiered-compaction! duckdb-writer-events duckdb-writer-metrics
+                                                    sqlite compaction-max-files tier-intervals))}
 
        ;; Snapshot cleanup: expire old snapshots and remove superseded file
        ;; entries on a shorter cadence than daily maintenance.  Keeps the
@@ -166,14 +171,14 @@
        :snapshot-cleanup
        {:interval-ms (minutes->ms snapshot-cleanup-interval-minutes)
         :description "Expire old snapshots and clean up superseded files"
-        :handler (fn [] (ducklake/run-snapshot-cleanup! duckdb))}
+        :handler (fn [] (ducklake/run-snapshot-cleanup! duckdb-writer-events duckdb-writer-metrics))}
 
        :daily-maintenance
        {:interval-ms (minutes->ms daily-maintenance-interval-minutes)
         :description "Daily data retention and DuckLake maintenance"
         :handler (fn []
-                   (ducklake/delete-old-data! duckdb data-retention-days)
-                   (ducklake/run-checkpoint! duckdb))}
+                   (ducklake/delete-old-data! duckdb-writer-events duckdb-writer-metrics data-retention-days)
+                   (ducklake/run-checkpoint! duckdb-writer-events duckdb-writer-metrics))}
 
        ;; Telemetry catalog GC: reclaim metrics_metadata rows, events
        ;; columns, and service_metadata rows whose last emitter has been
@@ -190,7 +195,7 @@
         :description "Evaluate due alert rules and send webhook notifications"
         :handler (fn []
                    (alert-rule/run-evaluation-cycle!
-                     duckdb sqlite events-schema webhook-url))}}
+                     duckdb-reader sqlite events-schema webhook-url))}}
 
       ;; Only register the inlined-data-flush job when data inlining is enabled.
       ;; When DATA_INLINING_ROW_LIMIT is 0, no data is ever inlined so flushing
@@ -200,7 +205,7 @@
       (assoc :inlined-data-flush
              {:interval-ms (minutes->ms inlined-data-flush-interval-minutes)
               :description "Flush DuckLake inlined data to Parquet"
-              :handler (fn [] (ducklake/flush-inlined-data! duckdb))}))))
+              :handler (fn [] (ducklake/flush-inlined-data! duckdb-writer-events duckdb-writer-metrics))}))))
 
 ;; ---------------------------------------------------------
 ;; Scheduler Component

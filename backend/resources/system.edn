@@ -1,14 +1,28 @@
 {:config/core {}
 
- :db/duckdb
+ ;; Owns the root DuckDBConnection and its duplicating-datasource. All three
+ ;; pools below duplicate() from it. See o11ylite.components.duckdb-pool.
+ :db/duckdb-root
  {:core-config #ig/ref :config/core}
+
+ :db/duckdb-reader
+ {:root #ig/ref :db/duckdb-root
+  :core-config #ig/ref :config/core}
+
+ ;; Single-writer pools used to serialize all writes to each DuckLake table.
+ :db/duckdb-writer-events
+ {:root #ig/ref :db/duckdb-root}
+
+ :db/duckdb-writer-metrics
+ {:root #ig/ref :db/duckdb-root}
 
  :db/sqlite
  {:core-config #ig/ref :config/core}
 
  :storage/init
  {:sqlite #ig/ref :db/sqlite
-  :duckdb #ig/ref :db/duckdb
+  :duckdb-writer-events #ig/ref :db/duckdb-writer-events
+  :duckdb-writer-metrics #ig/ref :db/duckdb-writer-metrics
   :core-config #ig/ref :config/core}
 
  :id/generator
@@ -24,7 +38,7 @@
   :_storage #ig/ref :storage/init}
 
  :cache/events-schema
- {:duckdb #ig/ref :db/duckdb
+ {:duckdb #ig/ref :db/duckdb-reader
   ;; _storage is not consumed, but ensures storage/init runs first
   ;; so the events table exists before we DESCRIBE it
   :_storage #ig/ref :storage/init}
@@ -34,7 +48,7 @@
   :_storage #ig/ref :storage/init}
 
  :ingest/event-batcher
- {:duckdb #ig/ref :db/duckdb
+ {:duckdb #ig/ref :db/duckdb-writer-events
   :events-schema #ig/ref :cache/events-schema
   :telemetry-catalog-buffer #ig/ref :discovery/telemetry-catalog-buffer
   :app-config #ig/ref :config/app
@@ -44,7 +58,7 @@
  {:app-config #ig/ref :config/app}
 
  :ingest/metric-batcher
- {:duckdb #ig/ref :db/duckdb
+ {:duckdb #ig/ref :db/duckdb-writer-metrics
   :sqlite #ig/ref :db/sqlite
   :normalizer #ig/ref :ingest/metric-normalizer
   :telemetry-catalog-buffer #ig/ref :discovery/telemetry-catalog-buffer
@@ -52,15 +66,17 @@
   :_storage #ig/ref :storage/init}
 
  :metrics/duckdb
- {:duckdb #ig/ref :db/duckdb}
+ {:duckdb #ig/ref :db/duckdb-reader}
 
  :metrics/ducklake
- {:duckdb #ig/ref :db/duckdb
+ {:duckdb #ig/ref :db/duckdb-reader
   :_storage #ig/ref :storage/init}
 
  :scheduler/registry
  {:core-config #ig/ref :config/core
-  :duckdb #ig/ref :db/duckdb
+  :duckdb-reader #ig/ref :db/duckdb-reader
+  :duckdb-writer-events #ig/ref :db/duckdb-writer-events
+  :duckdb-writer-metrics #ig/ref :db/duckdb-writer-metrics
   :sqlite #ig/ref :db/sqlite
   :events-schema #ig/ref :cache/events-schema
   :app-config #ig/ref :config/app
@@ -100,7 +116,9 @@
 
  :router/routes
  {:inertia #ig/ref :inertia/config
-  :duckdb #ig/ref :db/duckdb
+  :duckdb-reader #ig/ref :db/duckdb-reader
+  :duckdb-writer-events #ig/ref :db/duckdb-writer-events
+  :duckdb-writer-metrics #ig/ref :db/duckdb-writer-metrics
   :sqlite #ig/ref :db/sqlite
   :core-config #ig/ref :config/core
   :app-config #ig/ref :config/app

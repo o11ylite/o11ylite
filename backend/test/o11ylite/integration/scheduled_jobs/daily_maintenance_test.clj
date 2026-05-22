@@ -23,9 +23,12 @@
 (defn- sqlite
   []
   (:db/sqlite h/*system*))
-(defn- duckdb
+(defn- writer-events
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-writer-events h/*system*))
+(defn- writer-metrics
+  []
+  (:db/duckdb-writer-metrics h/*system*))
 
 (defn- get-maintenance-job-status
   []
@@ -62,12 +65,12 @@
     (ingest-sample-events! 1)
     (ingest-sample-metrics! 1)
     ;; Should not throw, returns JDBC result (array)
-    (is (ducklake/delete-old-data! (duckdb) 30))))
+    (is (ducklake/delete-old-data! (writer-events) (writer-metrics) 30))))
 
 (deftest manual-checkpoint-test
   (testing "Manual checkpoint via ducklake/run-checkpoint! works"
     ;; Should not error (even with nothing to checkpoint), returns JDBC result
-    (is (ducklake/run-checkpoint! (duckdb)))))
+    (is (ducklake/run-checkpoint! (writer-events) (writer-metrics)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

@@ -76,13 +76,14 @@
   "Find event fields whose every emitter is stale, drop the DuckDB
    columns, remove the catalog rows, and refresh the events-schema
    cache so the next ingest sees the current schema."
-  [{:keys [sqlite duckdb events-schema]} threshold-ms]
+  [{:keys [sqlite duckdb-writer-events events-schema]} threshold-ms]
   (let [stale (catalog/get-stale-event-fields sqlite threshold-ms)]
     (span/with-span!
       [::gc-stale-event-fields {:o11ylite.gc.stale_count (count stale)
                                 :o11ylite.gc.event_field_names stale}]
       (when (seq stale)
-        (schema/drop-event-fields! duckdb stale)
+        ;; DROP COLUMN serializes with the event-batcher through duckdb-writer-events.
+        (schema/drop-event-fields! duckdb-writer-events stale)
         (catalog/delete-event-fields! sqlite stale)
         @(events-schema-cache/refresh! events-schema))
       stale)))
@@ -108,7 +109,7 @@
   "Reclaim metrics, event fields, and services that haven't been seen
    for at least `stale-days`.
 
-   `deps` must contain :sqlite, :duckdb, :events-schema.
+   `deps` must contain :sqlite, :duckdb-writer-events, :events-schema.
 
    Returns a map {:metrics <names> :event-fields <names> :services <names>}
    describing what was reclaimed. Safe to call with a dataset where
@@ -141,7 +142,7 @@
 
   (def deps
     {:sqlite (:db/sqlite system)
-     :duckdb (:db/duckdb system)
+     :duckdb-writer-events (:db/duckdb-writer-events system)
      :events-schema (:cache/events-schema system)})
 
   ;; Dry-run style: inspect candidates without deleting

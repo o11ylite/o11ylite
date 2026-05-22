@@ -25,7 +25,7 @@
 
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
 
 (defn- events-schema
   []

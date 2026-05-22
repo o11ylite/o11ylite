@@ -194,94 +194,114 @@
 
     (unwrap [_ _c] (throw (java.sql.SQLException. "Not a wrapper")))))
 
-(defn- create-pool-datasource
-  "Create a HikariCP-pooled datasource backed by DuckDB duplicate() connections."
-  [{:keys [data-path data-inlining-row-limit memory-limit-pct pool-size
-           ducklake-repository]
-    :or {data-inlining-row-limit 0 memory-limit-pct 0 pool-size 10}}]
-  (let [ducklake-file (ducklake-path data-path)
-        root-conn (init-root-connection!
-                    {:data-path data-path
-                     :ducklake-file ducklake-file
-                     :data-inlining-row-limit data-inlining-row-limit
-                     :memory-limit-pct memory-limit-pct
-                     :ducklake-repository ducklake-repository})
-        ;; USE is session-level state that doesn't carry over from root to
-        ;; duplicate() connections, so we run it on each connection checkout
-        config (doto (HikariConfig.)
-                 (.setDataSource (duplicating-datasource root-conn))
-                 (.setMaximumPoolSize pool-size)
-                 (.setMinimumIdle 2)
-                 (.setPoolName "duckdb-pool")
-                 (.setConnectionTestQuery "SELECT 1")
-                 (.setConnectionInitSql "USE o11ylite"))
-        hikari-ds (HikariDataSource. config)]
-    ;; Return a wrapper that closes both HikariCP and root connection
-    (reify
-      DataSource
-      (getConnection [_] (.getConnection hikari-ds))
+(defn- -build-pool
+  "Build a HikariDataSource backed by `dup-ds`. Writer pools pass `pool-size`
+   of 1 to serialize DuckLake table writes; this is how we avoid the
+   `cannot rollback - no transaction is active` conflict between concurrent
+   INSERTs and DELETEs/DDL targeting the same DuckLake table."
+  [dup-ds {:keys [pool-name pool-size]}]
+  (HikariDataSource.
+    (doto (HikariConfig.)
+      (.setDataSource dup-ds)
+      (.setMaximumPoolSize pool-size)
+      (.setMinimumIdle 1)
+      (.setPoolName pool-name)
+      (.setConnectionInitSql "USE o11ylite")
+      (.setConnectionTestQuery "SELECT 1"))))
 
-      (getConnection [_ u p] (.getConnection hikari-ds u p))
-
-      (getLogWriter [_] (.getLogWriter hikari-ds))
-
-      (setLogWriter [_ w] (.setLogWriter hikari-ds w))
-
-      (setLoginTimeout [_ t] (.setLoginTimeout hikari-ds t))
-
-      (getLoginTimeout [_] (.getLoginTimeout hikari-ds))
-
-      (getParentLogger [_] (.getParentLogger hikari-ds))
-
-      (^boolean isWrapperFor [_ ^Class c] (.isWrapperFor hikari-ds c))
-
-      (unwrap [_ c] (.unwrap hikari-ds c))
-
-
-      Closeable
-
-      (close
-        [_]
-        (mulog/log ::duckdb-pool-closing)
-        (.close hikari-ds)
-        (.close root-conn)
-        (mulog/log ::duckdb-pool-closed)))))
+(defn- -wrap-builder
+  "Apply the unqualified-maps builder to a datasource so callers get plain
+   Clojure maps instead of namespace-qualified keys."
+  [ds]
+  (jdbc/with-options ds {:builder-fn jdbc-types/as-unqualified-maps}))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
+;;
+;; Four integrant keys model the DuckDB connection topology:
+;;   :db/duckdb-root           - owns the root DuckDBConnection + duplicating-datasource
+;;   :db/duckdb-reader         - general read pool (size 10), depends on root
+;;   :db/duckdb-writer-events  - single-writer pool for events table (size 1), depends on root
+;;   :db/duckdb-writer-metrics - single-writer pool for metrics table (size 1), depends on root
+;;
+;; Each component owns exactly one resource and its own halt. Integrant tears
+;; down children (pools) before the root, so the root connection outlives the
+;; pools that duplicate() from it.
+;;
+;; Why pool size 1 for writers? DuckLake aborts an in-progress transaction
+;; server-side when a concurrent INSERT into the same table commits, surfacing
+;; as 'cannot rollback - no transaction is active'. Serializing all writes to
+;; a given table through one connection eliminates this conflict.
 
-(defmethod ig/init-key :db/duckdb
+(defmethod ig/init-key :db/duckdb-root
   [_ {:keys [core-config]}]
   (let [data-path (:data-path core-config)
         data-inlining-row-limit (:data-inlining-row-limit core-config 0)
         memory-limit-pct (:duckdb-memory-limit-pct core-config 0)
         ducklake-repository (:ducklake-repository core-config)]
-    (mulog/log ::duckdb-pool-starting
+    (mulog/log ::duckdb-root-starting
                :o11ylite.ducklake.data_path data-path
                :o11ylite.ducklake.data_inlining_row_limit data-inlining-row-limit
                :o11ylite.ducklake.memory_limit_pct memory-limit-pct
                :o11ylite.ducklake.repository ducklake-repository)
     (ensure-data-dir! data-path)
-    (let [datasource (create-pool-datasource {:data-path data-path
-                                              :data-inlining-row-limit data-inlining-row-limit
-                                              :memory-limit-pct memory-limit-pct
-                                              :ducklake-repository ducklake-repository})]
-      ;; Validate pool by getting and closing a connection
-      (.close (.getConnection datasource))
-      (mulog/log ::duckdb-pool-started :o11ylite.ducklake.data_path data-path)
-      ;; Wrap with default options for automatic Timestamp -> epoch-ms conversion.
-      ;; Note: jdbc/with-options returns a wrapper that applies these options to
-      ;; all next.jdbc operations. However, raw Java calls like .getConnection
-      ;; bypass the wrapper. Use jdbc/with-transaction+options for transactions.
-      (jdbc/with-options datasource
-        {:builder-fn jdbc-types/as-unqualified-maps}))))
+    (let [root-conn (init-root-connection!
+                      {:data-path data-path
+                       :ducklake-file (ducklake-path data-path)
+                       :data-inlining-row-limit data-inlining-row-limit
+                       :memory-limit-pct memory-limit-pct
+                       :ducklake-repository ducklake-repository})
+          dup-ds (duplicating-datasource root-conn)]
+      (mulog/log ::duckdb-root-started :o11ylite.ducklake.data_path data-path)
+      {:root-conn root-conn :dup-ds dup-ds})))
 
-(defmethod ig/halt-key! :db/duckdb
+(defmethod ig/halt-key! :db/duckdb-root
+  [_ {:keys [^DuckDBConnection root-conn]}]
+  (mulog/log ::duckdb-root-stopping)
+  (.close root-conn)
+  (mulog/log ::duckdb-root-stopped))
+
+(defmethod ig/init-key :db/duckdb-reader
+  [_ {:keys [root core-config]}]
+  (let [pool-size (:duckdb-pool-size core-config 10)
+        pool (-build-pool (:dup-ds root) {:pool-name "duckdb-reader"
+                                          :pool-size pool-size})]
+    ;; Validate the pool by getting and closing a connection.
+    (.close (.getConnection ^DataSource pool))
+    (mulog/log ::reader-pool-started :pool-size pool-size)
+    (-wrap-builder pool)))
+
+(defmethod ig/halt-key! :db/duckdb-reader
   [_ datasource]
-  (mulog/log ::duckdb-pool-stopping)
-  ;; Unwrap the with-options wrapper to get the underlying Closeable datasource
+  (mulog/log ::reader-pool-stopping)
   (.close ^Closeable (jdbc/get-datasource datasource))
-  (mulog/log ::duckdb-pool-stopped))
+  (mulog/log ::reader-pool-stopped))
+
+(defmethod ig/init-key :db/duckdb-writer-events
+  [_ {:keys [root]}]
+  (let [pool (-build-pool (:dup-ds root) {:pool-name "duckdb-writer-events"
+                                          :pool-size 1})]
+    (mulog/log ::writer-events-pool-started)
+    (-wrap-builder pool)))
+
+(defmethod ig/halt-key! :db/duckdb-writer-events
+  [_ datasource]
+  (mulog/log ::writer-events-pool-stopping)
+  (.close ^Closeable (jdbc/get-datasource datasource))
+  (mulog/log ::writer-events-pool-stopped))
+
+(defmethod ig/init-key :db/duckdb-writer-metrics
+  [_ {:keys [root]}]
+  (let [pool (-build-pool (:dup-ds root) {:pool-name "duckdb-writer-metrics"
+                                          :pool-size 1})]
+    (mulog/log ::writer-metrics-pool-started)
+    (-wrap-builder pool)))
+
+(defmethod ig/halt-key! :db/duckdb-writer-metrics
+  [_ datasource]
+  (mulog/log ::writer-metrics-pool-stopping)
+  (.close ^Closeable (jdbc/get-datasource datasource))
+  (mulog/log ::writer-metrics-pool-stopped))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -291,9 +311,12 @@
   (require '[integrant.core :as ig]
            '[next.jdbc :as jdbc])
 
-  ;; Start the pool
+  ;; Start the root + read pool (writers omitted for brevity)
+  (def root
+    (ig/init-key :db/duckdb-root {:core-config {:data-path "./.tmp"}}))
+
   (def ds
-    (ig/init-key :db/duckdb {:data-path "./.tmp"}))
+    (ig/init-key :db/duckdb-reader {:root root :core-config {}}))
 
   ;; Run queries using next.jdbc - DuckLake is already attached and active
   (jdbc/execute! ds ["SELECT 42 AS answer"])
@@ -320,16 +343,9 @@
     (jdbc/execute! tx ["SELECT 1"])
     (jdbc/execute! tx ["SELECT 2"]))
 
-  ;; Stop the pool - can restart cleanly after this
-  (ig/halt-key! :db/duckdb ds)
-
-  ;; Restart should work without conflict
-  (def ds2
-    (ig/init-key :db/duckdb {:data-path "./.tmp"}))
-
-  (jdbc/execute! ds2 ["SELECT current_database()"])
-
-  (ig/halt-key! :db/duckdb ds2)
+  ;; Stop the pool then root - can restart cleanly after this
+  (ig/halt-key! :db/duckdb-reader ds)
+  (ig/halt-key! :db/duckdb-root root)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

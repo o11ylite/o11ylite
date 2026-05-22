@@ -428,7 +428,7 @@
 
   ;; Full integration test
   (require '[integrant.repl.state :refer [system]])
-  (def ds (:db/duckdb system))
+  (def ds (:db/duckdb-reader system))
 
   ;; Table query (timestamps in Unix epoch milliseconds)
   (execute ds
@@ -532,7 +532,7 @@
   ;;            :total_count 5}
   ;;     :metadata {:query_time_ms N :has_more false}}
 
-  (ig/halt-key! :db/duckdb ds)
+  (ig/halt-key! :db/duckdb-reader ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

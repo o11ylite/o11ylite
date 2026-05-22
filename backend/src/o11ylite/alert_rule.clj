@@ -38,7 +38,7 @@
   (do
     (require '[integrant.repl.state :refer [system]])
     (def sqlite (:db/sqlite system))
-    (def duckdb (:db/duckdb system))
+    (def duckdb (:db/duckdb-reader system))
     (def events-schema (:cache/events-schema system))
 
     ;; List all rules

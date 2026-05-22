@@ -76,7 +76,7 @@
 
   ;; Start manually
   (def gauge
-    (ig/init-key :metrics/duckdb {:duckdb (:db/duckdb state/system)}))
+    (ig/init-key :metrics/duckdb {:duckdb (:db/duckdb-reader state/system)}))
 
   ;; Stop
   (ig/halt-key! :metrics/duckdb gauge)

@@ -15,7 +15,7 @@
 
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
 
 (defn- query-events-by-trace
   "Query events from DuckLake by trace_id."

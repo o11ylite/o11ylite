@@ -88,7 +88,7 @@
   ([{:keys [data-point-counts system]
      :or {data-point-counts default-data-point-counts}}]
    (let [system (or system (-system))
-         duckdb (:db/duckdb system)
+         duckdb (:db/duckdb-writer-metrics system)
          sqlite (:db/sqlite system)
          norm (:norm/metric-temporality system)]
 

@@ -36,7 +36,13 @@
   (:db/sqlite h/*system*))
 (defn- duckdb
   []
-  (:db/duckdb h/*system*))
+  (:db/duckdb-reader h/*system*))
+(defn- writer-events
+  []
+  (:db/duckdb-writer-events h/*system*))
+(defn- writer-metrics
+  []
+  (:db/duckdb-writer-metrics h/*system*))
 (defn- events-schema
   []
   (:cache/events-schema h/*system*))
@@ -62,7 +68,7 @@
                 :meta.signal_type {:type :string}
                 :meta.observed_time {:type :instant}
                 :name {:type :string}}]
-    (events.ingest/persist-batch! (duckdb) (events-schema) events fields)))
+    (events.ingest/persist-batch! (writer-events) (events-schema) events fields)))
 
 (defn- count-events
   "Count total events in the events table."
@@ -122,7 +128,7 @@
     (is (= 5 (count-events)))
 
     ;; Manual flush should not error
-    (ducklake/flush-inlined-data! (duckdb))
+    (ducklake/flush-inlined-data! (writer-events) (writer-metrics))
 
     ;; Data should still be queryable
     (is (= 5 (count-events)))))

@@ -38,7 +38,7 @@
 (defn- -add-event-attr!
   "Add an attr.* event field via DuckDB and refresh the schema cache."
   [field-name]
-  (let [duckdb (:db/duckdb h/*system*)
+  (let [duckdb (:db/duckdb-reader h/*system*)
         esc (:cache/events-schema h/*system*)]
     (schema/add-event-fields! duckdb {(keyword field-name) {:type :string}})
     @(events-schema-cache/refresh! esc)))
@@ -46,7 +46,7 @@
 (defn- -add-metric-attr!
   "Add an attr.* metric attribute via DuckDB for testing."
   [field-name]
-  (let [duckdb (:db/duckdb h/*system*)]
+  (let [duckdb (:db/duckdb-reader h/*system*)]
     (schema/add-metrics-fields! duckdb #{(keyword field-name)})))
 
 ;; ---------------------------------------------------------

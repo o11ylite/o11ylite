@@ -280,7 +280,7 @@
 
   (require '[integrant.repl.state :refer [system]])
 
-  (def ds (:db/duckdb system))
+  (def ds (:db/duckdb-reader system))
 
   ;; Example: Single metric query
   (def sample-query
@@ -346,7 +346,7 @@
   (query-util/select-bucket-ms 86400000)  ;; 1 day => 1200000 (20 min buckets, ~72 buckets)
   (query-util/select-bucket-ms 604800000) ;; 1 week => 7200000 (2 hour buckets, ~84 buckets)
 
-  (ig/halt-key! :db/duckdb ds)
+  (ig/halt-key! :db/duckdb-reader ds)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
