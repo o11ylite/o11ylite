@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# ---
+# Print the :mvn/version of a dependency from backend/deps.edn.
+#
+# Usage:
+#   deps-version <dep-symbol>
+#
+# Example:
+#   deps-version com.google.protobuf/protobuf-java   # -> 4.34.1
+#
+# Exits non-zero with a clear message if the dep is missing or has no
+# :mvn/version. Uses Clojure's EDN reader so it is robust to formatting,
+# comments, and whitespace in deps.edn.
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $(basename "$0") <dep-symbol>" >&2
+  exit 2
+fi
+
+dep="$1"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+deps_edn="${script_dir}/../deps.edn"
+
+if [[ ! -f "$deps_edn" ]]; then
+  echo "error: deps.edn not found at $deps_edn" >&2
+  exit 1
+fi
+
+# Read deps.edn, look up the dep in :deps, print :mvn/version. Anything
+# unexpected (missing dep, missing :mvn/version, non-edn input) exits non-zero
+# via the `or` + assertion chain.
+clojure -M -e "
+(let [deps-edn (clojure.edn/read-string (slurp \"$deps_edn\"))
+      dep '$dep
+      coord (get-in deps-edn [:deps dep])
+      version (:mvn/version coord)]
+  (when-not coord
+    (binding [*out* *err*] (println (str \"error: dep not found in :deps: \" dep)))
+    (System/exit 1))
+  (when-not version
+    (binding [*out* *err*] (println (str \"error: no :mvn/version for: \" dep \" (got \" coord \")\")))
+    (System/exit 1))
+  (println version))
+"

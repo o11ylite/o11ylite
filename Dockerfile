@@ -35,8 +35,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends make curl unzip
 
 WORKDIR /app/backend
 
-# Copy deps.edn and Makefile first for dependency caching
+# Copy deps.edn, Makefile, and build-time bin/ scripts first for layer
+# caching. bin/deps-version is invoked by the Makefile to derive protoc
+# and grpc-java versions from deps.edn. bin/ is reserved for stable build
+# tooling; REPL/benchmark code lives in backend/dev/ and is not needed
+# here.
 COPY backend/deps.edn backend/build.clj backend/Makefile ./
+COPY backend/bin ./bin
 
 # Download dependencies
 RUN clojure -P && clojure -P -T:build/task

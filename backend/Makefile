@@ -130,13 +130,17 @@ else
 	GRPC_JAVA_PLATFORM := linux-x86_64
 endif
 
-# Protoc version - must match protobuf-java version in deps.edn
-# protobuf-java 4.34.1 requires protoc 34.1
-PROTOC_VERSION := 34.1
+# Versions are derived from deps.edn (single source of truth) using
+# `bin/deps-version`, which parses deps.edn as EDN.
+#
+# Lazy `=` assignment: the script (which starts a JVM) only runs when a
+# proto target is invoked, not on every `make help` or `make test`.
+PROTOBUF_JAVA_VERSION = $(shell ./bin/deps-version com.google.protobuf/protobuf-java)
+# protobuf-java 4.X.Y maps to protoc X.Y
+PROTOC_VERSION = $(PROTOBUF_JAVA_VERSION:4.%=%)
 PROTOC_BIN := .bin/protoc
 
-# grpc-java plugin
-GRPC_JAVA_VERSION := 1.81.0
+GRPC_JAVA_VERSION = $(shell ./bin/deps-version io.grpc/grpc-protobuf)
 GRPC_JAVA_PLUGIN := .bin/protoc-gen-grpc-java
 
 # Download protoc compiler
