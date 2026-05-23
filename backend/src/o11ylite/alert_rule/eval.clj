@@ -127,7 +127,7 @@
 
         "metrics"
         (let [metrics-query (-inject-time-range query eval-win)]
-          (if-let [validation-error (metrics.query/validate sqlite metrics-query)]
+          (if-let [validation-error (metrics.query/validate sqlite duckdb metrics-query)]
             {:state nil :error (str "Validation error: " (:error validation-error))}
             ;; :single-bucket? collapses every metric to one row per
             ;; group_by combination over the full eval window so HAVING

@@ -24,10 +24,13 @@
 
 (defn- validate-with-mock
   "Validate query with mocked metadata.
-   metrics-map defines known metrics, query is the full query map."
+   metrics-map defines known metrics, query is the full query map.
+   `duckdb` is passed as nil — these tests only exercise the metadata
+   branch and never reference attribute fields, so the field-existence
+   check is short-circuited by the empty-references guard."
   [metrics-map query]
   (with-redefs [metadata/get-metric (mock-metadata metrics-map)]
-    (validation/validate-with-metadata nil query)))
+    (validation/validate-with-metadata nil nil query)))
 
 (defn- validate-single
   "Validate a single metric query with mocked metadata."

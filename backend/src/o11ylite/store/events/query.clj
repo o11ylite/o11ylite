@@ -15,6 +15,7 @@
     [next.jdbc :as jdbc]
     [o11ylite.store.events.query-cursor :as query-cursor]
     [o11ylite.store.events.query-schema :as query-schema]
+    [o11ylite.store.events.query-validation :as query-validation]
     [o11ylite.store.query-util :as query-util]))
 
 ;; ---------------------------------------------------------
@@ -22,7 +23,7 @@
 
 (defn validate
   "Validate an events query request.
-   Performs schema validation, then type-aware filter validation.
+   Performs schema validation, then field-existence and type-aware filter validation.
 
    `fields` is the events-table field metadata map
    ({keyword -> {:type t}}).
@@ -30,7 +31,8 @@
    Returns nil if valid, or error map with :error key if invalid."
   [fields query]
   (or (query-schema/validate query-schema/events-query query)
-      (query-schema/validate-filter-ops-with-metadata fields query)))
+      (query-validation/validate-fields-exist fields query)
+      (query-validation/validate-filter-ops-with-metadata fields query)))
 
 ;; ---------------------------------------------------------
 ;; Column Name Handling (delegated to query-util)

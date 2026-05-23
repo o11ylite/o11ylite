@@ -264,4 +264,7 @@ The response contains three series per host: `A` (free bytes), `B`
 |--------|------------------------|----------------------------------------------------|
 | 400    | `invalid_request`      | Schema validation failed                           |
 | 400    | `invalid_aggregation`  | Aggregation not valid for metric type              |
+| 400    | `Field 'X' does not exist` | `group_by`, `filter`, or per-metric `filter` references an attribute column not on the metrics table |
 | 401    | `unauthorized`         | Missing or invalid Bearer token                    |
+
+> Unknown *metric names* are intentionally NOT rejected — queries for not-yet-emitted metrics succeed with empty results so dashboards and rules can be authored ahead of data.

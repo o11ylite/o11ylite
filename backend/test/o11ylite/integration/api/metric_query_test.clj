@@ -74,6 +74,60 @@
       (is (string? (get-in response [:body :error])))
       (is (re-find #"not valid for sum" (get-in response [:body :error]))))))
 
+(deftest metrics-query-rejects-unknown-fields-test
+  ;; A metrics query that references an attribute column not present on
+  ;; the metrics table — e.g. a saved alert rule grouping by attr.host
+  ;; after the field was deleted — used to silently return empty results
+  ;; (the column-not-found exception was swallowed). It now fails fast
+  ;; with a 400 naming the unknown field, matching events behavior.
+  ;;
+  ;; Unknown *metric names* remain lenient (see -test below) so rules
+  ;; can still be authored before the first data point lands.
+  (h/ingest-sample-metrics! 1 {:name "cpu.utilization"
+                               :attr.host.name "server-1"})
+
+  (let [time-range {:start 1702000000000 :end 1702003600000}]
+    (testing "unknown attribute in group_by → 400"
+      (let [response (h/post-json
+                       "/api/query/metrics"
+                       {:time_range time-range
+                        :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                        :group_by ["attr.no_such_attribute"]})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.no_such_attribute' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "unknown attribute in global filter → 400"
+      (let [response (h/post-json
+                       "/api/query/metrics"
+                       {:time_range time-range
+                        :filter {:field "attr.absent" :op "=" :value "x"}
+                        :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.absent' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "unknown attribute in per-metric filter → 400"
+      (let [response (h/post-json
+                       "/api/query/metrics"
+                       {:time_range time-range
+                        :metrics [{:id "A" :name "cpu.utilization" :agg "avg"
+                                   :filter {:field "attr.ghost"
+                                            :op "=" :value "x"}}]})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.ghost' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "unknown metric name is still allowed (intentional leniency)"
+      ;; Pre-existing design: queries against not-yet-emitted metrics
+      ;; succeed with empty results, so dashboards/alerts can be set up
+      ;; before data flows.
+      (let [response (h/post-json
+                       "/api/query/metrics"
+                       {:time_range time-range
+                        :metrics [{:id "A" :name "never.emitted" :agg "avg"}]})]
+        (is (= 200 (h/status response)))))))
+
 ;; ---------------------------------------------------------
 ;; Auto Bucket Selection
 

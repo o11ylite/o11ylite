@@ -31,6 +31,70 @@
       (is (h/json-response? response))
       (is (map? (get-in response [:body :error]))))))
 
+(deftest events-query-rejects-unknown-fields-test
+  ;; A query referencing a column that doesn't exist in the events table
+  ;; — operator-deleted, GC'd, or just typo'd — used to throw a DuckDB
+  ;; binder error and return 500. We now reject these at validation time
+  ;; with a 400 and a message naming the unknown field, so saved queries
+  ;; that outlive their schema fail cleanly instead of crashing the UI.
+  (let [now-ms (current-epoch-ms)
+        time-range {:start (- now-ms 3600000) :end (+ now-ms 60000)}]
+    (testing "unknown field in filter → 400 naming the field"
+      (let [response (h/post-json
+                       "/api/query/events"
+                       {:time_range time-range
+                        :filter {:field "attr.does_not_exist"
+                                 :op "=" :value "x"}
+                        :limit 10
+                        :visualization {:type "table"}})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.does_not_exist' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "unknown field in group_by → 400"
+      (let [response (h/post-json
+                       "/api/query/events"
+                       {:time_range time-range
+                        :group_by ["attr.nope"]
+                        :aggregations [{:id "A" :field "*" :function "count"}]
+                        :visualization {:type "table"}})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.nope' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "unknown field in aggregation → 400"
+      (let [response (h/post-json
+                       "/api/query/events"
+                       {:time_range time-range
+                        :aggregations [{:id "A" :field "attr.absent"
+                                        :function "avg"}]
+                        :visualization {:type "table"}})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.absent' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "unknown field in table sort → 400"
+      (let [response (h/post-json
+                       "/api/query/events"
+                       {:time_range time-range
+                        :limit 10
+                        :visualization {:type "table"
+                                        :sort {:field "attr.ghost"
+                                               :order "desc"}}})]
+        (is (= 400 (h/status response)))
+        (is (= "Field 'attr.ghost' does not exist"
+               (get-in response [:body :error])))))
+
+    (testing "count(*) aggregation is not treated as a missing field"
+      ;; '*' is the wildcard for count(*) — must not be validated as a column.
+      (let [response (h/post-json
+                       "/api/query/events"
+                       {:time_range time-range
+                        :aggregations [{:id "A" :field "*"
+                                        :function "count"}]
+                        :visualization {:type "table"}})]
+        (is (= 200 (h/status response)))))))
+
 ;; ---------------------------------------------------------
 ;; Table Visualization
 
@@ -395,7 +459,7 @@
     (let [response (h/post-json "/api/query/events"
                                 {:time_range {:start 1702000000000
                                               :end 1702003600000}
-                                 :group_by ["duration_ms"]
+                                 :group_by ["service"]
                                  :visualization {:type "heatmap"}})]
       (is (= 200 (h/status response)))
       (is (h/json-response? response))

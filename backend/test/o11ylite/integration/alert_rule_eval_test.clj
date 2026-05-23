@@ -298,11 +298,48 @@
               "Full-window sum 50 must fire; without single-bucket mode each sub-bucket sums to 10 and would not exceed threshold."))))))
 
 ;; ---------------------------------------------------------
-;; Rich Comment
-(comment
+;; Field disappears under a saved rule
 
-  (require '[clojure.test :refer [run-tests]])
-  (run-tests 'o11ylite.integration.alert-rule-eval-test)
+(deftest alert-rule-with-unknown-field-preserves-state-test
+  ;; A rule whose query references a field that no longer exists (operator
+  ;; deleted the field via /system/data-management, the catalog GC'd it,
+  ;; or it was only typo'd) used to crash the evaluator. We now surface
+  ;; this as a validation error from `validate`, which the eval loop
+  ;; treats as "unknown" — the rule's previous state is preserved instead
+  ;; of silently flipping to :ok, and the error is recorded so the rule
+  ;; shows up as broken in the rules list.
+  (testing "events rule: unknown field preserves prev state and records last_eval_error"
+    ;; Seed the rule into the firing state so we can prove the flip-to-ok
+    ;; regression doesn't happen.
+    (let [rule-id (create-alert-rule!
+                    {:name "Broken Field Events"
+                     :query {:filter {:field "service" :op "=" :value "broken-events"}
+                             :visualization {:type "table"}}
+                     :eval_window_ms 7200000})]
+      (h/ingest-sample-events! 3 {:service "broken-events"})
+      (alert-rule/run-evaluation-cycle! (duckdb) (sqlite) nil)
+      (is (= "firing" (get-rule-state rule-id))
+          "Sanity: rule is firing before the field disappears")
 
-  #_()) ; End of rich comment block
-;; ---------------------------------------------------------
+      ;; Simulate the field vanishing: rewrite the query to reference an
+      ;; attribute that was never observed by ingest. (Operator-deleted
+      ;; columns reach the same code path — what matters is the field is
+      ;; not in the events schema cache.)
+      (store/update! (sqlite) rule-id
+                     {:name "Broken Field Events"
+                      :description ""
+                      :enabled true
+                      :query_mode "events"
+                      :query {:filter {:field "attr.was_here_yesterday"
+                                       :op "=" :value "x"}
+                              :visualization {:type "table"}}
+                      :eval_window_ms 7200000
+                      :eval_interval_ms 0
+                      :alert_on "result"})
+      (alert-rule/run-evaluation-cycle! (duckdb) (sqlite) nil)
+
+      (let [rule (store/get-by-id (sqlite) rule-id)]
+        (is (= "firing" (:state rule))
+            "Prev state ('firing') must be preserved when the field disappears")
+        (is (re-find #"attr\.was_here_yesterday" (or (:last_eval_error rule) ""))
+            "last_eval_error must name the unknown field")))))
