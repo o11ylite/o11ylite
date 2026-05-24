@@ -39,6 +39,9 @@ proto/opentelemetry/
 # ------------------------
 # Include Clojure tools
 !.cljstyle
+!.clj-kondo/
+.clj-kondo/.cache/
+.clj-kondo/imports/
 !.dir-locals.el
 !compose.yaml
 !Dockerfile
