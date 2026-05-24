@@ -44,9 +44,9 @@
   ;; Protobuf - version must match vendored protoc in Makefile
   ;; Update PROTOC_VERSION in Makefile when changing this version
   ;; protoc 34.x maps to protobuf-java 4.34.x (protoc X.Y = protobuf-java 4.X.Y)
-  com.google.protobuf/protobuf-java {:mvn/version "4.34.2"}
+  com.google.protobuf/protobuf-java {:mvn/version "4.35.0"}
   ;; Protobuf JSON support for OTLP HTTP
-  com.google.protobuf/protobuf-java-util {:mvn/version "4.34.2"}
+  com.google.protobuf/protobuf-java-util {:mvn/version "4.35.0"}
 
   ;; javax.annotation for generated gRPC code
   javax.annotation/javax.annotation-api {:mvn/version "1.3.2"}
