@@ -1,0 +1,2 @@
+{:hooks {:analyze-call {o11ylite.store.ducklake/with-both-writers
+                        hooks.with-both-writers/analyze}}}
