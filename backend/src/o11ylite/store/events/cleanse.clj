@@ -17,7 +17,6 @@
 
 (ns o11ylite.store.events.cleanse
   (:require
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.schema :as schema]))
 
 ;; ---------------------------------------------------------
@@ -89,25 +88,23 @@
 ;; Public API
 
 (defn cleanse-events
-  "Cleanse all events by removing fields that violate schema constraints.
+  "Cleanse a collection of events, removing fields that violate schema constraints.
 
-   For each event:
-   - Skips blocked fields (in the blocked set)
-   - Skips fields with type conflicts (incoming type differs from schema)
-   - Skips new fields if event exceeds 200 field limit
+   See ns docstring for cleansing rules.
 
    Arguments:
-     events-schema       - The events schema cache component
+     duckdb               - DuckDB datasource (events-table schema is
+                            read via DESCRIBE on each call)
      blocked-event-fields - Set of blocked field name strings (from cache, no I/O)
-     events              - Collection of event maps to cleanse
+     events               - Collection of event maps to cleanse
 
    Returns:
      {:events [...]
       :skipped-field-count N
       :skipped-reason-counts {:reason-keyword count, ...}
       :skipped-field-counts  {field-keyword count, ...}}"
-  [events-schema blocked-event-fields events]
-  (let [known-fields (events-schema-cache/get-fields events-schema)]
+  [duckdb blocked-event-fields events]
+  (let [known-fields (schema/fetch-event-fields duckdb)]
     (reduce
       (fn [acc event]
         (let [{:keys [event skipped-fields]} (-cleanse-event known-fields blocked-event-fields event)]

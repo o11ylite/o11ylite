@@ -11,7 +11,7 @@
 (ns o11ylite.api.events
   (:require
     [o11ylite.components.blocked-fields :as blocked-fields]
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
+    [o11ylite.store.schema :as schema]
     [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
@@ -33,12 +33,11 @@
 (defn- -list-fields-handler
   "List all event fields with their types, excluding blocked fields.
    Returns [{:name :type} ...]."
-  [events-schema-component blocked-fields-component]
+  [duckdb blocked-fields-component]
   (fn [_request]
-    (let [blocked-set (blocked-fields/get-blocked-event-fields blocked-fields-component)]
-      (response/json 200 (-fields-map->vec
-                           (events-schema-cache/get-fields events-schema-component)
-                           blocked-set)))))
+    (let [blocked-set (blocked-fields/get-blocked-event-fields blocked-fields-component)
+          fields (schema/fetch-event-fields duckdb)]
+      (response/json 200 (-fields-map->vec fields blocked-set)))))
 
 ;; ---------------------------------------------------------
 ;; Routes
@@ -47,10 +46,10 @@
   "Events metadata API routes.
 
    Arguments:
-     opts - Map with :events-schema and :blocked-fields components"
-  [{:keys [events-schema blocked-fields]}]
+     opts - Map with :duckdb and :blocked-fields components"
+  [{:keys [duckdb blocked-fields]}]
   [["/events"
-    ["/fields" {:get {:handler (-list-fields-handler events-schema blocked-fields)}}]]])
+    ["/fields" {:get {:handler (-list-fields-handler duckdb blocked-fields)}}]]])
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

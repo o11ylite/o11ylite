@@ -66,10 +66,10 @@
 
 (defn- -run-persist-batch!
   "Run persist-batch! and return elapsed-ms."
-  [duckdb events-schema events fields]
+  [duckdb events fields]
   (let [[elapsed-ms _] (-time-ms
                          #(#'events.ingest/persist-batch!
-                           duckdb events-schema events fields))]
+                           duckdb events fields))]
     elapsed-ms))
 
 ;; ---------------------------------------------------------
@@ -89,14 +89,13 @@
      :or {event-counts default-event-counts}}]
    (let [system (or system (-system))
          duckdb (:db/duckdb-writer-events system)
-         events-schema (:cache/events-schema system)
          id-generator (:id/generator system)]
 
      ;; Warmup
      (print "  Warming up (100 events)... ")
      (flush)
      (let [{:keys [events fields]} (-generate-enriched-events id-generator 100)]
-       (-run-persist-batch! duckdb events-schema events fields))
+       (-run-persist-batch! duckdb events fields))
      (println "done.")
 
      ;; Benchmark runs
@@ -105,7 +104,7 @@
 
      (doseq [n event-counts]
        (let [{:keys [events fields]} (-generate-enriched-events id-generator n)
-             elapsed-ms (-run-persist-batch! duckdb events-schema events fields)]
+             elapsed-ms (-run-persist-batch! duckdb events fields)]
          (-print-table-row n elapsed-ms)))
 
      (println))))

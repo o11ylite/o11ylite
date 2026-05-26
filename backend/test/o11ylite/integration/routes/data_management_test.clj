@@ -12,7 +12,6 @@
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing use-fixtures]]
     [o11ylite.components.blocked-fields :as blocked-fields]
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.schema :as schema]
     [o11ylite.store.services :as services]
     [o11ylite.store.telemetry-catalog :as telemetry-catalog]
@@ -36,12 +35,10 @@
   (some #(when (= name (:name %)) %) fields))
 
 (defn- -add-event-attr!
-  "Add an attr.* event field via DuckDB and refresh the schema cache."
+  "Add an attr.* event field via DuckDB for testing."
   [field-name]
-  (let [duckdb (:db/duckdb-reader h/*system*)
-        esc (:cache/events-schema h/*system*)]
-    (schema/add-event-fields! duckdb {(keyword field-name) {:type :string}})
-    @(events-schema-cache/refresh! esc)))
+  (let [duckdb (:db/duckdb-writer-events h/*system*)]
+    (schema/add-event-fields! duckdb {(keyword field-name) {:type :string}})))
 
 (defn- -add-metric-attr!
   "Add an attr.* metric attribute via DuckDB for testing."

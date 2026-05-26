@@ -9,7 +9,6 @@
 (ns o11ylite.routes.data-management
   (:require
     [o11ylite.auth.middleware :as auth-mw]
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.components.blocked-fields :as blocked-fields]
     [o11ylite.store.metrics.metadata :as metrics-metadata]
     [o11ylite.store.schema :as schema]
@@ -42,11 +41,11 @@
                {})))
 
 (defn- -build-event-fields
-  "Build the event_fields prop by joining the schema cache with blocked
-   set and per-field service list from the telemetry catalog.
+  "Build the event_fields prop by joining the events-table schema with
+   the blocked set and per-field service list from the telemetry catalog.
    Returns a sorted vector of {:name :type :category :status :services}."
-  [events-schema blocked-fields sqlite]
-  (let [fields (events-schema-cache/get-fields events-schema)
+  [duckdb blocked-fields sqlite]
+  (let [fields (schema/fetch-event-fields duckdb)
         blocked (blocked-fields/get-blocked-event-fields blocked-fields)
         field-services (-field-services sqlite)]
     (->> fields
@@ -117,10 +116,10 @@
 
 (defn- -make-page-handler
   "GET /system/data-management — render the Data Management page with all props."
-  [{:keys [sqlite events-schema duckdb-reader blocked-fields]}]
+  [{:keys [sqlite duckdb-reader blocked-fields]}]
   (fn [_request]
     (response/inertia "DataManagement"
-                      {:event_fields (-build-event-fields events-schema blocked-fields sqlite)
+                      {:event_fields (-build-event-fields duckdb-reader blocked-fields sqlite)
                        :metrics (-build-metrics sqlite)
                        :metric_attributes (-build-metric-attributes duckdb-reader blocked-fields)
                        :services (-build-services sqlite)})))
@@ -140,7 +139,7 @@
 
 (defn- -make-event-fields-delete-handler
   "DELETE /system/data-management/event-fields — drop columns + auto-block."
-  [{:keys [sqlite duckdb-writer-events events-schema blocked-fields]}]
+  [{:keys [sqlite duckdb-writer-events blocked-fields]}]
   (fn [request]
     (let [fields (get-in request [:body :fields])
           n (count fields)]
@@ -149,8 +148,6 @@
       ;; 2. DROP COLUMN from DuckDB via the events writer to serialize with
       ;; concurrent INSERTs from the event-batcher.
       (schema/drop-event-fields! duckdb-writer-events fields)
-      ;; 3. Refresh events-schema cache so dropped columns disappear (sync)
-      @(events-schema-cache/refresh! events-schema)
       (-flash-message (str "Deleted " (-pluralize n "event field"))))))
 
 (defn- -make-metric-attrs-status-handler

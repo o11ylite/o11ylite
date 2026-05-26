@@ -37,19 +37,12 @@
  {:sqlite #ig/ref :db/sqlite
   :_storage #ig/ref :storage/init}
 
- :cache/events-schema
- {:duckdb #ig/ref :db/duckdb-reader
-  ;; _storage is not consumed, but ensures storage/init runs first
-  ;; so the events table exists before we DESCRIBE it
-  :_storage #ig/ref :storage/init}
-
  :discovery/telemetry-catalog-buffer
  {:sqlite #ig/ref :db/sqlite
   :_storage #ig/ref :storage/init}
 
  :ingest/event-batcher
  {:duckdb #ig/ref :db/duckdb-writer-events
-  :events-schema #ig/ref :cache/events-schema
   :telemetry-catalog-buffer #ig/ref :discovery/telemetry-catalog-buffer
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
@@ -78,7 +71,6 @@
   :duckdb-writer-events #ig/ref :db/duckdb-writer-events
   :duckdb-writer-metrics #ig/ref :db/duckdb-writer-metrics
   :sqlite #ig/ref :db/sqlite
-  :events-schema #ig/ref :cache/events-schema
   :app-config #ig/ref :config/app
   :_storage #ig/ref :storage/init}
 
@@ -102,7 +94,7 @@
 
  :server/otel-grpc
  {:core-config #ig/ref :config/core
-  :events-schema #ig/ref :cache/events-schema
+  :duckdb #ig/ref :db/duckdb-reader
   :blocked-fields #ig/ref :cache/blocked-fields
   :event-batcher #ig/ref :ingest/event-batcher
   :id-generator #ig/ref :id/generator
@@ -122,7 +114,6 @@
   :sqlite #ig/ref :db/sqlite
   :core-config #ig/ref :config/core
   :app-config #ig/ref :config/app
-  :events-schema #ig/ref :cache/events-schema
   :blocked-fields #ig/ref :cache/blocked-fields
   :event-batcher #ig/ref :ingest/event-batcher
   :id-generator #ig/ref :id/generator

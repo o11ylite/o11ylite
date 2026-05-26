@@ -30,9 +30,6 @@
 (defn- writer-events
   []
   (:db/duckdb-writer-events h/*system*))
-(defn- events-schema
-  []
-  (:cache/events-schema h/*system*))
 (defn- event-batcher
   []
   (:ingest/event-batcher h/*system*))
@@ -73,7 +70,7 @@
                   :meta.observed_time {:type :instant}
                   :name {:type :string}
                   :trace_id {:type :string}}]
-      (events.ingest/persist-batch! (writer-events) (events-schema) events fields)
+      (events.ingest/persist-batch! (writer-events) events fields)
       (let [rows (query-events)]
         (is (= 2 (count rows)))
         (is (= "span-1" (:name (first rows))))
@@ -95,7 +92,7 @@
                   :meta.observed_time {:type :instant}
                   :name {:type :string}
                   custom-field {:type :string}}]
-      (events.ingest/persist-batch! (writer-events) (events-schema) events fields)
+      (events.ingest/persist-batch! (writer-events) events fields)
       (let [rows (query-events)
             row (first rows)]
         (is (= 1 (count rows)))
@@ -109,7 +106,7 @@
                   (make-event {:name "ingested-span-2"
                                :trace_id "trace-002"
                                :attr.http.status_code 200})]
-          {:keys [success rejected-count]} (events.ingest/ingest-events! (events-schema) (:cache/blocked-fields h/*system*) (event-batcher) (id-generator) events)]
+          {:keys [success rejected-count]} (events.ingest/ingest-events! (duckdb) (:cache/blocked-fields h/*system*) (event-batcher) (id-generator) events)]
       (is (true? success) "ingest-events! should return success true")
       (is (= 0 rejected-count) "No events should be rejected")
       (let [rows (query-events)]
@@ -128,7 +125,7 @@
       (let [events [(make-event {:name "blocked-field-span"
                                  :attr.http.method "GET"
                                  :attr.http.status_code 200})]
-            {:keys [success]} (events.ingest/ingest-events! (events-schema) bf (event-batcher) (id-generator) events)]
+            {:keys [success]} (events.ingest/ingest-events! (duckdb) bf (event-batcher) (id-generator) events)]
         (is (true? success))
         (let [rows (query-events)
               row (first rows)]

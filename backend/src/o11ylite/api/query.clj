@@ -8,24 +8,24 @@
 
 (ns o11ylite.api.query
   (:require
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.events.query :as events.query]
     [o11ylite.store.metrics.query :as metrics.query]
     [o11ylite.store.query-util :as query-util]
+    [o11ylite.store.schema :as schema]
     [o11ylite.util.response :as response]))
 
 ;; ---------------------------------------------------------
 ;; Handlers
 
 (defn- -make-events-handler
-  "Create the events query handler with duckdb and events-schema dependencies."
-  [duckdb events-schema-component]
+  "Create the events query handler with duckdb dependency."
+  [duckdb]
   (fn [request]
-    (let [query (:body request)]
-      (if-let [error (events.query/validate events-schema-component query)]
+    (let [query (:body request)
+          fields (schema/fetch-event-fields duckdb)]
+      (if-let [error (events.query/validate fields query)]
         (response/json 400 error)
-        (let [fields (events-schema-cache/get-fields events-schema-component)
-              query (query-util/normalize-filter fields query)]
+        (let [query (query-util/normalize-filter fields query)]
           (response/json 200 (events.query/execute duckdb query)))))))
 
 (defn- -make-metrics-handler
@@ -42,9 +42,9 @@
 
 (defn routes
   "Query API routes."
-  [{:keys [duckdb sqlite events-schema]}]
+  [{:keys [duckdb sqlite]}]
   [["/query"
-    ["/events" {:post {:handler (-make-events-handler duckdb events-schema)}}]
+    ["/events" {:post {:handler (-make-events-handler duckdb)}}]
     ["/metrics" {:post {:handler (-make-metrics-handler duckdb sqlite)}}]]])
 
 ;; ---------------------------------------------------------
