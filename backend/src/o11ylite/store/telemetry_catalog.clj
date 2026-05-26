@@ -13,8 +13,6 @@
 ;;   - o11ylite.store.services        — CRUD on service_metadata itself
 ;;   - o11ylite.store.metrics.metadata — per-metric definitions (what a
 ;;                                       metric IS, keyed by metric name)
-;;   - :cache/events-schema            — DuckDB column schema cache for
-;;                                       the events table
 ;;
 ;; This namespace owns the "WHO emits WHAT and WHEN last seen" view.
 ;; ---------------------------------------------------------

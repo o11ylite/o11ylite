@@ -8,7 +8,6 @@
 (ns o11ylite.integration.api.event-query-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.test-helpers :as h]
     [tick.core :as t]))
 
@@ -587,9 +586,6 @@
       (h/ingest-sample-events! 2 {:service "bool-test-svc" :span.status_code :error})
       ;; Ingest ok spans (span.status_code :ok -> enrichment sets error=false)
       (h/ingest-sample-events! 3 {:service "bool-test-svc" :span.status_code :ok})
-
-      ;; Ensure events-schema cache has the error field's boolean type
-      @(events-schema-cache/refresh! (:cache/events-schema h/*system*))
 
       (let [time-range {:start (- now-ms 3600000) :end (+ now-ms 60000)}
             query-bool (fn [value]

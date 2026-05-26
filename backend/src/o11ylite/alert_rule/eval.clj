@@ -40,6 +40,7 @@
     [o11ylite.alert-rule.store :as store]
     [o11ylite.store.events.query :as events.query]
     [o11ylite.store.metrics.query :as metrics.query]
+    [o11ylite.store.schema :as schema]
     [o11ylite.util.telemetry :as telemetry]
     [steffan-westcott.clj-otel.api.trace.span :as span]))
 
@@ -107,21 +108,22 @@
 
    Returns {:state :ok|:firing, :error nil} on success,
    or {:state nil, :error string} on failure (caller preserves prev state)."
-  [duckdb sqlite events-schema {qmode :query_mode query :query
-                                eval-win :eval_window_ms
-                                alert-on :alert_on
-                                alert-target :alert_target}]
+  [duckdb sqlite {qmode :query_mode query :query
+                  eval-win :eval_window_ms
+                  alert-on :alert_on
+                  alert-target :alert_target}]
   (try
     (let [full-query (-> query
                          (-inject-time-range eval-win)
                          -ensure-table-viz)]
       (case qmode
         "events"
-        (if-let [validation-error (events.query/validate events-schema full-query)]
-          {:state nil :error (str "Validation error: " (:error validation-error))}
-          (let [result (events.query/execute duckdb full-query)]
-            {:state (-resolve-state (-events-result-firing? result) alert-on)
-             :error nil}))
+        (let [fields (schema/fetch-event-fields duckdb)]
+          (if-let [validation-error (events.query/validate fields full-query)]
+            {:state nil :error (str "Validation error: " (:error validation-error))}
+            (let [result (events.query/execute duckdb full-query)]
+              {:state (-resolve-state (-events-result-firing? result) alert-on)
+               :error nil})))
 
         "metrics"
         (let [metrics-query (-inject-time-range query eval-win)]
@@ -148,12 +150,12 @@
 (defn- -evaluate-and-notify!
   "Evaluate a single rule and send notification if appropriate.
    On evaluation failure (state is nil), preserves previous state."
-  [duckdb sqlite events-schema webhook-url rule]
+  [duckdb sqlite webhook-url rule]
   (let [{:keys [id state]} rule
         prev-state (keyword state)]
     (span/with-span! [::evaluate-rule {:o11ylite.alert_rule.id id
                                        :o11ylite.alert_rule.prev_state prev-state}]
-      (let [{:keys [state error]} (evaluate-rule duckdb sqlite events-schema rule)
+      (let [{:keys [state error]} (evaluate-rule duckdb sqlite rule)
             new-state (or state prev-state)]
         (span/add-span-data! {:attributes {:o11ylite.alert_rule.new_state new-state
                                            :o11ylite.alert_rule.error error}})
@@ -167,12 +169,12 @@
    Called by the scheduler on each tick.
 
    See facade namespace for scaling considerations."
-  [duckdb sqlite events-schema webhook-url]
+  [duckdb sqlite webhook-url]
   (let [due-rules (store/get-enabled-due sqlite)]
     (when (seq due-rules)
       (span/with-span! [::evaluation-cycle {:o11ylite.alert_rule.rule_count (count due-rules)}]
         (doseq [rule due-rules]
-          (-evaluate-and-notify! duckdb sqlite events-schema webhook-url rule))))))
+          (-evaluate-and-notify! duckdb sqlite webhook-url rule))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
@@ -188,10 +190,10 @@
      :eval_window_ms 300000})
 
   ;; Evaluate would be called as:
-  ;; (evaluate-rule duckdb sqlite events-schema sample-rule)
+  ;; (evaluate-rule duckdb sqlite sample-rule)
 
   ;; To run full evaluation cycle:
-  ;; (run-evaluation-cycle! duckdb sqlite events-schema nil)
+  ;; (run-evaluation-cycle! duckdb sqlite nil)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

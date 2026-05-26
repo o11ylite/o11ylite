@@ -10,7 +10,7 @@
 ;;       v
 ;;   ingest-events! (hot path)
 ;;       1. Cleanse events (via cleanse.clj):
-;;          - Skip fields with type conflicts (vs cached metadata)
+;;          - Skip fields with type conflicts (vs current schema)
 ;;          - Skip new fields if event exceeds 200 field limit
 ;;       2. Enrich events (via enrich.clj):
 ;;          - Compute derived fields (e.g., error boolean)
@@ -22,16 +22,14 @@
 ;;       │
 ;;       v (periodic flush)
 ;;   persist-batch! (cold path)
-;;       1. Schema diff - compare batch fields against events-schema cache
+;;       1. Schema diff - compare batch fields against current DuckDB schema
 ;;       2. Schema evolution - ALTER TABLE ADD COLUMN for any new fields
 ;;       3. Insert via temp staging table + DuckDB Appender + INSERT FROM SELECT
-;;       4. Refresh events-schema cache if schema changed
 ;; ---------------------------------------------------------
 
 (ns o11ylite.store.events.ingest
   (:require
     [o11ylite.components.blocked-fields :as blocked-fields]
-    [o11ylite.components.events-schema-cache :as events-schema-cache]
     [o11ylite.store.batcher :as batcher]
     [o11ylite.store.events.cleanse :as cleanse]
     [o11ylite.store.events.enrich :as enrich]
@@ -62,13 +60,13 @@
        (into {})))
 
 (defn- -compute-schema-diff
-  "Compare batch fields against current events-schema cache.
-   Returns a map of new-field-name -> {:type ...} for fields not in cache.
-   Returns nil if no new fields.
+  "Compare batch fields against the current events-table schema.
+   Returns a map of new-field-name -> {:type ...} for fields not yet in
+   the table. Returns nil if no new fields.
 
    The field types come from the batch's inferred types."
-  [events-schema fields]
-  (let [known-fields (events-schema-cache/get-fields events-schema)
+  [duckdb fields]
+  (let [known-fields (schema/fetch-event-fields duckdb)
         new-fields (reduce-kv (fn [acc field-name field-meta]
                                 (if (contains? known-fields field-name)
                                   acc
@@ -116,7 +114,8 @@
    then submits events + fields to batcher. Blocks until the batch is flushed.
 
    Arguments:
-     events-schema   - The events schema cache component (for cleansing)
+     duckdb          - DuckDB datasource used to look up the current
+                       events-table schema (for cleansing).
      blocked-fields  - The blocked-fields cache component (atom deref, no I/O)
      event-batcher   - The event batcher component
      id-generator    - The ID generator component (for Snowflake IDs)
@@ -126,10 +125,10 @@
      {:success true/false
       :rejected-count N       ;; always 0 (we skip fields, not reject events)
       :error-message \"...\" or nil}"
-  [events-schema blocked-fields event-batcher id-generator events]
+  [duckdb blocked-fields event-batcher id-generator events]
   (let [blocked-set (blocked-fields/get-blocked-event-fields blocked-fields)
         {:keys [events skipped-field-count skipped-reason-counts skipped-field-counts]}
-        (cleanse/cleanse-events events-schema blocked-set events)
+        (cleanse/cleanse-events duckdb blocked-set events)
         enriched (enrich/enrich-events id-generator events)
         fields (-extract-fields enriched)
         success (batcher/->batcher! event-batcher {:events enriched
@@ -147,10 +146,9 @@
   "Persist a batch of events to DuckLake via staged insert.
 
    Called by the ingest batcher during flush. Handles:
-     1. Schema diff - compare batch fields against events-schema cache
+     1. Schema diff - compare batch fields against current events-table schema
      2. Schema evolution - ALTER TABLE ADD COLUMN for any new fields
      3. Staged insert - temp table + DuckDB Appender + INSERT FROM SELECT
-     4. Cache refresh - update events-schema if schema changed
 
    Blocked-field filtering is NOT done here. The hot path (cleanse-events)
    strips blocked fields before they reach the batcher, so they never appear
@@ -159,8 +157,8 @@
 
    Arguments:
      duckdb        - DuckDB datasource (must be the events single-writer pool;
-                     ALTER and INSERT run through it)
-     events-schema - Events schema cache (for diff and refresh)
+                     ALTER and INSERT run through it). Also used for the
+                     pre-insert schema read.
      events        - Collection of event maps to insert
      fields        - Map of field-name -> {:type ...} for all fields in batch
 
@@ -170,16 +168,15 @@
    Throws:
      Exception on failure (batcher will catch and notify callers).
      OTLP clients are expected to retry on transient failures."
-  [duckdb events-schema events fields]
+  [duckdb events fields]
   (span/with-span!
     [::persist-batch {:o11ylite.ingest.event_count (count events)}]
-    (let [new-fields (-compute-schema-diff events-schema fields)]
+    (let [new-fields (-compute-schema-diff duckdb fields)]
       (span/add-span-data! {:attributes {:o11ylite.ingest.new_field_count (count new-fields)}})
 
       ;; Step 1: Schema evolution (if needed)
       (when new-fields
-        (schema/add-event-fields! duckdb new-fields)
-        (events-schema-cache/refresh! events-schema))
+        (schema/add-event-fields! duckdb new-fields))
 
       ;; Step 2: Build columns and rows
       (let [columns (vec (keys fields))

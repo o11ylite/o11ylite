@@ -52,7 +52,7 @@
    On success, all pending promises are delivered true.
    On failure, all pending promises are delivered false.
    Only called from the single event loop thread - no contention."
-  [duckdb events-schema catalog-buffer batch]
+  [duckdb catalog-buffer batch]
   (let [{:keys [events fields promises]} @batch]
     (vreset! batch {:events [] :fields {} :promises []})
     (if (empty? events)
@@ -60,7 +60,7 @@
       (span/with-span! [::flush-batch {:o11ylite.event_batcher.event_count (count events)
                                        :o11ylite.event_batcher.field_count (count fields)}]
         (try
-          (events.ingest/persist-batch! duckdb events-schema events fields)
+          (events.ingest/persist-batch! duckdb events fields)
           ;; Fire-and-forget: buffer extracts per-service field sets internally.
           (catalog-buffer/track-events! catalog-buffer events)
           ;; Notify all callers of success
@@ -97,7 +97,7 @@
   "Start the event loop that handles both ingest and periodic flush.
    Single thread owns the batch - no contention.
    Returns component state map."
-  [{:keys [duckdb events-schema catalog-buffer flush-interval-ms]}]
+  [{:keys [duckdb catalog-buffer flush-interval-ms]}]
   (let [ingest-ch (a/chan ingest-channel-size-limit)
         ticker (ticker/ticker flush-interval-ms)
         ticker-ch (:ch ticker)
@@ -119,7 +119,7 @@
             ;; Ticker fired - flush batch
             (= port ticker-ch)
             (do
-              (-flush! duckdb events-schema catalog-buffer batch)
+              (-flush! duckdb catalog-buffer batch)
               (recur))
 
             ;; Ingest message - accumulate into batch
@@ -143,7 +143,7 @@
                   (do
                     ;; Loop exited cleanly - drain and flush remaining
                     (-drain-channel! ingest-ch batch)
-                    (-flush! duckdb events-schema catalog-buffer batch)
+                    (-flush! duckdb catalog-buffer batch)
                     (mulog/log ::event-batcher-stopped))
                   ;; Loop did not exit in time - log error, don't drain/flush
                   (mulog/log ::event-batcher-stop-timeout
@@ -161,11 +161,10 @@
 ;; Component Lifecycle
 
 (defmethod ig/init-key :ingest/event-batcher
-  [_ {:keys [duckdb events-schema telemetry-catalog-buffer app-config]}]
+  [_ {:keys [duckdb telemetry-catalog-buffer app-config]}]
   (let [flush-interval-ms (app-config/get-setting-value app-config :ingest-flush-interval-ms)]
     (mulog/log ::event-batcher-starting :o11ylite.event_batcher.flush_interval_ms flush-interval-ms)
     (let [state (-start-event-loop {:duckdb duckdb
-                                    :events-schema events-schema
                                     :catalog-buffer telemetry-catalog-buffer
                                     :flush-interval-ms flush-interval-ms})]
       (mulog/log ::event-batcher-started)

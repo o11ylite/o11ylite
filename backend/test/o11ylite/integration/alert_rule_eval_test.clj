@@ -27,10 +27,6 @@
   []
   (:db/duckdb-reader h/*system*))
 
-(defn- events-schema
-  []
-  (:cache/events-schema h/*system*))
-
 (defn- create-alert-rule!
   "Create an alert rule directly via the store. Returns the rule ID."
   [overrides]
@@ -78,7 +74,6 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (events-schema)
         nil)
 
       ;; 4. Verify rule state changed to "firing"
@@ -101,7 +96,6 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (events-schema)
         nil)
 
       ;; 4. Verify rule stays in "ok" state
@@ -124,7 +118,6 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (events-schema)
         nil)
 
       ;; Verify timestamp was recorded
@@ -151,7 +144,6 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (events-schema)
         nil)
 
       ;; no_result + empty results = firing
@@ -172,7 +164,6 @@
       (alert-rule/run-evaluation-cycle!
         (duckdb)
         (sqlite)
-        (events-schema)
         nil)
 
       ;; no_result + non-empty results = ok
@@ -209,7 +200,7 @@
                          :query {:metrics [{:id "A" :name metric-a :agg "last"}]}
                          :eval_window_ms 7200000})]
           (alert-rule/run-evaluation-cycle!
-            (duckdb) (sqlite) (events-schema) nil)
+            (duckdb) (sqlite) nil)
           (is (= "firing" (get-rule-state rule-id)))))
 
       (testing "alert_target=A fires when A has data"
@@ -221,7 +212,7 @@
                          :eval_window_ms 7200000
                          :alert_target "A"})]
           (alert-rule/run-evaluation-cycle!
-            (duckdb) (sqlite) (events-schema) nil)
+            (duckdb) (sqlite) nil)
           (is (= "firing" (get-rule-state rule-id)))))
 
       (testing "alert_target=B stays ok when B has no data (even though A has data)"
@@ -233,7 +224,7 @@
                          :eval_window_ms 7200000
                          :alert_target "B"})]
           (alert-rule/run-evaluation-cycle!
-            (duckdb) (sqlite) (events-schema) nil)
+            (duckdb) (sqlite) nil)
           (is (= "ok" (get-rule-state rule-id))))))))
 
 ;; ---------------------------------------------------------
@@ -274,7 +265,7 @@
                                  :having {:ref "A" :op ">" :value 50}}
                          :eval_window_ms eval-window-ms})]
           (alert-rule/run-evaluation-cycle!
-            (duckdb) (sqlite) (events-schema) nil)
+            (duckdb) (sqlite) nil)
           (is (= "ok" (get-rule-state rule-id))
               "Full-window avg ~41.7 must not fire; only single-bucket mode prevents the outlier sub-bucket from triggering."))))
 
@@ -302,7 +293,7 @@
                                  :having {:ref "A" :op ">" :value 49}}
                          :eval_window_ms eval-window-ms})]
           (alert-rule/run-evaluation-cycle!
-            (duckdb) (sqlite) (events-schema) nil)
+            (duckdb) (sqlite) nil)
           (is (= "firing" (get-rule-state rule-id))
               "Full-window sum 50 must fire; without single-bucket mode each sub-bucket sums to 10 and would not exceed threshold."))))))
 

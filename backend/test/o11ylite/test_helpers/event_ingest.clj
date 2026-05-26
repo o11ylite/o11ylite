@@ -91,7 +91,8 @@
    Blocks until events are persisted to storage.
 
    Arguments:
-     events-schema  - The events schema cache component
+     duckdb         - DuckDB datasource (reader) — used to look up the
+                      current events-table schema during cleansing.
      blocked-fields - The blocked-fields cache component
      batcher        - The ingest batcher component
      id-generator   - The ID generator component
@@ -101,15 +102,16 @@
      true if all events were persisted successfully
 
    Example:
-     (ingest-events! (events-schema) (blocked-fields) (batcher) (id-generator) (make-random-events 10))"
-  [events-schema blocked-fields batcher id-generator events]
-  (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
+     (ingest-events! (duckdb) (blocked-fields) (batcher) (id-generator) (make-random-events 10))"
+  [duckdb blocked-fields batcher id-generator events]
+  (events.ingest/ingest-events! duckdb blocked-fields batcher id-generator events))
 
 (defn ingest-sample-events!
   "Generate and ingest n random events. Returns the ingested events.
 
    Arguments:
-     events-schema  - The events schema cache component
+     duckdb         - DuckDB datasource (reader) — used to look up the
+                      current events-table schema during cleansing.
      blocked-fields - The blocked-fields cache component
      batcher        - The ingest batcher component
      id-generator   - The ID generator component
@@ -122,13 +124,13 @@
      Vector of the ingested event maps (for verification)
 
    Example:
-      (ingest-sample-events! (events-schema) (blocked-fields) (batcher) (id-gen) 10)
-      (ingest-sample-events! (events-schema) (blocked-fields) (batcher) (id-gen) 5 {:service \"test-svc\"})"
-  ([events-schema blocked-fields batcher id-generator n]
-   (ingest-sample-events! events-schema blocked-fields batcher id-generator n {}))
-  ([events-schema blocked-fields batcher id-generator n overrides]
+      (ingest-sample-events! (duckdb) (blocked-fields) (batcher) (id-gen) 10)
+      (ingest-sample-events! (duckdb) (blocked-fields) (batcher) (id-gen) 5 {:service \"test-svc\"})"
+  ([duckdb blocked-fields batcher id-generator n]
+   (ingest-sample-events! duckdb blocked-fields batcher id-generator n {}))
+  ([duckdb blocked-fields batcher id-generator n overrides]
    (let [events (vec (make-random-events n overrides))]
-     (ingest-events! events-schema blocked-fields batcher id-generator events)
+     (ingest-events! duckdb blocked-fields batcher id-generator events)
      events)))
 
 ;; ---------------------------------------------------------
@@ -143,8 +145,10 @@
   (make-random-events 2 {:service "my-service"})
 
   ;; In a test with h/*system* bound:
-  ;; (ingest-sample-events! (:cache/events-schema h/*system*)
+  ;; (ingest-sample-events! (:db/duckdb-reader h/*system*)
+  ;;                        (:cache/blocked-fields h/*system*)
   ;;                        (:ingest/event-batcher h/*system*)
+  ;;                        (:id/generator h/*system*)
   ;;                        10)
 
   #_()) ; End of rich comment block

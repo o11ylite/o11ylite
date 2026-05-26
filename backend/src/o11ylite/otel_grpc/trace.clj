@@ -22,7 +22,7 @@
 (defn- -trace-handler
   "Handle incoming trace export request.
    Converts spans to unified events and persists them."
-  [events-schema blocked-fields batcher id-generator ^ExportTraceServiceRequest request]
+  [duckdb blocked-fields batcher id-generator ^ExportTraceServiceRequest request]
   (let [events (trace-events/trace-request->events request)
         span-count (count (filter #(= :span (:meta.signal_type %)) events))
         span-event-count (count (filter #(= :span_event (:meta.signal_type %)) events))]
@@ -30,7 +30,7 @@
       {:attributes {:o11ylite.otlp_receiver.span_count span-count
                     :o11ylite.otlp_receiver.span_event_count span-event-count}})
     (when (seq events)
-      (events.ingest/ingest-events! events-schema blocked-fields batcher id-generator events))
+      (events.ingest/ingest-events! duckdb blocked-fields batcher id-generator events))
     {:rejected-span-count 0}))
 
 ;; ---------------------------------------------------------
@@ -40,16 +40,16 @@
   "Create a TraceService gRPC implementation.
 
    Arguments:
-     events-schema  - Events schema cache component
+     duckdb         - DuckDB datasource (for events-table schema reads)
      blocked-fields - Blocked-fields cache component
      batcher        - Ingest batcher component
      id-generator   - ID generator component"
-  [events-schema blocked-fields batcher id-generator]
+  [duckdb blocked-fields batcher id-generator]
   (proxy [TraceServiceGrpc$TraceServiceImplBase] []
     (export
       [^ExportTraceServiceRequest request ^StreamObserver response-observer]
       (try
-        (let [response-map (-trace-handler events-schema blocked-fields batcher id-generator request)
+        (let [response-map (-trace-handler duckdb blocked-fields batcher id-generator request)
               response (trace-events/trace-response->proto (or response-map {}))]
           (.onNext response-observer response)
           (.onCompleted response-observer))
