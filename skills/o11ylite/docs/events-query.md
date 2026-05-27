@@ -316,4 +316,5 @@ Spans are ordered by timestamp. `meta.signal_type` is `"span"` or `"span_event"`
 |--------|------------------------|-----------------------------------------------|
 | 400    | `invalid_request`      | Schema validation failed (missing/invalid fields) |
 | 400    | `invalid_filter`       | Operator not valid for field type              |
+| 400    | `Field 'X' does not exist` | Query references a column not present in the events schema (deleted, GC'd, never observed, or typo'd) |
 | 401    | `unauthorized`         | Missing or invalid Bearer token                |

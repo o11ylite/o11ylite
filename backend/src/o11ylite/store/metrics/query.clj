@@ -35,11 +35,11 @@
 
 (defn validate
   "Validate a metrics query request.
-   Performs schema validation, then metadata-aware validation.
+   Performs schema validation, then metadata- and schema-aware validation.
    Returns nil if valid, or {:error ...} if invalid."
-  [sqlite query]
+  [sqlite duckdb query]
   (or (query-schema/validate query-schema/metrics-query query)
-      (query-validation/validate-with-metadata sqlite query)))
+      (query-validation/validate-with-metadata sqlite duckdb query)))
 
 
 ;; ---------------------------------------------------------
@@ -188,7 +188,9 @@
    Looks up metric type from metadata to select appropriate aggregation columns.
    Each emitted series carries the metric's :unit so downstream consumers
    are self-contained.
-   Returns empty seq if referenced columns don't exist (graceful degradation)."
+   Returns empty seq if referenced columns don't exist (graceful degradation
+   for the narrow race between validate and execute — the common case is
+   caught earlier in `validate`)."
   [duckdb sqlite query metric bucket-ms single-bucket?]
   (let [{:keys [id name agg]} metric
         ;; Lookup metric metadata; default to :gauge for unknown metrics (graceful degradation)
