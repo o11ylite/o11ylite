@@ -232,27 +232,6 @@
            :tier-name        tier-name}
     loop? (assoc :max-compacted-files max-compacted-files)))
 
-(defn- -clear-external-file-cache!
-  "Workaround for the DuckDB ExternalFileCache leak (see ducklake#1136).
-
-   DuckDB's ExternalFileCache::cached_files is an unordered_map keyed by file
-   path that inserts an entry for every file ever opened and never evicts.
-   Each compaction cycle opens thousands of source parquet files whose paths
-   accumulate forever, growing RSS unboundedly (~1.4 MB/cycle in #1136).
-
-   Toggling enable_external_file_cache off triggers SetEnabled(false), which
-   is the only code path that calls cached_files.clear(). Toggling it back on
-   restores the default. The setting mutates the DatabaseInstance-wide cache,
-   so a single connection is sufficient; we hold both writers to avoid
-   clearing the cache while another writer is mid-query.
-
-   Remove once the upstream leak is fixed."
-  [writer-events writer-metrics]
-  (span/with-span! [::clear-external-file-cache]
-    (with-both-writers [conn writer-events writer-metrics]
-      (jdbc/execute! conn ["SET enable_external_file_cache=false"])
-      (jdbc/execute! conn ["SET enable_external_file_cache=true"]))))
-
 (defn run-tiered-compaction!
   "Run due compaction tiers sequentially.
 
@@ -264,9 +243,6 @@
    skips if not due. Tiers run sequentially because target_file_size is a
    catalog-level setting that must not be mutated concurrently.
 
-   After all tiers we toggle enable_external_file_cache off/on to release
-   the unboundedly-growing DuckDB ExternalFileCache (ducklake#1136).
-
    tier-intervals is a map of interval-key to interval in minutes,
    e.g. {:compaction-small-interval-minutes 5, ...}"
   [writer-events writer-metrics sqlite max-compacted-files tier-intervals]
@@ -276,8 +252,7 @@
         (when (-tier-due? sqlite tier-name interval-ms)
           (merge-adjacent-files! writer-events writer-metrics
                                  (-tier-merge-opts tier max-compacted-files))
-          (-record-tier-run! sqlite tier-name))))
-    (-clear-external-file-cache! writer-events writer-metrics)))
+          (-record-tier-run! sqlite tier-name))))))
 
 (defn- -delete-table-older-than!
   "Delete rows from `table` whose `timestamp` column is older than
