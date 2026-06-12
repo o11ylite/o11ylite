@@ -93,19 +93,29 @@
     (filterv #(= alert-target (:id %)) series)
     series))
 
+(defn- -latest-value
+  "The most recent datapoint value of a metrics series within the window.
+   Series data is ordered ascending by timestamp, so the last point is
+   newest. Returned as the value annotation source for match alerts."
+  [series]
+  (when-let [point (last (:data series))]
+    {:value (:value point)}))
+
 (defn- -metrics-presence
-  "Derive present groups from a metrics result. Each series with data
-   points is a present group, keyed by its labels' fingerprint.
+  "Derive present groups from a metrics result. A series is present iff
+   it contributes at least one datapoint within the window; a series with
+   zero datapoints is absent. Keyed by its labels' fingerprint.
    When alert-target is set, only that metric/formula's series count."
   [result alert-target group-fields]
   (let [series (-filter-by-target (get-in result [:data :series]) alert-target)
         with-data (filter #(pos? (count (:data %))) series)]
     (if (empty? group-fields)
-      (when (seq with-data) {fingerprint/empty-fingerprint {:labels {} :value nil}})
+      (when-let [s (first with-data)]
+        {fingerprint/empty-fingerprint {:labels {} :value (-latest-value s)}})
       (reduce (fn [acc s]
                 (let [labels (:labels s)
                       fp (fingerprint/fingerprint labels)]
-                  (assoc acc fp {:labels labels :value nil})))
+                  (assoc acc fp {:labels labels :value (-latest-value s)})))
               {}
               with-data))))
 
@@ -151,9 +161,9 @@
 (defn- -drive-instance!
   "Apply the state machine to one (rule, fingerprint). `stored` is the
    existing instance row or nil. `present` is {:labels :value} when the
-   group appeared this tick, else nil. Persists the result and returns
-   a notification descriptor {:status ... :instance ...} when the
-   transition notifies, else nil."
+   group appeared this tick, else nil. Persists the result and returns a
+   notification map {:status ... :labels ... :value ... :fingerprint ...
+   :started_at ... :resolved_at ...} when the transition notifies, else nil."
   [sqlite rule mode now fp stored present]
   (let [stored-state (if stored (keyword (:state stored)) :none)
         present? (some? present)
@@ -165,6 +175,7 @@
             started-at (if (= next-state :firing)
                          (or (:started_at stored) now)
                          (:started_at stored))
+            resolved-at (when (= next-state :resolved) now)
             last-value (if (:update-value? outcome)
                          (:value present)
                          (:last_value stored))
@@ -175,12 +186,18 @@
                  :first_seen first-seen
                  :last_seen now
                  :started_at started-at
-                 :resolved_at (when (= next-state :resolved) now)
+                 :resolved_at resolved-at
                  :last_value last-value}]
         (instance-store/upsert! sqlite row)
         (when (:delete? outcome)
           (instance-store/delete! sqlite (:id rule) fp))
-        nil))))
+        (when-let [notify (:notify outcome)]
+          {:status (name notify)
+           :labels labels
+           :value last-value
+           :fingerprint fp
+           :started_at started-at
+           :resolved_at resolved-at})))))
 
 (defn- -rollup-state
   "Worst-wins rule-level state from the rule's instances: :firing if any
@@ -193,53 +210,98 @@
 ;; ---------------------------------------------------------
 ;; Public API
 
+(def ^:private -max-instances-per-rule
+  "Cardinality cap. Once a rule holds this many instances, new
+   fingerprints are not minted; a single meta-alert fires on the rule."
+  500)
+
+(defn- -generator-url
+  "Deep link back to the rule in the UI. Absent a configured public base
+   URL, a relative path is the honest best we can do."
+  [rule-id]
+  (str "/alert-rules/" rule-id "/edit"))
+
+(defn- -meta-alert
+  "Synthetic firing notification on the rule itself when the cardinality
+   cap is hit. Labels carry the rule id and the cap so the receiver can
+   see the rule is shedding groups."
+  [rule]
+  {:status "firing"
+   :labels {:o11ylite_alert "cardinality_cap"}
+   :value {:max_instances -max-instances-per-rule}
+   :fingerprint "__meta_cardinality__"
+   :started_at (-now-ms)})
+
 (defn evaluate-rule!
   "Evaluate a single rule: run its query, drive the per-instance state
-   machine, and recompute the rule's rollup state.
+   machine, recompute the rule's rollup state, and collect the instance
+   transitions that should notify this tick.
 
-   Returns {:state :ok|:firing :error nil} on success, or
-   {:state nil :error string} on failure (caller preserves prev state,
-   no instance transitions happen)."
+   Returns {:state :ok|:firing :error nil :notifications [...]} on
+   success, or {:state nil :error string :notifications []} on failure
+   (caller preserves prev state, no instance transitions happen)."
   [duckdb sqlite {:keys [id alert_on query] :as rule}]
   (let [{:keys [present error]} (-eval-presence duckdb sqlite rule)]
     (if error
-      {:state nil :error error}
+      {:state nil :error error :notifications []}
       (let [mode (transitions/alert-on->mode alert_on)
             now (-now-ms)
             stored (instance-store/list-by-rule sqlite id)
             stored-by-fp (into {} (map (juxt :fingerprint identity)) stored)
+            stored-count (count stored-by-fp)
+            ;; At the cap, drive only fingerprints that already have a row
+            ;; (so existing instances still resolve); drop net-new ones.
+            capped? (>= stored-count -max-instances-per-rule)
+            present-fps (cond->> (keys present)
+                          capped? (filter #(contains? stored-by-fp %)))
             ;; A rule without group-by has exactly one group — the empty
             ;; fingerprint — and it is always tracked, even before any
             ;; eval has seen rows. This is what lets an ungrouped absence
             ;; rule fire the first time results come back empty.
             ungrouped? (empty? (:group_by query))
-            fps (cond-> (into (set (keys stored-by-fp)) (keys present))
-                  ungrouped? (conj fingerprint/empty-fingerprint))]
-        (doseq [fp fps]
-          (-drive-instance! sqlite rule mode now fp
-                            (get stored-by-fp fp)
-                            (get present fp)))
-        {:state (-rollup-state sqlite id) :error nil}))))
+            fps (cond-> (into (set (keys stored-by-fp)) present-fps)
+                  ungrouped? (conj fingerprint/empty-fingerprint))
+            notifications (into []
+                                (keep (fn [fp]
+                                        (-drive-instance! sqlite rule mode now fp
+                                                          (get stored-by-fp fp)
+                                                          (get present fp))))
+                                fps)
+            notifications (cond-> notifications
+                            (and capped? (seq (remove #(contains? stored-by-fp %) (keys present))))
+                            (conj (-meta-alert rule)))]
+        {:state (-rollup-state sqlite id)
+         :error nil
+         :notifications notifications}))))
 
 ;; ---------------------------------------------------------
 ;; Evaluation Cycle Orchestration
 
+(defn- -rule-ctx
+  "Rule-level context shared by every alert entry in a batch."
+  [{:keys [id name description]}]
+  {:id id
+   :name name
+   :description description
+   :rule-labels {}
+   :generator-url (-generator-url id)})
+
 (defn- -evaluate-and-notify!
-  "Evaluate a single rule and send notification if appropriate.
-   On evaluation failure (state is nil), preserves previous state."
+  "Evaluate a single rule, persist its rollup state, and send one batched
+   webhook for all instance transitions this tick. On evaluation failure
+   (state is nil), preserves previous state and sends nothing."
   [duckdb sqlite webhook-url rule]
   (let [{:keys [id state]} rule
         prev-state (keyword state)]
     (span/with-span! [::evaluate-rule {:o11ylite.alert_rule.id id
                                        :o11ylite.alert_rule.prev_state prev-state}]
-      (let [{:keys [state error]} (evaluate-rule! duckdb sqlite rule)
+      (let [{:keys [state error notifications]} (evaluate-rule! duckdb sqlite rule)
             new-state (or state prev-state)]
         (span/add-span-data! {:attributes {:o11ylite.alert_rule.new_state new-state
                                            :o11ylite.alert_rule.error error}})
         ;; Update rule rollup state (records last_eval_at and error even on failure)
         (store/update-eval-result! sqlite id new-state error prev-state)
-        ;; Send webhook notification
-        (notify/maybe-send-webhook! webhook-url rule new-state prev-state)))))
+        (notify/send-batch! webhook-url (-rule-ctx rule) notifications)))))
 
 (defn run-evaluation-cycle!
   "Evaluate all due alert rules and send notifications.
