@@ -42,13 +42,13 @@
 
     ;; List all rules
     (def r (list-all sqlite))
-    (eval/evaluate-rule duckdb sqlite (nth r 2)))
+    (eval/evaluate-rule! duckdb sqlite (nth r 2)))
 
   ;; Run evaluation cycle (with no webhook URL)
   (run-evaluation-cycle! duckdb sqlite nil)
 
   ;; Evaluate a single rule (via eval namespace)
-  ;; (eval/evaluate-rule duckdb sqlite sample-rule)
+  ;; (eval/evaluate-rule! duckdb sqlite sample-rule)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------

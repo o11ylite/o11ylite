@@ -9,6 +9,7 @@
   (:require
     [next.jdbc :as jdbc]
     [next.jdbc.result-set :as rs]
+    [o11ylite.alert-rule.instance-store :as instance-store]
     [taoensso.nippy :as nippy]))
 
 ;; ---------------------------------------------------------
@@ -44,7 +45,8 @@
    id should be a string representation of the snowflake ID."
   [sqlite id {:keys [name description query_mode query
                      eval_window_ms eval_interval_ms alert_on alert_target]}]
-  (let [now (-now-ms)]
+  (let [now (-now-ms)
+        alert-on (or alert_on "result")]
     (jdbc/execute!
       sqlite
       ["INSERT INTO alert_rules
@@ -53,15 +55,23 @@
          state, created_at, updated_at)
         VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 'ok', ?, ?)"
        id name description query_mode (-serialize-query query)
-       eval_window_ms eval_interval_ms (or alert_on "result") alert_target now now])
+       eval_window_ms eval_interval_ms alert-on alert_target now now])
     id))
 
 (defn update!
   "Update an alert rule by ID.
-   Only updates the provided fields."
+   Only updates the provided fields. When the rule's mode (alert_on)
+   changes, its instances are cleared since the old semantics no longer
+   apply."
   [sqlite id {:keys [name description enabled query_mode query
                      eval_window_ms eval_interval_ms alert_on alert_target]}]
-  (let [now (-now-ms)]
+  (let [now (-now-ms)
+        alert-on (or alert_on "result")
+        prev-alert-on (:alert_on
+                        (jdbc/execute-one!
+                          sqlite
+                          ["SELECT alert_on FROM alert_rules WHERE id = ?" id]
+                          {:builder-fn rs/as-unqualified-lower-maps}))]
     (jdbc/execute!
       sqlite
       ["UPDATE alert_rules
@@ -72,14 +82,16 @@
             updated_at = ?
         WHERE id = ?"
        name description (if enabled 1 0) query_mode (-serialize-query query)
-       eval_window_ms eval_interval_ms (or alert_on "result") alert_target now id])))
+       eval_window_ms eval_interval_ms alert-on alert_target now id])
+    (when (not= alert-on prev-alert-on)
+      (instance-store/delete-all-for-rule! sqlite id))))
 
 (defn delete!
-  "Delete an alert rule by ID."
+  "Delete an alert rule by ID, along with its alert instances."
   [sqlite id]
-  (jdbc/execute!
-    sqlite
-    ["DELETE FROM alert_rules WHERE id = ?" id]))
+  (jdbc/with-transaction [tx sqlite]
+    (jdbc/execute! tx ["DELETE FROM alert_instances WHERE rule_id = ?" id])
+    (jdbc/execute! tx ["DELETE FROM alert_rules WHERE id = ?" id])))
 
 (defn get-by-id
   "Fetch a single alert rule by ID. Returns nil if not found."
