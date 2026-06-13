@@ -30,7 +30,7 @@ function dismiss(ruleId: string, instance: AlertInstance) {
   })
 }
 
-export function TrackedInstances({
+export function AlertInstances({
   ruleId,
   instances,
 }: {

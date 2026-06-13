@@ -8,21 +8,38 @@ Alert rules use **Inertia page routes** — see SKILL.md for the read/write prot
 
 ## Evaluation model
 
-The `alert_on` field controls how query results map to alert state. Every `eval_interval_ms`, the engine runs the query over the trailing `eval_window_ms` window:
+Every `eval_interval_ms`, the engine runs the rule's query over the trailing `eval_window_ms` window and updates alert state. On evaluation failure (validation error, exception), the tick is skipped: the rule keeps its previous state and the error is recorded in `last_eval_error`. A broken evaluation is an operational problem, not an alert condition.
 
-**`alert_on: "result"`** (default — presence detection):
-- Query returns any rows/data points → `firing`
-- Query returns empty → `ok`
+### Alert instances and rollup state
 
-**`alert_on: "no_result"`** (absence detection):
-- Query returns empty → `firing`
-- Query returns any rows/data points → `ok`
+A rule does not hold a single state — it holds one **alert instance** per group, where a group is a distinct combination of the query's `group_by` columns. A rule with no `group_by` has exactly one instance, keyed on the empty fingerprint (shown as `(all results)`). Each instance carries its own state, timestamps, and labels, and is identified by a `fingerprint`.
 
-On evaluation failure (validation error, exception), the rule keeps its previous state. The error is recorded in `last_eval_error`.
+The rule's top-level `state` is a **worst-wins rollup**: `firing` if any instance is firing, otherwise `ok`. Instances are returned in the `instances` prop of `GET /alert-rules/:id/edit`; see "Alert instances and dismissal" below for the read/dismiss mechanics.
 
-There is no separate threshold field. To alert when error count exceeds 100, write a query with `having: {ref: "A", op: ">", value: 100}` — the having clause filters out sub-threshold groups, so a non-empty result means the threshold was breached.
+### `alert_on` — what makes an instance fire
 
-For absence/silence detection (e.g., "service stopped sending events"), use `alert_on: "no_result"`. For threshold-based absence (e.g., "QPS dropped below 10"), invert the query to evidence of health (`having count >= 10`) and use `alert_on: "no_result"` — silence fires because there's no evidence of health.
+The `alert_on` field controls how query results map to instance state:
+
+**`alert_on: "result"`** (presence detection): an instance fires when its group appears in results.
+**`alert_on: "no_result"`** (absence detection): an instance fires when its group is missing from results.
+
+There is no separate threshold field. To alert when error count exceeds 100, write a query with `having: {ref: "A", op: ">", value: 100}` — the having clause filters out sub-threshold groups, so a group present in the result means the threshold was breached. For threshold-based absence (e.g., "QPS dropped below 10"), invert the query to evidence of health (`having count >= 10`) and use `alert_on: "no_result"` — the alert fires because there's no evidence of health.
+
+### Per-instance lifecycle
+
+What happens when a group stops breaching differs by mode, because "no breach" means different things:
+
+- **Match (`alert_on: "result"`)** — an instance is tracked only while it breaches. It is minted `firing` the tick its group first appears, and **deleted** the tick the group clears (after a `resolved` notification). A match rule's instance list therefore shows only *currently firing* groups, and is empty when all is well. A cleared group re-fires from scratch if it breaches again.
+- **Absence (`alert_on: "no_result"`)** — an instance is tracked as `ok` once its group is seen present, fires when the group later disappears, and resolves back to `ok` (**retained, not deleted**) when the group reappears. An absence rule's instance list shows every group it is watching, firing or not.
+
+### Absence only fires for groups it has seen
+
+An absence rule can only fire for a group it has previously observed *present* — it has no way to know a group "should" exist otherwise. This has a consequence worth understanding when authoring rules:
+
+- A **grouped** absence rule whose query returns nothing on a cold start (no instances tracked yet) fires nothing — there is no group to mark absent. It begins firing only after it has seen groups appear and then disappear. Use this for *"which of the groups I've seen disappeared?"* (the firing notification's labels tell you which).
+- An **ungrouped** absence rule (no `group_by`) has its single empty-fingerprint instance tracked from creation, so it fires the first time results come back empty — no warm-up. Use this for *"did this query return nothing at all?"*
+
+If you want an alert that fires when a query returns nothing, **drop `group_by` and use an ungrouped absence rule.** (The rule form shows a hint to this effect when you combine `no_result` with a group-by.)
 
 ### Aggregation window (metrics mode)
 
@@ -36,10 +53,10 @@ This differs from the dashboard metrics API, which sub-buckets results for plott
 |--------|-----------------------------|-----------------------|
 | GET    | `/alert-rules`              | List all alert rules  |
 | POST   | `/alert-rules`              | Create a new rule     |
-| GET    | `/alert-rules/:id/edit`     | Get a single rule + its tracked instances |
+| GET    | `/alert-rules/:id/edit`     | Get a single rule + its alert instances |
 | PUT    | `/alert-rules/:id`          | Update a rule         |
 | DELETE | `/alert-rules/:id`          | Delete a rule         |
-| POST   | `/alert-rules/:id/instances/dismiss` | Dismiss tracked alert instances by fingerprint |
+| POST   | `/alert-rules/:id/instances/dismiss` | Dismiss alert instances by fingerprint |
 
 ---
 
@@ -90,7 +107,7 @@ This differs from the dashboard metrics API, which sub-buckets results for plott
 }
 ```
 
-Same shape as a list item. `instances` is the rule's tracked alert instances (one per active group — see "Tracked instances" below); empty for a rule that has never fired or grouped. `errors` is populated only after a failed mutation redirect.
+Same shape as a list item. `instances` is the rule's alert instances (one per group — see "Evaluation model" above and "Alert instances and dismissal" below); empty for a rule that has never evaluated or matched. `errors` is populated only after a failed mutation redirect.
 
 ---
 
@@ -210,9 +227,9 @@ No request body.
 
 ---
 
-## Tracked instances and dismissal
+## Alert instances and dismissal
 
-A grouped rule (one with `group_by`) tracks state per group; an absence rule (`alert_on: "no_result"`) additionally *retains* each group it has seen so it can fire when that group later disappears. These tracked instances are returned in the `instances` prop of `GET /alert-rules/:id/edit`.
+Each alert instance represents one tracked group of a rule (see "Evaluation model" → "Alert instances and rollup state" for the concept and per-mode lifecycle). Instances are read from the `instances` prop of `GET /alert-rules/:id/edit`.
 
 To stop tracking a group — e.g. a service legitimately decommissioned, so its absence is no longer an alert — dismiss its instance:
 
@@ -223,7 +240,7 @@ To stop tracking a group — e.g. a service legitimately decommissioned, so its 
 { "fingerprints": ["<fingerprint>", "..."] }
 ```
 
-Each fingerprint identifies a tracked instance (the `fingerprint` field of an `instances` entry). Dismissal deletes the rows. A dismissed group re-tracks naturally on a later eval: an ungrouped rule re-fires on its next empty eval, a grouped rule re-tracks the next time that group is seen present. Dismissal is not a permanent mute.
+Each fingerprint identifies an instance (the `fingerprint` field of an `instances` entry). Dismissal deletes those rows; it is **not** a permanent mute. A dismissed instance re-tracks naturally on a later eval — an ungrouped rule re-fires on its next empty eval, a grouped rule re-tracks the next time that group is seen present.
 
 **Response:** `303` redirect to `/alert-rules/:id/edit`.
 

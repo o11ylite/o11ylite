@@ -3,7 +3,7 @@ import { router, usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { AlertRuleForm } from "@/components/alert-rules/alert-rule-form"
-import { TrackedInstances } from "@/components/alert-rules/tracked-instances"
+import { AlertInstances } from "@/components/alert-rules/alert-instances"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   DEFAULT_QUERY_STATE,
@@ -68,14 +68,14 @@ export default function AlertRuleEdit() {
         {isEditing && (
           <Card>
             <CardHeader>
-              <CardTitle>Tracked instances</CardTitle>
+              <CardTitle>Alert instances</CardTitle>
               <CardDescription>
-                Instances this rule is tracking. Dismiss one to stop tracking it;
+                The groups this rule is tracking. Dismiss one to stop tracking it;
                 it re-tracks if seen again.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <TrackedInstances ruleId={alert_rule.id} instances={instances ?? []} />
+              <AlertInstances ruleId={alert_rule.id} instances={instances ?? []} />
             </CardContent>
           </Card>
         )}
