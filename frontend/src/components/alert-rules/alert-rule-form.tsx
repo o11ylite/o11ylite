@@ -212,6 +212,16 @@ export function AlertRuleForm({
             ? "Define the query condition. The alert fires when the query returns no results (absence detection)."
             : "Define the query condition. The alert fires when the query returns non-empty results."}
         </p>
+        {alertOn === "no_result" && queryState.groupBy.length > 0 && (
+          <div className="rounded-md bg-muted/50 border p-3 flex items-start gap-2">
+            <AlertCircle className="text-muted-foreground shrink-0 mt-0.5" size={16} />
+            <p className="text-sm text-muted-foreground">
+              This alerts when a group it has already seen disappears — it
+              won&apos;t fire for a group it has never observed. To alert when
+              the query returns nothing at all, remove the group-by.
+            </p>
+          </div>
+        )}
         {queryError && (
           <div className="rounded-md bg-destructive/10 border border-destructive/50 p-3 flex items-start gap-2">
             <AlertCircle className="text-destructive shrink-0 mt-0.5" size={16} />
