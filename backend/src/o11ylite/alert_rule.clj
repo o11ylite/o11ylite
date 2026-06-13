@@ -13,6 +13,7 @@
 (ns o11ylite.alert-rule
   (:require
     [o11ylite.alert-rule.eval :as eval]
+    [o11ylite.alert-rule.instance-store :as instance-store]
     [o11ylite.alert-rule.store :as store]))
 
 ;; ---------------------------------------------------------
@@ -23,6 +24,12 @@
 (def delete! store/delete!)
 (def get-by-id store/get-by-id)
 (def list-all store/list-all)
+
+;; ---------------------------------------------------------
+;; Re-exports from instance-store
+
+(def list-instances instance-store/list-by-rule)
+(def dismiss-instances! instance-store/delete-fingerprints!)
 
 ;; ---------------------------------------------------------
 ;; Re-exports from eval
