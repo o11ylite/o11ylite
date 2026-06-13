@@ -9,9 +9,14 @@
   (:require
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing use-fixtures]]
+    [o11ylite.alert-rule.instance-store :as instance-store]
     [o11ylite.test-helpers :as h]))
 
 (use-fixtures :each h/with-system)
+
+(defn- sqlite
+  []
+  (:db/sqlite h/*system*))
 
 ;; ---------------------------------------------------------
 ;; Helpers
@@ -197,3 +202,47 @@
         (is (= 303 (h/status response)))
         (is (= "/alert-rules" (h/header response "location")))
         (is (empty? (-list-rules)))))))
+
+;; ---------------------------------------------------------
+;; Tracked-group dismissal
+
+(defn- -edit-props
+  [rule-id]
+  (get-in (h/body (h/inertia-json-request (str "/alert-rules/" rule-id "/edit")))
+          [:props]))
+
+(deftest edit-includes-instances-test
+  (testing "Edit page props include the rule's tracked instances"
+    (let [session (h/csrf-session)]
+      (-create-rule! session)
+      (let [rule-id (:id (first (-list-rules)))
+            props (-edit-props rule-id)]
+        ;; No instances tracked yet for a freshly created rule.
+        (is (vector? (:instances props))
+            "instances prop should always be present as a vector")
+        (is (empty? (:instances props)))))))
+
+(deftest dismiss-instances-removes-tracked-groups-test
+  (testing "POST /alert-rules/:id/instances/dismiss deletes the named instances"
+    (let [session (h/csrf-session)]
+      (-create-rule! session {:name "Absence" :alert_on "no_result"
+                              :query {:group_by ["service"] :visualization {:type "table"}}})
+      (let [rule-id (:id (first (-list-rules)))]
+        ;; Seed two tracked instances directly (the eval path is covered by
+        ;; the absence-group integration test; here we test the route).
+        (instance-store/upsert! (sqlite) {:rule_id rule-id :fingerprint "fp-a"
+                                          :labels {:service "a"} :state :firing
+                                          :first_seen 1 :last_seen 1 :started_at 1})
+        (instance-store/upsert! (sqlite) {:rule_id rule-id :fingerprint "fp-b"
+                                          :labels {:service "b"} :state :ok
+                                          :first_seen 1 :last_seen 1})
+        (is (= 2 (count (:instances (-edit-props rule-id)))))
+
+        (let [response (h/post-mutation
+                         (str "/alert-rules/" rule-id "/instances/dismiss")
+                         session {:fingerprints ["fp-a"]})]
+          (is (= 303 (h/status response)))
+          (is (= (str "/alert-rules/" rule-id "/edit") (h/header response "location")))
+          (let [remaining (:instances (-edit-props rule-id))]
+            (is (= 1 (count remaining)) "only the un-dismissed instance remains")
+            (is (= "fp-b" (:fingerprint (first remaining))))))))))

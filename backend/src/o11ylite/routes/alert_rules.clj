@@ -58,7 +58,8 @@
                        :errors (get-in request [:flash :errors] {})})))
 
 (defn- -make-edit-handler
-  "GET /alert-rules/:id/edit - Render edit form."
+  "GET /alert-rules/:id/edit - Render edit form. Includes the rule's
+   tracked alert instances so the form can surface and dismiss them."
   [{:keys [sqlite]}]
   (fn [request]
     (let [id (get-in request [:path-params :id])
@@ -66,6 +67,7 @@
       (if rule
         (response/inertia "AlertRuleEdit"
                           {:alert_rule rule
+                           :instances (alert-rule/list-instances sqlite id)
                            :errors (get-in request [:flash :errors] {})})
         (rr/not-found "Alert rule not found")))))
 
@@ -102,6 +104,18 @@
       (alert-rule/delete! sqlite id)
       (rr/redirect "/alert-rules" :see-other))))
 
+(defn- -make-dismiss-instances-handler
+  "POST /alert-rules/:id/instances/dismiss - Dismiss tracked instances by
+   fingerprint. Deletes the rows; a dismissed group re-tracks naturally on
+   a later eval (an ungrouped rule re-fires on the next empty eval, a
+   grouped rule re-tracks the next time the group is seen present)."
+  [{:keys [sqlite]}]
+  (fn [request]
+    (let [id (get-in request [:path-params :id])
+          fingerprints (get-in request [:body :fingerprints])]
+      (alert-rule/dismiss-instances! sqlite id fingerprints)
+      (rr/redirect (str "/alert-rules/" id "/edit") :see-other))))
+
 ;; ---------------------------------------------------------
 ;; Routes
 
@@ -115,4 +129,5 @@
    ["/:id"
     ["" {:put {:handler (-make-update-handler opts)}
          :delete {:handler (-make-delete-handler opts)}}]
-    ["/edit" {:get {:handler (-make-edit-handler opts)}}]]])
+    ["/edit" {:get {:handler (-make-edit-handler opts)}}]
+    ["/instances/dismiss" {:post {:handler (-make-dismiss-instances-handler opts)}}]]])

@@ -36,9 +36,10 @@ This differs from the dashboard metrics API, which sub-buckets results for plott
 |--------|-----------------------------|-----------------------|
 | GET    | `/alert-rules`              | List all alert rules  |
 | POST   | `/alert-rules`              | Create a new rule     |
-| GET    | `/alert-rules/:id/edit`     | Get a single rule     |
+| GET    | `/alert-rules/:id/edit`     | Get a single rule + its tracked instances |
 | PUT    | `/alert-rules/:id`          | Update a rule         |
 | DELETE | `/alert-rules/:id`          | Delete a rule         |
+| POST   | `/alert-rules/:id/instances/dismiss` | Dismiss tracked alert instances by fingerprint |
 
 ---
 
@@ -84,11 +85,12 @@ This differs from the dashboard metrics API, which sub-buckets results for plott
 ```json
 {
   "alert_rule": { ... },
+  "instances": [ ... ],
   "errors": {}
 }
 ```
 
-Same shape as a list item. `errors` is populated only after a failed mutation redirect.
+Same shape as a list item. `instances` is the rule's tracked alert instances (one per active group — see "Tracked instances" below); empty for a rule that has never fired or grouped. `errors` is populated only after a failed mutation redirect.
 
 ---
 
@@ -205,6 +207,25 @@ Same body as create. All fields must be provided (full replacement, not patch).
 No request body.
 
 **Response:** `303` redirect to `/alert-rules`.
+
+---
+
+## Tracked instances and dismissal
+
+A grouped rule (one with `group_by`) tracks state per group; an absence rule (`alert_on: "no_result"`) additionally *retains* each group it has seen so it can fire when that group later disappears. These tracked instances are returned in the `instances` prop of `GET /alert-rules/:id/edit`.
+
+To stop tracking a group — e.g. a service legitimately decommissioned, so its absence is no longer an alert — dismiss its instance:
+
+**POST** `/alert-rules/:id/instances/dismiss` (Inertia write)
+
+**Request body:**
+```json
+{ "fingerprints": ["<fingerprint>", "..."] }
+```
+
+Each fingerprint identifies a tracked instance (the `fingerprint` field of an `instances` entry). Dismissal deletes the rows. A dismissed group re-tracks naturally on a later eval: an ungrouped rule re-fires on its next empty eval, a grouped rule re-tracks the next time that group is seen present. Dismissal is not a permanent mute.
+
+**Response:** `303` redirect to `/alert-rules/:id/edit`.
 
 ---
 
