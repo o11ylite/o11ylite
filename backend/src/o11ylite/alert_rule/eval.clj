@@ -2,42 +2,33 @@
 ;; o11ylite.alert-rule.eval
 ;;
 ;; Alert rule evaluation engine.
-;; Executes a rule's stored query against the existing query
-;; infrastructure and determines the resulting alert state.
+;;
+;; Each tick, per rule: run the stored query, derive the set of present
+;; fingerprints (groups), then drive a mode-aware state machine over the
+;; union of stored and present fingerprints. The state machine itself
+;; lives as data in o11ylite.alert-rule.transitions; this namespace is
+;; the generic engine that consumes it and persists the results.
 ;;
 ;; State determination (controlled by alert_on mode):
-;;   alert_on = "result" (default):
-;;     - Query returns non-empty results -> :firing
-;;     - Query returns empty results     -> :ok
-;;   alert_on = "no_result" (absence detection):
-;;     - Query returns non-empty results -> :ok
-;;     - Query returns empty results     -> :firing
+;;   alert_on = "result"    (match):   a group present in results breaches
+;;   alert_on = "no_result" (absence): a group absent from results breaches
 ;;
-;; On evaluation failure (validation error, exception), the rule
-;; keeps its previous state. The error is recorded in last_eval_error.
-;; A broken evaluation is
-;; an operational problem, not an alert condition.
-
-;; Scaling note (see eval namespace for implementation details):
-;; Current implementation fetches all due rules and evaluates them
-;; sequentially within a single scheduler tick. This is appropriate for
-;; small-to-moderate rule counts (< ~50 rules).
+;; A rule with no group-by is the degenerate case: a single instance with
+;; the empty fingerprint. Same table, same state machine, same path.
 ;;
-;; For higher scale:
-;; 1. Partition rules into batches and evaluate each batch in a
-;;    separate virtual thread (pmap or executor-based fan-out).
-;; 2. Add a configurable concurrency limit to bound DuckDB connection
-;;    usage (e.g., 4 concurrent evaluations).
-;; 3. Consider staggering rule evaluation times to avoid thundering
-;;    herd on shared eval_interval_ms values.
-;; 4. For very large rule sets (hundreds+), introduce a priority queue
-;;    sorted by next_eval_at and process top-N per tick.
+;; On evaluation failure (validation error, exception), the tick is
+;; skipped entirely: no instance transitions, the rule keeps its previous
+;; state, and the error is recorded in last_eval_error. A broken
+;; evaluation is an operational problem, not an alert condition.
 ;; ---------------------------------------------------------
 
 (ns o11ylite.alert-rule.eval
   (:require
+    [o11ylite.alert-rule.fingerprint :as fingerprint]
+    [o11ylite.alert-rule.instance-store :as instance-store]
     [o11ylite.alert-rule.notify :as notify]
     [o11ylite.alert-rule.store :as store]
+    [o11ylite.alert-rule.transitions :as transitions]
     [o11ylite.store.events.query :as events.query]
     [o11ylite.store.metrics.query :as metrics.query]
     [o11ylite.store.schema :as schema]
@@ -64,85 +55,171 @@
   [query]
   (assoc query :visualization {:type "table"}))
 
-(defn- -events-result-firing?
-  "Check if an events query result indicates a firing state.
-   Non-empty rows means the condition is met."
-  [result]
-  (pos? (count (get-in result [:data :rows]))))
+(defn- -group-fields
+  "Group-by field names declared on a query, or empty."
+  [query]
+  (vec (:group_by query)))
+
+(defn- -row->group
+  "Split a result row into {:labels ... :value ...} given the group-by
+   fields. Labels are the group-by columns; value is everything else
+   (the breaching values), which match rules surface in webhooks."
+  [row group-fields]
+  (let [label-keys (map keyword group-fields)
+        labels (select-keys row label-keys)
+        value (apply dissoc row label-keys)]
+    {:labels labels
+     :value (not-empty value)}))
+
+(defn- -events-presence
+  "Derive present groups from an events table result.
+   Returns a map fingerprint -> {:labels ... :value ...}.
+   For an ungrouped rule, any rows collapse to the empty fingerprint."
+  [result group-fields]
+  (let [rows (get-in result [:data :rows])]
+    (if (empty? group-fields)
+      (when (seq rows) {fingerprint/empty-fingerprint {:labels {} :value nil}})
+      (reduce (fn [acc row]
+                (let [{:keys [labels value]} (-row->group row group-fields)
+                      fp (fingerprint/fingerprint labels)]
+                  (assoc acc fp {:labels labels :value value})))
+              {}
+              rows))))
 
 (defn- -filter-by-target
-  "When alert-target is set, keep only series whose :id matches.
-   Otherwise return series unchanged."
+  "When alert-target is set, keep only series whose :id matches."
   [series alert-target]
   (if alert-target
     (filterv #(= alert-target (:id %)) series)
     series))
 
-(defn- -metrics-result-firing?
-  "Check if a metrics query result indicates a firing state.
-   When alert-target is set, only series matching that id are considered.
-   Any non-empty series with data points means the condition is met."
-  [result alert-target]
-  (let [series (get-in result [:data :series])]
-    (some #(pos? (count (:data %)))
-          (-filter-by-target series alert-target))))
+(defn- -metrics-presence
+  "Derive present groups from a metrics result. Each series with data
+   points is a present group, keyed by its labels' fingerprint.
+   When alert-target is set, only that metric/formula's series count."
+  [result alert-target group-fields]
+  (let [series (-filter-by-target (get-in result [:data :series]) alert-target)
+        with-data (filter #(pos? (count (:data %))) series)]
+    (if (empty? group-fields)
+      (when (seq with-data) {fingerprint/empty-fingerprint {:labels {} :value nil}})
+      (reduce (fn [acc s]
+                (let [labels (:labels s)
+                      fp (fingerprint/fingerprint labels)]
+                  (assoc acc fp {:labels labels :value nil})))
+              {}
+              with-data))))
 
-(defn- -resolve-state
-  "Determine alert state from query result emptiness and alert_on mode.
-   In 'result' mode (default), non-empty results mean firing.
-   In 'no_result' mode, empty results mean firing (absence detection)."
-  [has-data? alert-on]
-  (case alert-on
-    "no_result" (if has-data? :ok :firing)
-    ;; default: "result"
-    (if has-data? :firing :ok)))
-
-;; ---------------------------------------------------------
-;; Public API
-
-(defn evaluate-rule
-  "Evaluate a single alert rule.
-   Executes the stored query and determines the resulting state.
-   The alert_on field controls interpretation: 'result' (default) fires on
-   non-empty results, 'no_result' fires on empty results (absence detection).
-
-   Returns {:state :ok|:firing, :error nil} on success,
-   or {:state nil, :error string} on failure (caller preserves prev state)."
+(defn- -eval-presence
+  "Run a rule's query and return either
+     {:present {fp -> {:labels :value}} :error nil}
+   or
+     {:present nil :error \"message\"}
+   on validation failure or exception. The caller skips the tick on error."
   [duckdb sqlite {qmode :query_mode query :query
                   eval-win :eval_window_ms
-                  alert-on :alert_on
                   alert-target :alert_target}]
-  (try
-    (let [full-query (-> query
-                         (-inject-time-range eval-win)
-                         -ensure-table-viz)]
+  (let [group-fields (-group-fields query)]
+    (try
       (case qmode
         "events"
-        (let [fields (schema/fetch-event-fields duckdb)]
+        (let [full-query (-> query (-inject-time-range eval-win) -ensure-table-viz)
+              fields (schema/fetch-event-fields duckdb)]
           (if-let [validation-error (events.query/validate fields full-query)]
-            {:state nil :error (str "Validation error: " (:error validation-error))}
+            {:present nil :error (str "Validation error: " (:error validation-error))}
             (let [result (events.query/execute duckdb full-query)]
-              {:state (-resolve-state (-events-result-firing? result) alert-on)
-               :error nil})))
+              {:present (or (-events-presence result group-fields) {}) :error nil})))
 
         "metrics"
         (let [metrics-query (-inject-time-range query eval-win)]
           (if-let [validation-error (metrics.query/validate sqlite duckdb metrics-query)]
-            {:state nil :error (str "Validation error: " (:error validation-error))}
+            {:present nil :error (str "Validation error: " (:error validation-error))}
             ;; :single-bucket? collapses every metric to one row per
             ;; group_by combination over the full eval window so HAVING
             ;; applies to the full window, not per sub-bucket.
             (let [result (metrics.query/execute duckdb sqlite metrics-query
-                                                {:single-bucket? true})
-                  firing? (-metrics-result-firing? result alert-target)]
-              {:state (-resolve-state firing? alert-on)
-               :error nil})))
+                                                {:single-bucket? true})]
+              {:present (or (-metrics-presence result alert-target group-fields) {}) :error nil})))
 
-        ;; Unknown mode
-        {:state nil :error (str "Unknown query_mode: " qmode)}))
-    (catch Exception e
-      (telemetry/report-error! ::evaluation-error e)
-      {:state nil :error (.getMessage e)})))
+        {:present nil :error (str "Unknown query_mode: " qmode)})
+      (catch Exception e
+        (telemetry/report-error! ::evaluation-error e)
+        {:present nil :error (.getMessage e)}))))
+
+;; ---------------------------------------------------------
+;; Instance state machine
+
+(defn- -drive-instance!
+  "Apply the state machine to one (rule, fingerprint). `stored` is the
+   existing instance row or nil. `present` is {:labels :value} when the
+   group appeared this tick, else nil. Persists the result and returns
+   a notification descriptor {:status ... :instance ...} when the
+   transition notifies, else nil."
+  [sqlite rule mode now fp stored present]
+  (let [stored-state (if stored (keyword (:state stored)) :none)
+        present? (some? present)
+        outcome (transitions/step mode stored-state present?)]
+    (when outcome
+      (let [next-state (:next outcome)
+            labels (or (:labels present) (:labels stored) {})
+            first-seen (or (:first_seen stored) now)
+            started-at (if (= next-state :firing)
+                         (or (:started_at stored) now)
+                         (:started_at stored))
+            last-value (if (:update-value? outcome)
+                         (:value present)
+                         (:last_value stored))
+            row {:rule_id (:id rule)
+                 :fingerprint fp
+                 :labels labels
+                 :state next-state
+                 :first_seen first-seen
+                 :last_seen now
+                 :started_at started-at
+                 :resolved_at (when (= next-state :resolved) now)
+                 :last_value last-value}]
+        (instance-store/upsert! sqlite row)
+        (when (:delete? outcome)
+          (instance-store/delete! sqlite (:id rule) fp))
+        nil))))
+
+(defn- -rollup-state
+  "Worst-wins rule-level state from the rule's instances: :firing if any
+   instance is firing, otherwise :ok."
+  [sqlite rule-id]
+  (if (seq (instance-store/list-by-rule-state sqlite rule-id :firing))
+    :firing
+    :ok))
+
+;; ---------------------------------------------------------
+;; Public API
+
+(defn evaluate-rule!
+  "Evaluate a single rule: run its query, drive the per-instance state
+   machine, and recompute the rule's rollup state.
+
+   Returns {:state :ok|:firing :error nil} on success, or
+   {:state nil :error string} on failure (caller preserves prev state,
+   no instance transitions happen)."
+  [duckdb sqlite {:keys [id alert_on query] :as rule}]
+  (let [{:keys [present error]} (-eval-presence duckdb sqlite rule)]
+    (if error
+      {:state nil :error error}
+      (let [mode (transitions/alert-on->mode alert_on)
+            now (-now-ms)
+            stored (instance-store/list-by-rule sqlite id)
+            stored-by-fp (into {} (map (juxt :fingerprint identity)) stored)
+            ;; A rule without group-by has exactly one group — the empty
+            ;; fingerprint — and it is always tracked, even before any
+            ;; eval has seen rows. This is what lets an ungrouped absence
+            ;; rule fire the first time results come back empty.
+            ungrouped? (empty? (:group_by query))
+            fps (cond-> (into (set (keys stored-by-fp)) (keys present))
+                  ungrouped? (conj fingerprint/empty-fingerprint))]
+        (doseq [fp fps]
+          (-drive-instance! sqlite rule mode now fp
+                            (get stored-by-fp fp)
+                            (get present fp)))
+        {:state (-rollup-state sqlite id) :error nil}))))
 
 ;; ---------------------------------------------------------
 ;; Evaluation Cycle Orchestration
@@ -155,11 +232,11 @@
         prev-state (keyword state)]
     (span/with-span! [::evaluate-rule {:o11ylite.alert_rule.id id
                                        :o11ylite.alert_rule.prev_state prev-state}]
-      (let [{:keys [state error]} (evaluate-rule duckdb sqlite rule)
+      (let [{:keys [state error]} (evaluate-rule! duckdb sqlite rule)
             new-state (or state prev-state)]
         (span/add-span-data! {:attributes {:o11ylite.alert_rule.new_state new-state
                                            :o11ylite.alert_rule.error error}})
-        ;; Update DB state (records last_eval_at and error even on failure)
+        ;; Update rule rollup state (records last_eval_at and error even on failure)
         (store/update-eval-result! sqlite id new-state error prev-state)
         ;; Send webhook notification
         (notify/maybe-send-webhook! webhook-url rule new-state prev-state)))))
@@ -168,7 +245,9 @@
   "Evaluate all due alert rules and send notifications.
    Called by the scheduler on each tick.
 
-   See facade namespace for scaling considerations."
+   Current implementation fetches all due rules and evaluates them
+   sequentially within a single scheduler tick. Appropriate for
+   small-to-moderate rule counts (< ~50 rules)."
   [duckdb sqlite webhook-url]
   (let [due-rules (store/get-enabled-due sqlite)]
     (when (seq due-rules)
@@ -180,20 +259,16 @@
 ;; Rich Comment
 (comment
 
-  ;; Example rule structure for evaluation
-  (def sample-rule
-    {:query_mode "events"
-     :query {:filter {:field "error" :op "=" :value true}
-             :aggregations [{:id "A" :field "*" :function "count"}]
-             :having {:ref "A" :op ">" :value 100}
-             :visualization {:type "table"}}
-     :eval_window_ms 300000})
+  (require '[integrant.repl.state :refer [system]])
+  (def duckdb (:db/duckdb-reader system))
+  (def sqlite (:db/sqlite system))
 
-  ;; Evaluate would be called as:
-  ;; (evaluate-rule duckdb sqlite sample-rule)
+  ;; Evaluate one rule
+  (require '[o11ylite.alert-rule.store :as store])
+  (evaluate-rule! duckdb sqlite (first (store/list-all sqlite)))
 
-  ;; To run full evaluation cycle:
-  ;; (run-evaluation-cycle! duckdb sqlite nil)
+  ;; Run a full cycle (no webhook)
+  (run-evaluation-cycle! duckdb sqlite nil)
 
   #_()) ; End of rich comment block
 ;; ---------------------------------------------------------
