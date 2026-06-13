@@ -3,15 +3,18 @@ import { router, usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { AlertRuleForm } from "@/components/alert-rules/alert-rule-form"
+import { TrackedInstances } from "@/components/alert-rules/tracked-instances"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   DEFAULT_QUERY_STATE,
   queryStateFromEntity,
 } from "@/lib/query-helpers"
-import type { AlertRule } from "@/types"
+import type { AlertInstance, AlertRule } from "@/types"
 
 export default function AlertRuleEdit() {
-  const { alert_rule, errors } = usePage<{
+  const { alert_rule, instances, errors } = usePage<{
     alert_rule: AlertRule | null
+    instances?: AlertInstance[]
     errors: Partial<Record<string, string>>
   }>().props
 
@@ -62,6 +65,20 @@ export default function AlertRuleEdit() {
           submitLabel={isEditing ? "Update Rule" : "Create Rule"}
           onSubmit={handleSubmit}
         />
+        {isEditing && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tracked instances</CardTitle>
+              <CardDescription>
+                Instances this rule is tracking. Dismiss one to stop tracking it;
+                it re-tracks if seen again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TrackedInstances ruleId={alert_rule.id} instances={instances ?? []} />
+            </CardContent>
+          </Card>
+        )}
       </div>
     </ApplicationLayout>
   )
