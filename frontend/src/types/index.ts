@@ -348,6 +348,22 @@ export interface AlertRule {
   updated_at: number
 }
 
+/**
+ * A tracked alert instance — one per active group of a rule (the empty
+ * fingerprint for ungrouped rules). Returned in the edit page props.
+ */
+export interface AlertInstance {
+  rule_id: string
+  fingerprint: string
+  labels: Record<string, unknown>
+  state: AlertState
+  first_seen: number
+  last_seen: number
+  started_at: number | null
+  resolved_at: number | null
+  last_value: Record<string, unknown> | null
+}
+
 // ============================================================================
 // Notebook Types
 // ============================================================================
