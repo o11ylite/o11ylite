@@ -107,13 +107,17 @@ def _save_credentials(data: dict) -> None:
 
 
 def _discover_inertia_version(base_url: str, token: str) -> str:
-    """GET /explore and extract the Inertia version from the data-page attribute.
+    """GET /explore and extract the Inertia version from the page-data script tag.
 
     We use /explore rather than / because / redirects to /explore, and
     urllib's redirect handling may not follow all redirect types cleanly.
 
     The Authorization header is required: on auth-gated deployments /explore
-    will not return the HTML shell (with the data-page attribute) without it.
+    will not return the HTML shell (with the page-data script) without it.
+
+    Inertia v3 embeds the initial page data in a
+    `<script data-page="app" type="application/json">{...}</script>` tag body;
+    `data-page` is the mount element id, not the payload.
     """
     req = urllib.request.Request(
         base_url + "/explore",
@@ -128,10 +132,13 @@ def _discover_inertia_version(base_url: str, token: str) -> str:
     except urllib.error.URLError as exc:
         _die(f"Failed to reach {base_url}: {exc}")
 
-    # Parse: <div id="app" data-page="...">
-    match = re.search(r'data-page="([^"]+)"', body)
+    # Parse the Inertia page-data script body:
+    # <script data-page="app" type="application/json">{...}</script>
+    match = re.search(
+        r'<script[^>]*\bdata-page="app"[^>]*>(.*?)</script>', body, re.DOTALL
+    )
     if not match:
-        _die("Could not find Inertia data-page attribute in response from /")
+        _die("Could not find Inertia page-data script tag in response from /explore")
 
     page_json = html.unescape(match.group(1))
     try:
