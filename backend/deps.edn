@@ -20,7 +20,7 @@
   ;; HTTP Server
   ring/ring-core {:mvn/version "1.15.5"}
   ring/ring-jetty-adapter {:mvn/version "1.15.5"}
-  ring/ring-defaults {:mvn/version "0.7.0"}
+  ring/ring-defaults {:mvn/version "0.7.1"}
 
   ;; Http Client
   org.babashka/http-client {:mvn/version "0.4.23"}
