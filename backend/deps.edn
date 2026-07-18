@@ -63,7 +63,7 @@
   com.github.seancorfield/honeysql {:mvn/version "2.7.1399"}
 
   ;; Migrations
-  migratus/migratus {:mvn/version "1.6.6"}
+  migratus/migratus {:mvn/version "1.6.7"}
 
   ;; Schema validation
   metosin/malli {:mvn/version "0.20.1"}
