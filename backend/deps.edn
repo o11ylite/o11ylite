@@ -55,7 +55,7 @@
   org.duckdb/duckdb_jdbc {:mvn/version "1.5.4.0"}
 
   ;; SQLite
-  org.xerial/sqlite-jdbc {:mvn/version "3.53.2.0"}
+  org.xerial/sqlite-jdbc {:mvn/version "3.53.2.1"}
 
   ;; Connection pooling & JDBC
   com.zaxxer/HikariCP {:mvn/version "7.1.0"}
