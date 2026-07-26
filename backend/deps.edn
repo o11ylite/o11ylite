@@ -69,7 +69,7 @@
   metosin/malli {:mvn/version "0.20.1"}
 
   ;; Serialization
-  com.taoensso/nippy {:mvn/version "3.6.2"}
+  com.taoensso/nippy {:mvn/version "3.7.0"}
 
   ;; Utility for time
   tick/tick {:mvn/version "1.0.1"}
