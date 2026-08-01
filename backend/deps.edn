@@ -23,7 +23,7 @@
   ring/ring-defaults {:mvn/version "0.7.1"}
 
   ;; Http Client
-  org.babashka/http-client {:mvn/version "0.4.23"}
+  org.babashka/http-client {:mvn/version "0.4.24"}
 
   ;; Routing
   metosin/reitit-ring {:mvn/version "0.10.1"}
