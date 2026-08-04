@@ -37,9 +37,9 @@
   camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
 
   ;; gRPC
-  io.grpc/grpc-netty-shaded {:mvn/version "1.83.0"}
-  io.grpc/grpc-protobuf {:mvn/version "1.83.0"}
-  io.grpc/grpc-stub {:mvn/version "1.83.0"}
+  io.grpc/grpc-netty-shaded {:mvn/version "1.83.1"}
+  io.grpc/grpc-protobuf {:mvn/version "1.83.1"}
+  io.grpc/grpc-stub {:mvn/version "1.83.1"}
 
   ;; Protobuf - version must match vendored protoc in Makefile
   ;; Update PROTOC_VERSION in Makefile when changing this version
