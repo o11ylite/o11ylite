@@ -35,15 +35,17 @@ function FieldRow({
         </span>
       </div>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            aria-label={`Actions for ${field.name}`}
-          >
-            <MoreVertical className="h-3 w-3" />
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-label={`Actions for ${field.name}`}
+            />
+          }
+        >
+          <MoreVertical className="h-3 w-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => onAddExistsFilter(field.name)}>

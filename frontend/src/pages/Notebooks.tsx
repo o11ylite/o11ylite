@@ -23,11 +23,9 @@ export default function Notebooks() {
   return (
     <ApplicationLayout title="Notebooks">
       <div className="space-y-4">
-        <Button asChild>
-          <Link href="/notebooks/new">
-            <Plus className="mr-2" size={16} />
-            New Notebook
-          </Link>
+        <Button render={<Link href="/notebooks/new" />}>
+          <Plus className="mr-2" size={16} />
+          New Notebook
         </Button>
         <NotebookList notebooks={notebooks} />
       </div>

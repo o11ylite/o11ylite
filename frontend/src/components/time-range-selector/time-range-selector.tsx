@@ -103,16 +103,22 @@ export function TimeRangeSelector() {
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="min-w-[160px] justify-between gap-2">
-          {live ? (
-            <Radio className="size-4 text-green-500" />
-          ) : (
-            <Clock className="size-4" />
-          )}
-          <span className="truncate">{label}</span>
-          <ChevronDown className="size-4 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-w-[160px] justify-between gap-2"
+          />
+        }
+      >
+        {live ? (
+          <Radio className="size-4 text-green-500" />
+        ) : (
+          <Clock className="size-4" />
+        )}
+        <span className="truncate">{label}</span>
+        <ChevronDown className="size-4 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="w-80" align="end">
         <div className="space-y-4">

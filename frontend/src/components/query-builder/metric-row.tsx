@@ -54,7 +54,10 @@ export function MetricRow({
     })
   }
 
-  const handleAggChange = (agg: MetricAggregation) => {
+  const handleAggChange = (agg: MetricAggregation | null) => {
+    if (!agg) {
+      return
+    }
     onUpdate({ ...metric, agg })
   }
 
@@ -78,7 +81,9 @@ export function MetricRow({
           {/* Aggregation Select */}
           <Select value={metric.agg} onValueChange={handleAggChange}>
             <SelectTrigger size="sm" className="w-auto min-w-[80px]">
-              <SelectValue />
+              <SelectValue>
+                {(v) => (v ? AGGREGATION_LABELS[v as MetricAggregation] : "")}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {availableAggregations.map((agg) => (

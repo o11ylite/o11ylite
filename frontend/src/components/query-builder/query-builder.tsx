@@ -144,12 +144,16 @@ export function QueryBuilder({
         <Select
           value={state.service ?? "__all__"}
           onValueChange={(v) => {
-            const service = v === "__all__" ? undefined : v
+            const service = v === "__all__" || v === null ? undefined : v
             updateState({ ...state, service })
           }}
         >
           <SelectTrigger size="sm" className="w-auto min-w-[120px]">
-            <SelectValue placeholder="All services" />
+            <SelectValue>
+              {(v: string | null) =>
+                v === "__all__" ? "All services" : (v ?? "")
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">All services</SelectItem>

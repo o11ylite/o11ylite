@@ -64,10 +64,12 @@ export function NotebookList({ notebooks }: { notebooks: Notebook[] }) {
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon-sm" asChild>
-                    <Link href={`/notebooks/${nb.id}/edit`}>
-                      <Pencil size={14} />
-                    </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    render={<Link href={`/notebooks/${nb.id}/edit`} />}
+                  >
+                    <Pencil size={14} />
                   </Button>
                   <Button
                     variant="ghost"

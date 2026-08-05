@@ -14,12 +14,9 @@ export function LimitSelector({
   onChange: (value: number) => void
 }) {
   return (
-    <Select
-      value={String(value)}
-      onValueChange={(v) => onChange(Number(v))}
-    >
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
       <SelectTrigger size="sm" className="w-auto min-w-[80px] text-xs text-muted-foreground">
-        <SelectValue />
+        <SelectValue>{(v) => `${v ?? ""} rows`}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="10">10 rows</SelectItem>

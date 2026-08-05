@@ -76,10 +76,15 @@ export default function NotebookEdit() {
             <Save className="mr-2" size={16} />
             {isEditing ? "Update Notebook" : "Create Notebook"}
           </Button>
-          <Button variant="outline" asChild>
-            <Link href={isEditing ? `/notebooks/${notebook.id}` : "/notebooks"}>
-              Cancel
-            </Link>
+          <Button
+            variant="outline"
+            render={
+              <Link
+                href={isEditing ? `/notebooks/${notebook.id}` : "/notebooks"}
+              />
+            }
+          >
+            Cancel
           </Button>
         </div>
       </div>

@@ -28,11 +28,11 @@ export function TimeSeriesSettings({
 }: TimeSeriesSettingsProps) {
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <Settings2 className="h-4 w-4" />
-          <span className="sr-only">Chart settings</span>
-        </Button>
+      <PopoverTrigger
+        render={<Button variant="ghost" size="icon" className="h-8 w-8" />}
+      >
+        <Settings2 className="h-4 w-4" />
+        <span className="sr-only">Chart settings</span>
       </PopoverTrigger>
       <PopoverContent className="w-64" align="end">
         <div className="space-y-4">
@@ -50,7 +50,15 @@ export function TimeSeriesSettings({
                 size="sm"
                 className="w-auto min-w-[130px] text-xs"
               >
-                <SelectValue />
+                <SelectValue>
+                  {(v) =>
+                    v === "stacked_area"
+                      ? "Stacked area"
+                      : v === "bar"
+                        ? "Bar"
+                        : "Lines"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="line">Lines</SelectItem>

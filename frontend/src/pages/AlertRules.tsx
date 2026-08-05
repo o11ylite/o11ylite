@@ -23,11 +23,9 @@ export default function AlertRules() {
   return (
     <ApplicationLayout title="Alert Rules">
       <div className="space-y-4">
-        <Button asChild>
-          <Link href="/alert-rules/new">
-            <Plus className="mr-2" size={16} />
-            New Rule
-          </Link>
+        <Button render={<Link href="/alert-rules/new" />}>
+          <Plus className="mr-2" size={16} />
+          New Rule
         </Button>
         <AlertRuleList alertRules={alert_rules} />
       </div>
