@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useEffect } from "react"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react"
 import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react"
 
@@ -12,6 +13,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { usePortalContainer } from "@/components/ui/portal-container"
 
 const Combobox = ComboboxPrimitive.Root
 
@@ -102,14 +104,35 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   >) {
+  const portalContainer = usePortalContainer()
+  const insideModalDialog = portalContainer !== null
+
+  useEffect(() => {
+    if (!insideModalDialog) {
+      return
+    }
+    // Radix dialogs listen for Escape on document capture, which fires before
+    // Base UI's document-level handler. Prevent default so the dialog stays
+    // open; Base UI still closes the popup itself.
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+      }
+    }
+    window.addEventListener("keydown", handleEscape, { capture: true })
+    return () =>
+      window.removeEventListener("keydown", handleEscape, { capture: true })
+  }, [insideModalDialog])
+
   return (
-    <ComboboxPrimitive.Portal>
+    <ComboboxPrimitive.Portal container={portalContainer ?? undefined}>
       <ComboboxPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
+        positionMethod={insideModalDialog ? "fixed" : "absolute"}
         className="isolate z-50"
       >
         <ComboboxPrimitive.Popup

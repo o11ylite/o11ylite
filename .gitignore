@@ -23,3 +23,6 @@ pom.xml.asc
 
 __pycache__/
 .bk.yaml
+
+# playwright-cli browser automation artifacts
+.playwright-cli/
