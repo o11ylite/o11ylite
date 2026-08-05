@@ -46,13 +46,15 @@ export function TimestampCell({ value }: { value: unknown }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          onClick={handleClick}
-          className="font-mono cursor-pointer hover:underline select-text"
-        >
-          {displayValue}
-        </span>
+      <TooltipTrigger
+        render={
+          <span
+            onClick={handleClick}
+            className="font-mono cursor-pointer hover:underline select-text"
+          />
+        }
+      >
+        {displayValue}
       </TooltipTrigger>
       <TooltipContent>
         Click to show {altFormat === "utc" ? "UTC" : "local"} time: {altValue}

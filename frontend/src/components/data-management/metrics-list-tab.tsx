@@ -70,7 +70,8 @@ export function MetricsListTab({ metrics }: { metrics: ManagedMetric[] }) {
           <TableRow>
             <TableHead className="w-10">
               <Checkbox
-                checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                checked={allSelected}
+                indeterminate={someSelected}
                 onCheckedChange={toggleAll}
               />
             </TableHead>

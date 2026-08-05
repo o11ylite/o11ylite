@@ -157,11 +157,9 @@ export default function ApiKeys() {
             API keys authenticate OTLP ingestion and programmatic API access.
             Creating the first key enables token authentication for these endpoints.
           </p>
-          <Button asChild>
-            <Link href="/system/api-keys/new">
-              <Plus className="mr-2" size={16} />
-              New API Key
-            </Link>
+          <Button render={<Link href="/system/api-keys/new" />}>
+            <Plus className="mr-2" size={16} />
+            New API Key
           </Button>
         </div>
 

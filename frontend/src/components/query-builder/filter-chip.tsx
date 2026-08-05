@@ -114,7 +114,10 @@ export function FilterChip({
     })
   }
 
-  const handleOpChange = (op: FilterOp) => {
+  const handleOpChange = (op: FilterOp | null) => {
+    if (!op) {
+      return
+    }
     onUpdate({ ...filter, op, value: valueLess ? "" : filter.value })
   }
 
@@ -135,7 +138,11 @@ export function FilterChip({
       />
       <Select value={filter.op} onValueChange={handleOpChange}>
         <SelectTrigger size="sm" className="w-auto min-w-[60px]">
-          <SelectValue />
+          <SelectValue>
+            {(v) =>
+              filteredOperators.find((op) => op.value === v)?.label ?? ""
+            }
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {filteredOperators.map((op) => (

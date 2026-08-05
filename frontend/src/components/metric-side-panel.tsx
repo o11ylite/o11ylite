@@ -64,15 +64,17 @@ export function MetricSidePanel() {
               )}
             </div>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label={`Actions for ${metric.name}`}
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={`Actions for ${metric.name}`}
+                  />
+                }
+              >
+                <MoreVertical className="h-3 w-3" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => addMetric(metric.name)}>

@@ -81,8 +81,8 @@ export default function ApplicationLayout({
                           {entry.label}
                         </BreadcrumbPage>
                       ) : (
-                        <BreadcrumbLink asChild>
-                          <Link href={entry.href}>{entry.label}</Link>
+                        <BreadcrumbLink render={<Link href={entry.href} />}>
+                          {entry.label}
                         </BreadcrumbLink>
                       )}
                     </BreadcrumbItem>

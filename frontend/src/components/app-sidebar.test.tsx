@@ -99,6 +99,6 @@ describe("AppSidebar — System submenu persistence", () => {
   })
 })
 
-// Silence "act(...) warnings" from radix-ui's collapsible animation that
+// Silence "act(...) warnings" from the collapsible animation that
 // settles after our assertions complete.
 void act

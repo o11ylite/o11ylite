@@ -139,7 +139,13 @@ export function AlertRuleForm({
             onValueChange={(v) => setAlertOn(v as AlertOn)}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue>
+                {(v) =>
+                  v === "no_result"
+                    ? "Query returns no results"
+                    : "Query returns results"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="result">Query returns results</SelectItem>
@@ -156,10 +162,14 @@ export function AlertRuleForm({
           <Label>Evaluation Window</Label>
           <Select
             value={String(evalWindowMs)}
-            onValueChange={(v) => setEvalWindowMs(parseInt(v, 10))}
+            onValueChange={(v) => setEvalWindowMs(parseInt(v ?? "", 10))}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue>
+                {(v) =>
+                  EVAL_WINDOW_PRESETS.find((p) => p.value === v)?.label ?? ""
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {EVAL_WINDOW_PRESETS.map((p) => (
@@ -177,10 +187,14 @@ export function AlertRuleForm({
           <Label>Evaluation Interval</Label>
           <Select
             value={String(evalIntervalMs)}
-            onValueChange={(v) => setEvalIntervalMs(parseInt(v, 10))}
+            onValueChange={(v) => setEvalIntervalMs(parseInt(v ?? "", 10))}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue>
+                {(v) =>
+                  EVAL_INTERVAL_PRESETS.find((p) => p.value === v)?.label ?? ""
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {EVAL_INTERVAL_PRESETS.map((p) => (
@@ -246,6 +260,10 @@ export function AlertRuleForm({
           <Select
             value={alertTarget ?? ""}
             onValueChange={(v) => setAlertTarget(v)}
+            items={targetCandidates.map((c) => ({
+              value: c.id,
+              label: c.label,
+            }))}
           >
             <SelectTrigger
               className="w-auto min-w-[240px]"
@@ -277,8 +295,8 @@ export function AlertRuleForm({
           <Save className="mr-2" size={16} />
           {submitLabel}
         </Button>
-        <Button variant="outline" asChild>
-          <Link href="/alert-rules">Cancel</Link>
+        <Button variant="outline" render={<Link href="/alert-rules" />}>
+          Cancel
         </Button>
       </div>
     </div>

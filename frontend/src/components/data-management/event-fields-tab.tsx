@@ -98,7 +98,8 @@ export function EventFieldsTab({ fields }: { fields: ManagedField[] }) {
           <TableRow>
             <TableHead className="w-10">
               <Checkbox
-                checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                checked={allSelected}
+                indeterminate={someSelected}
                 onCheckedChange={toggleAll}
               />
             </TableHead>

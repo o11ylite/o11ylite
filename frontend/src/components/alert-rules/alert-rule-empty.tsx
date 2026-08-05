@@ -11,11 +11,9 @@ export function AlertRuleEmpty() {
       <p className="mb-4 text-sm text-muted-foreground">
         Create your first alert rule to start monitoring.
       </p>
-      <Button asChild>
-        <Link href="/alert-rules/new">
-          <Plus className="mr-2" size={16} />
-          New Rule
-        </Link>
+      <Button render={<Link href="/alert-rules/new" />}>
+        <Plus className="mr-2" size={16} />
+        New Rule
       </Button>
     </div>
   )

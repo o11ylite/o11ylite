@@ -20,13 +20,15 @@ export function TraceIdCell({ value }: { value: unknown }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Link
-          href={`/trace/${traceId}`}
-          className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          {abbreviated}
-        </Link>
+      <TooltipTrigger
+        render={
+          <Link
+            href={`/trace/${traceId}`}
+            className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          />
+        }
+      >
+        {abbreviated}
       </TooltipTrigger>
       <TooltipContent>{traceId}</TooltipContent>
     </Tooltip>

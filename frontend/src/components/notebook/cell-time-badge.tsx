@@ -37,16 +37,18 @@ export function CellTimeBadge({
   if (isPinned) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 gap-1 px-2 text-xs"
-            onClick={onToggle}
-          >
-            <PinOff size={12} />
-            {formatPinnedLabel(pinnedFrom, pinnedTo)}
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 gap-1 px-2 text-xs"
+              onClick={onToggle}
+            />
+          }
+        >
+          <PinOff size={12} />
+          {formatPinnedLabel(pinnedFrom, pinnedTo)}
         </TooltipTrigger>
         <TooltipContent>Click to unpin and use global time</TooltipContent>
       </Tooltip>
@@ -55,16 +57,18 @@ export function CellTimeBadge({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 gap-1 px-2 text-xs text-muted-foreground"
-          onClick={onToggle}
-        >
-          <Pin size={12} />
-          Pin time
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 px-2 text-xs text-muted-foreground"
+            onClick={onToggle}
+          />
+        }
+      >
+        <Pin size={12} />
+        Pin time
       </TooltipTrigger>
       <TooltipContent>Pin current time range to this cell</TooltipContent>
     </Tooltip>

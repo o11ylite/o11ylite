@@ -93,9 +93,14 @@ export function HavingSection({
           Having
         </span>
 
-        <Select value={having.ref} onValueChange={updateRef}>
+        <Select
+          value={having.ref}
+          onValueChange={(ref) => ref && updateRef(ref)}
+        >
           <SelectTrigger size="sm" className="w-auto min-w-[120px]">
-            <SelectValue />
+            <SelectValue>
+              {(v) => refs.find((r) => r.id === v)?.label ?? ""}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {refs.map((ref) => (
@@ -106,7 +111,10 @@ export function HavingSection({
           </SelectContent>
         </Select>
 
-        <Select value={having.op} onValueChange={(op) => updateOp(op as HavingOp)}>
+        <Select
+          value={having.op}
+          onValueChange={(op) => updateOp(op as HavingOp)}
+        >
           <SelectTrigger size="sm" className="w-auto min-w-[60px]">
             <SelectValue />
           </SelectTrigger>

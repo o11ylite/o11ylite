@@ -36,11 +36,9 @@ export default function Error({ status }: { status: number }) {
             </p>
           )}
         </div>
-        <Button asChild variant="outline">
-          <Link href="/explore">
-            <Home className="mr-2 h-4 w-4" />
-            Back to Explore
-          </Link>
+        <Button variant="outline" render={<Link href="/explore" />}>
+          <Home className="mr-2 h-4 w-4" />
+          Back to Explore
         </Button>
       </div>
     </ApplicationLayout>

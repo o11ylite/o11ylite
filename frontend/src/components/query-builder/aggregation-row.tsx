@@ -40,8 +40,13 @@ export function AggregationRow({
     <div className="flex items-center gap-1">
       <Select
         value={item.function}
-        onValueChange={(fn: AggregationFunction) =>
-          onUpdate({ ...item, function: fn, field: fn === "count" ? "*" : item.field })
+        onValueChange={(fn) =>
+          fn &&
+          onUpdate({
+            ...item,
+            function: fn,
+            field: fn === "count" ? "*" : item.field,
+          })
         }
       >
         <SelectTrigger size="sm" className="w-auto min-w-[80px]">

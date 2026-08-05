@@ -11,11 +11,9 @@ export function NotebookEmpty() {
       <p className="mb-4 text-sm text-muted-foreground">
         Create your first notebook to save multi-query investigations.
       </p>
-      <Button asChild>
-        <Link href="/notebooks/new">
-          <Plus className="mr-2" size={16} />
-          New Notebook
-        </Link>
+      <Button render={<Link href="/notebooks/new" />}>
+        <Plus className="mr-2" size={16} />
+        New Notebook
       </Button>
     </div>
   )

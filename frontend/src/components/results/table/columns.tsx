@@ -48,14 +48,16 @@ export function buildColumns(
       // Using native button for minimal footprint in table cells.
       // shadcn Button adds padding/height that disrupts row density.
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={() => onViewDetail(row.original)}
-            className="p-1 text-muted-foreground hover:text-foreground"
-            aria-label="View details"
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </button>
+        <TooltipTrigger
+          render={
+            <button
+              onClick={() => onViewDetail(row.original)}
+              className="p-1 text-muted-foreground hover:text-foreground"
+              aria-label="View details"
+            />
+          }
+        >
+          <Eye className="h-3.5 w-3.5" />
         </TooltipTrigger>
         <TooltipContent>View details</TooltipContent>
       </Tooltip>
