@@ -2,7 +2,7 @@
 ;; o11ylite.store.init
 ;;
 ;; DuckLake database initialization
-;; Creates the events table partitioned by day
+;; Creates the events table partitioned by day + service bucket
 ;; ---------------------------------------------------------
 
 (ns o11ylite.store.init
@@ -57,8 +57,13 @@
      \"meta.observed_time\" TIMESTAMP_NS NOT NULL
    )")
 
-(def ^:private set-events-partition-sql
-  "ALTER TABLE o11ylite.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), service)")
+(defn- -set-events-partition-sql
+  "Build the ALTER TABLE partition SQL using DuckLake's native bucket() transform.
+   bucket(N, service) distributes rows into N buckets via Murmur3 hash on service name,
+   collapsing the long tail of low-traffic services into a bounded number of partitions."
+  [num-buckets]
+  (format "ALTER TABLE o11ylite.events SET PARTITIONED BY (year(timestamp), month(timestamp), day(timestamp), bucket(%d, service))"
+          num-buckets))
 
 (def ^:private set-events-sorted-sql
   "ALTER TABLE o11ylite.events SET SORTED BY (timestamp DESC)")
@@ -104,16 +109,18 @@
 (defn init-store!
   "Initialize DuckLake database schema.
    Creates the events and metrics tables if they don't exist.
-   Events are partitioned by day + service.
+   Events are partitioned by day + bucket(N, service) where N comes from core config.
    Metrics are partitioned by day + bucket(N, name) where N comes from core config.
 
    Each table's DDL goes through its own writer pool to keep the writer
    contract (one connection per table) consistent. At startup no batchers
    are running yet, so there's no contention."
-  [writer-events writer-metrics {:keys [metrics-partition-buckets]}]
-  (mulog/log ::init-store-starting :o11ylite.store_init.metrics_partition_buckets metrics-partition-buckets)
+  [writer-events writer-metrics {:keys [events-partition-buckets metrics-partition-buckets]}]
+  (mulog/log ::init-store-starting
+             :o11ylite.store_init.events_partition_buckets events-partition-buckets
+             :o11ylite.store_init.metrics_partition_buckets metrics-partition-buckets)
   (jdbc/execute! writer-events [create-events-table-sql])
-  (jdbc/execute! writer-events [set-events-partition-sql])
+  (jdbc/execute! writer-events [(-set-events-partition-sql events-partition-buckets)])
   (jdbc/execute! writer-events [set-events-sorted-sql])
   (jdbc/execute! writer-metrics [create-metrics-table-sql])
   (jdbc/execute! writer-metrics [(-set-metrics-partition-sql metrics-partition-buckets)])
