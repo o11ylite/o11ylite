@@ -1,4 +1,4 @@
-import { type ReactNode } from "react"
+import { type ReactNode, useEffect, useRef } from "react"
 import { Link } from "@inertiajs/react"
 import { PanelRightIcon } from "lucide-react"
 
@@ -40,6 +40,17 @@ export default function ApplicationLayout({
     "right_panel_open",
     true
   )
+
+  // A panel that appears on demand (e.g. a span selected on the trace page)
+  // should pop open even if the user had previously collapsed the panel.
+  const hadRightPanel = useRef(!!rightPanel)
+  useEffect(() => {
+    const appearing = !!rightPanel && !hadRightPanel.current
+    hadRightPanel.current = !!rightPanel
+    if (appearing && !rightPanelOpen) {
+      setRightPanelOpen(true)
+    }
+  }, [rightPanel, rightPanelOpen, setRightPanelOpen])
 
   const rightPanelTrigger = rightPanel && (
     <>
