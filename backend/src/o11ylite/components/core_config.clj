@@ -151,15 +151,15 @@
 
    {:key         :metrics-partition-buckets
     :env-var     "O11YLITE_METRICS_PARTITION_BUCKETS"
-    :default     20
+    :default     4
     :parser      #(Long/parseLong %)
-    :description "Number of buckets for metrics table partitioning via DuckLake bucket(N, name) transform."}
+    :description "Number of buckets for metrics table partitioning via DuckLake bucket(N, name) transform. Bump for read performance when the number of metrics are big; the tradeoff is more small files per flush, demanding more resources for ingestion and compaction."}
 
    {:key         :events-partition-buckets
     :env-var     "O11YLITE_EVENTS_PARTITION_BUCKETS"
-    :default     8
+    :default     4
     :parser      #(Long/parseLong %)
-    :description "Number of buckets for events table partitioning via DuckLake bucket(N, service) transform."}])
+    :description "Number of buckets for events table partitioning via DuckLake bucket(N, service) transform. Bump for read performance on high-volume deployments with many services and when locate events for a single service is too slow; the tradeoff is more small files per flush, demanding more resources for ingestion and compaction."}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps
