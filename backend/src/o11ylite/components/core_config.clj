@@ -153,7 +153,13 @@
     :env-var     "O11YLITE_METRICS_PARTITION_BUCKETS"
     :default     20
     :parser      #(Long/parseLong %)
-    :description "Number of buckets for metrics table partitioning via DuckLake bucket(N, name) transform."}])
+    :description "Number of buckets for metrics table partitioning via DuckLake bucket(N, name) transform."}
+
+   {:key         :events-partition-buckets
+    :env-var     "O11YLITE_EVENTS_PARTITION_BUCKETS"
+    :default     8
+    :parser      #(Long/parseLong %)
+    :description "Number of buckets for events table partitioning via DuckLake bucket(N, service) transform."}])
 
 ;; ---------------------------------------------------------
 ;; Generated Configuration Maps

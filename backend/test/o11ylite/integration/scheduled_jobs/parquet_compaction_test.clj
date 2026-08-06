@@ -152,7 +152,7 @@
 (deftest merge-adjacent-files-compacts-data-test
   (testing "After ingesting events, merge returns files-created and files-processed"
     ;; Pin both service and timestamp so all events land in the same
-    ;; year/month/day/service partition. Without a fixed timestamp,
+    ;; year/month/day/bucket(service) partition. Without a fixed timestamp,
     ;; make-random-event picks a random time in the past hour — when the
     ;; test runs near a UTC day boundary, events can straddle two day
     ;; partitions and the merge produces one output file per partition.
