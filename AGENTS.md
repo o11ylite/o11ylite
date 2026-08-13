@@ -66,3 +66,13 @@ Read the following file as it's relevant to all workflows: @README.md.
 ## Agent Skill Maintenance
 
 O11yLite ships an agent skill package in `skills/o11ylite/`. When you change a route, schema, or protocol that agents consume, update the matching file in that directory. `SKILL.md` is the entry point (keep it under 60 lines); `docs/*.md` files hold per-domain API reference.
+
+## Contributor docs
+
+Read the matching file before touching that area:
+
+- Alert-rule engine → `docs/contributor/alert-rule-state-machine.md`
+- DuckLake / compaction / storage → `docs/contributor/ducklake-storage.md`
+- Implementation pitfalls → `docs/contributor/implementation-pitfalls.md`
+- Architecture internals → `docs/contributor/architecture-notes.md`
+- UI verification recipes → `docs/contributor/ui-verification.md`

@@ -153,7 +153,7 @@ Start all services locally:
 ```bash
 dev/start all
 ```
-Visit `https://o11ylite.localhost`
+Visit `https://o11ylite.localhost` (the root path redirects to `/explore`).
 
 ## REPL-Driven Development
 
@@ -169,6 +169,9 @@ Then connect your editor to the REPL and:
 (reset)            ;; Restart after code changes
 (halt)             ;; Stop the system
 ```
+
+`dev/start` with no arguments starts a bare nREPL REPL — the integrant
+system is dormant until `(go)`.
 
 ## Running Services Individually
 
