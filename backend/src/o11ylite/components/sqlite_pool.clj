@@ -38,13 +38,18 @@
 ;; - cache_size: negative value = KB, use 64MB cache
 ;; - foreign_keys: enforce referential integrity
 ;; - temp_store=MEMORY: keep temp tables in memory
-(def ^:private connection-init-sql
-  "PRAGMA journal_mode=WAL;
-   PRAGMA busy_timeout=5000;
-   PRAGMA synchronous=NORMAL;
-   PRAGMA cache_size=-65536;
-   PRAGMA foreign_keys=ON;
-   PRAGMA temp_store=MEMORY;")
+;;
+;; Shipped as JDBC URL query parameters because xerial parses them into a
+;; SQLiteConfig and applies every pragma to every new connection. HikariCP's
+;; connectionInitSql cannot be used: xerial's Statement.execute() runs only
+;; the first statement of a multi-statement string, silently dropping the rest.
+(def ^:private sqlite-config-params
+  (str "journal_mode=WAL"
+       "&busy_timeout=5000"
+       "&synchronous=NORMAL"
+       "&cache_size=-65536"
+       "&foreign_keys=ON"
+       "&temp_store=MEMORY"))
 
 ;; ---------------------------------------------------------
 ;; Component Lifecycle
@@ -55,7 +60,7 @@
     (mulog/log ::sqlite-pool-starting :o11ylite.sqlite_pool.data_path data-path)
     (ensure-data-dir! data-path)
     (let [db-file (sqlite-path data-path)
-          jdbc-url (str "jdbc:sqlite:" db-file)
+          jdbc-url (str "jdbc:sqlite:" db-file "?" sqlite-config-params)
           datasource (connection/->pool HikariDataSource
                                         {:jdbcUrl jdbc-url
                                          :maximumPoolSize 10
@@ -64,7 +69,6 @@
                                          :idleTimeout 600000
                                          :maxLifetime 1800000
                                          :poolName "sqlite-pool"
-                                         :connectionInitSql connection-init-sql
                                          :connectionTestQuery "SELECT 1"})]
       (try
         ;; Validate connection pool and init SQL by getting a connection
