@@ -61,15 +61,21 @@
        first))
 
 (defn- wait-for-events!
+  "Wait until `n` groups are visible to the eval loop, using a persisted
+   probe rule so instance upserts satisfy the alert_rules FK."
   [n]
-  (h/wait-until
-    #(let [r (alert-eval/evaluate-rule! (duckdb) (sqlite)
-                                        {:query_mode "events" :alert_on "result"
-                                         :eval_window_ms 7200000
-                                         :query {:group_by ["service"] :visualization {:type "table"}}
-                                         :id "probe"})]
-       (when (>= (count (:notifications r)) n) r))
-    {:label "events visible"}))
+  (store/create! (sqlite) "probe"
+                 {:name "probe" :description "t"
+                  :query_mode "events" :alert_on "result"
+                  :eval_window_ms 7200000 :eval_interval_ms 0
+                  :query {:group_by ["service"] :visualization {:type "table"}}})
+  (try
+    (h/wait-until
+      #(let [r (eval-rule "probe")]
+         (when (>= (count (:notifications r)) n) r))
+      {:label "events visible"})
+    (finally
+      (store/delete! (sqlite) "probe"))))
 
 (deftest grouped-absence-tracks-then-fires-per-group-test
   (testing "a grouped absence rule tracks present groups, then fires per group on disappearance"
