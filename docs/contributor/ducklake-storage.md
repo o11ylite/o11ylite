@@ -17,3 +17,7 @@ One fact the source does not state: there is deliberately NO
 process-local schema cache. PR #169 deleted `:cache/events-schema`;
 consumers call `schema/fetch-event-fields` directly. Do not reintroduce
 one.
+
+Measured behaviour of the compaction parameters (what the caps actually
+bound, the bistable failure mode, the missing `max_input_files` primitive)
+→ `docs/contributor/ducklake-compaction-experiments.md`.
