@@ -34,7 +34,6 @@
 
   ;; Inertia
   hiccup/hiccup {:mvn/version "2.0.0"}
-  camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.3"}
 
   ;; gRPC
   io.grpc/grpc-netty-shaded {:mvn/version "1.83.1"}
