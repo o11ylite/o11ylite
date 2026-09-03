@@ -30,7 +30,7 @@
   metosin/reitit-middleware {:mvn/version "0.10.1"}
 
   ;; JSON
-  metosin/jsonista {:mvn/version "1.0.0"}
+  metosin/jsonista {:mvn/version "1.0.1"}
 
   ;; Inertia
   hiccup/hiccup {:mvn/version "2.0.0"}
