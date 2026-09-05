@@ -6,7 +6,7 @@
  ;; ---------------------------------------------------------
  :deps
  {;; Application
-  org.clojure/clojure {:mvn/version "1.12.5"}
+  org.clojure/clojure {:mvn/version "1.12.6"}
   org.clojure/core.async {:mvn/version "1.9.865"}
   org.clojure/core.memoize {:mvn/version "1.2.281"}
   com.brunobonacci/mulog {:mvn/version "0.10.1"}
