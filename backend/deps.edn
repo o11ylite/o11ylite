@@ -27,7 +27,7 @@
 
   ;; Routing
   metosin/reitit-ring {:mvn/version "0.11.0"}
-  metosin/reitit-middleware {:mvn/version "0.10.1"}
+  metosin/reitit-middleware {:mvn/version "0.11.0"}
 
   ;; JSON
   metosin/jsonista {:mvn/version "1.0.1"}
