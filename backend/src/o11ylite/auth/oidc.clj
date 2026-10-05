@@ -7,7 +7,9 @@
 
 (ns o11ylite.auth.oidc
   (:require
+    [clojure.string :as str]
     [com.brunobonacci.mulog :as mulog]
+    [o11ylite.auth.public-url :as public-url]
     [o11ylite.util.response :as response]
     [oidc-client.core :as oidc]
     [ring.util.response :as rr]))
@@ -15,14 +17,21 @@
 ;; ---------------------------------------------------------
 ;; Private Helpers
 
+(defn- -safe-return-to
+  "Only same-site paths are allowed after login; anything else (absolute
+   URLs, protocol-relative //host, /\\host) would be an open redirect."
+  [return-to]
+  (when (and (string? return-to)
+             (str/starts-with? return-to "/")
+             (not (str/starts-with? return-to "//"))
+             (not (str/starts-with? return-to "/\\")))
+    return-to))
+
 (defn- -derive-redirect-uri
-  "Derive the OAuth redirect URI from the request's Host header.
-   Prefers X-Forwarded-Host over Host for reverse-proxy setups."
-  [request]
-  (let [scheme (or (get-in request [:headers "x-forwarded-proto"]) "http")
-        host (or (get-in request [:headers "x-forwarded-host"])
-                 (get-in request [:headers "host"]))]
-    (str scheme "://" host "/auth/callback")))
+  "Derive the OIDC redirect URI from the public base URL
+   (O11YLITE_PUBLIC_URL, or the request's forwarded/Host headers)."
+  [auth-config request]
+  (str (public-url/base-url auth-config request) "/auth/callback"))
 
 ;; ---------------------------------------------------------
 ;; Handlers
@@ -30,15 +39,15 @@
 (defn login-handler
   "GET /auth/login — Generate PKCE verifier + state + nonce,
    store in session, redirect to authorization URL."
-  [{:keys [oidc-config]}]
+  [{:keys [oidc-config] :as auth-config}]
   (fn [request]
     (if-not oidc-config
       (rr/redirect "/")
       (let [verifier (oidc/random-pkce-code-verifier)
             state (oidc/random-state)
             nonce (oidc/random-nonce)
-            redirect-uri (-derive-redirect-uri request)
-            return-to (get-in request [:params :return_to])
+            redirect-uri (-derive-redirect-uri auth-config request)
+            return-to (-safe-return-to (get-in request [:params :return_to]))
             auth-url (oidc/build-authorization-url oidc-config
                                                    {:redirect_uri redirect-uri
                                                     :scope "openid email profile"
@@ -55,7 +64,7 @@
 (defn callback-handler
   "GET /auth/callback — Exchange authorization code for tokens,
    fetch userinfo, populate session."
-  [{:keys [oidc-config]}]
+  [{:keys [oidc-config] :as auth-config}]
   (fn [request]
     (if-not oidc-config
       (rr/redirect "/")
@@ -69,7 +78,7 @@
             (response/json 400 {:error "State mismatch"}))
 
           :else
-          (let [redirect-uri (-derive-redirect-uri request)
+          (let [redirect-uri (-derive-redirect-uri auth-config request)
                 return-to (get-in request [:session :return-to])
                 tokens (oidc/authorization-code-grant oidc-config
                                                       {:code code
