@@ -6,7 +6,9 @@
 ;; write includes ingest + read; admin includes everything.
 ;; ---------------------------------------------------------
 
-(ns o11ylite.auth.scope)
+(ns o11ylite.auth.scope
+  (:require
+    [clojure.string :as str]))
 
 ;; ---------------------------------------------------------
 ;; Scope Hierarchy
@@ -29,6 +31,22 @@
   "Returns true if principal-scope satisfies the required-scope."
   [principal-scope required-scope]
   (contains? (scope-hierarchy principal-scope) required-scope))
+
+(def ^:private -scopes-by-breadth
+  "Scopes from narrowest to broadest; used to pick the smallest grant."
+  ["read" "ingest" "write" "admin"])
+
+(defn resolve-requested
+  "Resolve an OAuth `scope` parameter (space-separated, RFC 6749 §3.3)
+   to the single narrowest scope that satisfies every requested scope.
+   Returns nil when the parameter contains an unknown scope.
+
+   (resolve-requested \"read write\") => \"write\""
+  [scope-param]
+  (let [requested (set (remove str/blank? (str/split (or scope-param "") #"\s+")))]
+    (when (and (seq requested) (every? valid-scopes requested))
+      (first (filter (fn [candidate] (every? #(has-scope? candidate %) requested))
+                     -scopes-by-breadth)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

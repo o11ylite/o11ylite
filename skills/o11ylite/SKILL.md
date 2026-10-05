@@ -9,7 +9,7 @@ O11yLite is a lightweight observability platform for traces, logs, and metrics.
 
 ## Connection
 
-Read `O11YLITE_URL` env var for the base URL (e.g., `http://localhost:3000`). If not set, ask the user for their o11ylite hostname.
+If an `o11ylite` MCP server is connected, prefer its tools. Otherwise read `O11YLITE_URL` env var for the base URL (e.g., `http://localhost:3000`). If not set, ask the user for their o11ylite hostname.
 
 ## Authentication
 

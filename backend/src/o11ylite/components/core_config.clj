@@ -99,6 +99,12 @@
     :description  "OIDC client secret for token exchange."
     :credential?  true}
 
+   {:key         :public-url
+    :env-var     "O11YLITE_PUBLIC_URL"
+    :default     nil
+    :parser      identity
+    :description "Public base URL (e.g. https://o11ylite.example.com). Used as the OAuth issuer, MCP resource identifier, and OIDC redirect base. Derived from request headers when unset."}
+
    {:key          :session-secret
     :env-var      "O11YLITE_SESSION_SECRET"
     :default      nil
