@@ -22,7 +22,7 @@ Thumbs.db
 # Development files
 dev/
 .envrc
-.tool-versions
+mise.toml
 
 # Backend development artifacts
 backend/.cpcache

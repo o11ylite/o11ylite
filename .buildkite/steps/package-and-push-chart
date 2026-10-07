@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="$(buildkite-agent meta-data get "release-version")"
+source "$(dirname "$0")/lib/mise.bash"
+ensure_tools helm
 
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+VERSION="$(buildkite-agent meta-data get "release-version")"
 
 # Stamp version into Chart.yaml
 sed -i "s/^version: .*/version: ${VERSION}/" chart/o11ylite/Chart.yaml

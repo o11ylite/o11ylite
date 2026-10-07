@@ -13,12 +13,16 @@ steps:
 
   - wait
 
+  # Both release steps install their toolchain from mise.toml, which needs the
+  # same mise image the test steps use. See .buildkite/pipeline.yml.
   - label: ":github: Create GitHub release"
+    image: &toolchain jdxcode/mise:2026.10.3-debian@sha256:58c4c847f5518a9a87a9a582886a485443dbca5eb024426577f58d586a0990c6
     secrets:
       - GITHUB_TOKEN
     command: .buildkite/steps/create-github-release
 
   - label: ":helm: Package & Push Chart"
+    image: *toolchain
     secrets:
       - GITHUB_TOKEN
     command: .buildkite/steps/package-and-push-chart

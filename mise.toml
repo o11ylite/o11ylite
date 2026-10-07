@@ -1,0 +1,29 @@
+# Single source of truth for tool versions, used by CI and local development.
+# After cloning, run `mise install`.
+#
+# CI runs the steps that need a toolchain in jdxcode/mise:*-debian, which
+# supplies git, curl, and mise itself. Every version below is installed by mise
+# on top of it, so no language image is pinned in .buildkite/pipeline.yml.
+[tools]
+# Backend runtime. The service runs entirely on Java 25 virtual threads.
+java = "openjdk-25"
+
+# Backend build and test CLI; backend/Makefile drives everything through it.
+clojure = "1.12.6.1673"
+
+# Runs backend/Makefile. The CI image is deliberately without a toolchain, and
+# mise's conda backend ships a prebuilt make, so this needs no compiler.
+make = "4.4.1"
+
+# Frontend build and test runtime. Keep the major in step with the node image
+# in the Dockerfile.
+node = "24"
+
+# Lints and packages chart/o11ylite. Stays on the Helm 3 line that the CI
+# installer script resolved to before this pin existed; moving to Helm 4 is a
+# separate change for the release pipeline.
+helm = "3.22.0"
+
+# Release pipeline creates the GitHub release. Installed from the GitHub
+# release rather than the aqua registry entry, whose attestation check fails.
+"github:cli/cli" = "2.87.2"

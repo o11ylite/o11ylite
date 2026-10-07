@@ -48,6 +48,6 @@ backfill only durable, unrecoverable state.
 Renovate raises only the Dockerfile runtime stage
 (`eclipse-temurin:N-jre-noble`); the build stage is a different image it
 cannot pair, so a runtime-only bump desyncs build/runtime majors and
-reddens CI. Merge a coordinated sibling PR bumping `.tool-versions`,
+reddens CI. Merge a coordinated sibling PR bumping `mise.toml`,
 both Dockerfile stages, and the `DEVELOPMENT.md` Java reference, then
 close Renovate's PR as superseded.

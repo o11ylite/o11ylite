@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "--- :gear: Installing mise"
-curl https://mise.run | sh
-export PATH="$HOME/.local/bin:$PATH"
-eval "$(mise activate bash)"
-mise install
+source "$(dirname "$0")/lib/mise.bash"
+ensure_tools node
 
 cd frontend
 
