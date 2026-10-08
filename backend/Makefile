@@ -7,8 +7,8 @@
 # `-` before a command ignores any errors returned
 
 # Requirements
-# - Java (see .tool-versions for pinned version)
-# - Clojure CLI (see .tool-versions for pinned version)
+# - Java (see mise.toml for pinned version)
+# - Clojure CLI (see mise.toml for pinned version)
 # -------------------------------------- #
 
 # -- Makefile task config -------------- #
@@ -136,23 +136,20 @@ endif
 # Lazy `=` assignment: the script (which starts a JVM) only runs when a
 # proto target is invoked, not on every `make help` or `make test`.
 PROTOBUF_JAVA_VERSION = $(shell ./bin/deps-version com.google.protobuf/protobuf-java)
-# protobuf-java 4.X.Y maps to protoc X.Y
-PROTOC_VERSION = $(PROTOBUF_JAVA_VERSION:4.%=%)
 PROTOC_BIN := .bin/protoc
 
 GRPC_JAVA_VERSION = $(shell ./bin/deps-version io.grpc/grpc-protobuf)
 GRPC_JAVA_PLUGIN := .bin/protoc-gen-grpc-java
 
 # Download protoc compiler
+# Maven Central publishes the same protoc release as a bare executable, one
+# classifier per platform, so unpacking needs no archive tool.
 $(PROTOC_BIN):
-	$(info -- Downloading protoc v$(PROTOC_VERSION) ---)
+	$(info -- Downloading protoc v$(PROTOBUF_JAVA_VERSION) ---)
 	@mkdir -p .bin
-	@curl -sSL -o /tmp/protoc-$(PROTOC_VERSION).zip \
-		"https://github.com/protocolbuffers/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_VERSION)-$(PROTOC_PLATFORM).zip"
-	@unzip -q -o /tmp/protoc-$(PROTOC_VERSION).zip -d /tmp/protoc-$(PROTOC_VERSION)
-	@cp /tmp/protoc-$(PROTOC_VERSION)/bin/protoc $(PROTOC_BIN)
+	@curl -sSL -o $(PROTOC_BIN) \
+		"https://repo1.maven.org/maven2/com/google/protobuf/protoc/$(PROTOBUF_JAVA_VERSION)/protoc-$(PROTOBUF_JAVA_VERSION)-$(PROTOC_PLATFORM).exe"
 	@chmod +x $(PROTOC_BIN)
-	@rm -rf /tmp/protoc-$(PROTOC_VERSION) /tmp/protoc-$(PROTOC_VERSION).zip
 
 # Download grpc-java protoc plugin
 # Note: Maven artifact uses .exe extension for all platforms (it's a native binary, not Windows-specific)

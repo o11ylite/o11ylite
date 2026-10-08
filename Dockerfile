@@ -30,7 +30,7 @@ FROM clojure:temurin-25-tools-deps AS backend-build
 ARG VERSION=dev
 
 # Install build dependencies for protobuf compilation
-RUN apt-get update && apt-get install -y --no-install-recommends make curl unzip \
+RUN apt-get update && apt-get install -y --no-install-recommends make curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend

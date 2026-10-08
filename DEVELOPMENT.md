@@ -139,10 +139,10 @@ export default function Home({ greeting }: { greeting: string }) {
 
 ## First Time Setup
 
-Install the required tools (Java, Clojure, Node.js) using [mise](https://mise.jdx.dev/) or [asdf](https://asdf-vm.com/) with the versions specified in `.tool-versions`:
+Install the required tools (Java, Clojure, Node.js, Helm) using [mise](https://mise.jdx.dev/) with the versions specified in `mise.toml`:
 
 ```bash
-mise install  # or: asdf install
+mise install
 ```
 
 Then run `dev/setup` to install all necessary dependencies for the project.
