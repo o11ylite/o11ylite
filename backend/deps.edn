@@ -64,7 +64,7 @@
   migratus/migratus {:mvn/version "1.6.7"}
 
   ;; Schema validation
-  metosin/malli {:mvn/version "0.20.1"}
+  metosin/malli {:mvn/version "0.20.2"}
 
   ;; Serialization
   com.taoensso/nippy {:mvn/version "3.9.0"}
