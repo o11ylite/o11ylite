@@ -26,4 +26,4 @@ helm = "3.22.0"
 
 # Release pipeline creates the GitHub release. Installed from the GitHub
 # release rather than the aqua registry entry, whose attestation check fails.
-"github:cli/cli" = "2.87.3"
+"github:cli/cli" = "2.102.0"
