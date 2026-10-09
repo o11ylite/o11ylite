@@ -135,7 +135,7 @@
   ;; REPL with reloaded workflow support
   :repl/reloaded
   {:extra-paths ["dev" "test"]
-   :extra-deps {nrepl/nrepl                  {:mvn/version "1.7.0"}
+   :extra-deps {nrepl/nrepl                  {:mvn/version "1.8.0"}
                 cider/cider-nrepl            {:mvn/version "0.63.1"}
                 djblue/portal                {:mvn/version "0.67.2"}   ; portal data inspector
                 clj-commons/clj-yaml         {:mvn/version "1.0.30"}   ; portal yaml support (optional)
