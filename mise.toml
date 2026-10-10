@@ -19,9 +19,8 @@ make = "4.4.1"
 # in the Dockerfile.
 node = "24"
 
-# Lints and packages chart/o11ylite. Stays on the Helm 3 line that the CI
-# installer script resolved to before this pin existed; moving to Helm 4 is a
-# separate change for the release pipeline.
+# Lints and packages chart/o11ylite. On Helm 4: Helm 3 stops receiving security
+# fixes on 2027-02-10.
 helm = "4.3.0"
 
 # Release pipeline creates the GitHub release. Installed from the GitHub
