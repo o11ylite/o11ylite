@@ -2,7 +2,7 @@
 
 ## General Guidelines
 
-Read the following file as it's relevant to all workflows: @README.md.
+Read `README.md` for what the product is, and `DEVELOPMENT.md` for the dev workflow (starting the stack, ports, environment variables).
 
 On a fresh or rebuilt machine, run `./dev/setup` once before anything else.
 
@@ -13,7 +13,8 @@ On a fresh or rebuilt machine, run `./dev/setup` once before anything else.
 - **With REPL-driven development (PREFERRED):**
   - Read `backend/dev/user.clj` to understand the dev environment system.
   - Use REPL to start/stop individual components for ad-hoc testing.
-  - Use REPL to run tests: `(require '[clojure.test :refer [run-tests]]) (run-tests 'ns-name)`
+  - Use REPL to run tests: `(require 'my.test-ns '[clojure.test :refer [run-tests]]) (run-tests 'my.test-ns)`. `run-tests` does not load namespaces itself, so without the `require` it fails with `No namespace: my.test-ns found`.
+  - Tests run against their own ports and a temporary data directory, so running them in the same REPL as a live dev system is safe.
   - Use REPL to validate code changes compile correctly.
   - If REPL is not running, use `make repl` to start repl.
   - Without an editor, `dev/repl-eval` evaluates forms against the running system and prints each value: `dev/repl-eval '(user/go)' '(count integrant.repl.state/system)'`.
@@ -30,8 +31,10 @@ On a fresh or rebuilt machine, run `./dev/setup` once before anything else.
 **End-to-end / Browser verification:**
 
 - If you have vision capability and a browser or `playwright` related agent skill available, you can do browser verification:
-  - Find our dev site location by reading the output of this command: `./dev/dev-site-url`.
+  - Start the whole stack with `dev/start`, then start the backend from the REPL with `(user/go)`; `dev/start all` runs the backend as a server instead.
+  - `./dev/dev-site-url` prints the URL to visit and whether the backend is serving it. A `502` means Caddy is up but the Integrant system is not, so run `(user/go)` first.
   - We have `opentelemetry-javaagent` enabled to continuously send data so no need to worry about seeding data.
+  - Routes and selectors: `docs/contributor/ui-verification.md`.
 
 ## Code Style
 

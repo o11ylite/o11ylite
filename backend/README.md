@@ -33,6 +33,7 @@ clojure -M:repl/reloaded
 Then, from an editor or with `dev/repl-eval`:
 
 ```clojure
+(require 'o11ylite.integration.api.health-test) ; run-tests does not load it
 (require '[clojure.test :refer [run-tests]])
 (run-tests 'o11ylite.integration.api.health-test)
 ```
