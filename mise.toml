@@ -1,9 +1,11 @@
 # Single source of truth for tool versions, used by CI and local development.
-# After cloning, run `mise install`.
+# After cloning, run `dev/setup`, which installs everything below.
 #
 # CI runs the steps that need a toolchain in jdxcode/mise:*-debian, which
 # supplies git, curl, and mise itself. Every version below is installed by mise
-# on top of it, so no language image is pinned in .buildkite/pipeline.yml.
+# on top of it, so no language image is pinned in .buildkite/pipeline.yml. CI
+# installs only the tools a step names, so the dev-only tools at the bottom cost
+# it nothing.
 [tools]
 # Backend runtime. The service runs entirely on Java 25 virtual threads.
 java = "openjdk-25"
@@ -26,3 +28,17 @@ helm = "4.3.0"
 # Release pipeline creates the GitHub release. Installed from the GitHub
 # release rather than the aqua registry entry, whose attestation check fails.
 "github:cli/cli" = "2.102.0"
+
+# --- Development only, past this point -------------------------------------
+# dev/start: Caddy terminates TLS on o11ylite.localhost and proxies a single
+# port to the backend, Vite, and the OTLP/gRPC endpoint.
+caddy = "2.11.7"
+
+# dev/start: Overmind runs dev/Procfile, driving processes through tmux, which
+# it execs by name and so must be on PATH.
+overmind = "2.5.1"
+tmux = "3.7c"
+
+# Dev/repl-eval: a native binary rather than a JVM, so it connects to the REPL
+# in milliseconds instead of paying JVM start-up on every call.
+babashka = "1.13.225"

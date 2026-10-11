@@ -39,7 +39,7 @@ repl: reloaded
 
 reloaded:  ## Start an nREPL server (connect from your editor / CIDER)
 	$(info -- Start nREPL server --------------------)
-	clojure -M:otel:repl/reloaded:lib/integrant-repl
+	clojure -M:otel:repl/reloaded
 
 deps: deps.edn  ## Prepare dependencies for test and dist targets
 	$(info -- Download test and service libraries ---)

@@ -4,20 +4,23 @@
 
 Read the following file as it's relevant to all workflows: @README.md.
 
+On a fresh or rebuilt machine, run `./dev/setup` once before anything else.
+
 ## Build/Test Commands
 
 **Backend (Clojure):** Run from `backend/` directory
 
-- **With `clojure-eval` skill (PREFERRED):**
+- **With REPL-driven development (PREFERRED):**
   - Read `backend/dev/user.clj` to understand the dev environment system.
   - Use REPL to start/stop individual components for ad-hoc testing.
   - Use REPL to run tests: `(require '[clojure.test :refer [run-tests]]) (run-tests 'ns-name)`
   - Use REPL to validate code changes compile correctly.
   - If REPL is not running, use `make repl` to start repl.
+  - Without an editor, `dev/repl-eval` evaluates forms against the running system and prints each value: `dev/repl-eval '(user/go)' '(count integrant.repl.state/system)'`.
 
-- **Without `clojure-eval` skill (fallback only):**
+- **Without a REPL (fallback only):**
   - `make test` - Run all tests (fail-fast)
-  - Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test`
+  - Single test: `clojure -M:test/env:test/run --focus o11ylite.integration.api.health-test/api-status-test`
 
 **Frontend (TypeScript):** Run from `frontend/` directory
 - `npm test` - Run tests powered by msw, React Testing Library.
@@ -26,7 +29,7 @@ Read the following file as it's relevant to all workflows: @README.md.
 
 **End-to-end / Browser verification:**
 
-- If you have vision capability and `playwright` related agent skill available, you can do browser verification:
+- If you have vision capability and a browser or `playwright` related agent skill available, you can do browser verification:
   - Find our dev site location by reading the output of this command: `./dev/dev-site-url`.
   - We have `opentelemetry-javaagent` enabled to continuously send data so no need to worry about seeding data.
 

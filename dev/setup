@@ -4,15 +4,25 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+__root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=dev/lib.sh
+source "${__root}/dev/lib.sh"
+
 OTEL_AGENT_VERSION="2.16.0"
 OTEL_AGENT_JAR="opentelemetry-javaagent.jar"
 OTEL_AGENT_DIR="backend/.tmp"
 OTEL_AGENT_PATH="${OTEL_AGENT_DIR}/${OTEL_AGENT_JAR}"
 
+# Follow the hostname Caddy and Vite are configured with in dev/Caddyfile.
+readonly DEV_HOSTNAME="${O11YLITE_DEV_HOSTNAME:-o11ylite.localhost}"
+
 mise install
 
-echo "Updating /etc/hosts..."
-hosts --auto-sudo add 127.0.0.1 "${O11YLITE_DEV_HOSTNAME:-o11ylite.localhost}" || true
+if add_dev_hostname "${DEV_HOSTNAME}"; then
+  echo "Added ${DEV_HOSTNAME} to /etc/hosts"
+else
+  echo "${DEV_HOSTNAME} already resolves via /etc/hosts"
+fi
 
 echo "Downloading Clojure and dependencies..."
 (cd backend && make deps)
