@@ -1,0 +1,122 @@
+#!/usr/bin/env bb
+;; -------------------------------------- #
+;; Evaluate forms in a running O11yLite nREPL server and print the values.
+;;
+;; The companion to `make repl` for scripts and agents, which have no editor.
+;;
+;;   dev/repl-eval '(+ 1 2)'
+;;   dev/repl-eval '(require (quote user))' '(user/go)' '(count integrant.repl.state/system)'
+;;   echo '(user/halt)' | dev/repl-eval
+;;
+;; Finds the port in backend/.nrepl-port, which nREPL writes on start-up, or in
+;; O11YLITE_NREPL_PORT. Exits non-zero when a form fails.
+;;
+;; Babashka rather than the Clojure CLI: this is a native binary, so it connects
+;; in milliseconds where a JVM costs ~1.5s per call.
+;; -------------------------------------- #
+
+(require '[bencode.core :as bencode]
+         '[clojure.string :as str])
+
+(def ^:private port-files
+  ["backend/.nrepl-port" ".nrepl-port" "../.nrepl-port"])
+
+;; ---------------------------------------------------------
+;; Reading
+;; ---------------------------------------------------------
+
+(defn- ->str
+  "nREPL bencode values arrive as UTF-8 byte arrays; keys and values alike."
+  [x]
+  (if (bytes? x) (String. ^bytes x "UTF-8") (str x)))
+
+(defn- read-forms
+  "Read every form in s. Blank input reads as no forms."
+  [s]
+  (let [reader (java.io.PushbackReader. (java.io.StringReader. s))]
+    (binding [*read-eval* false]
+      (loop [forms []]
+        (let [form (try (read {:eof ::eof} reader) (catch Exception _ ::eof))]
+          (if (= ::eof form) forms (recur (conj forms form))))))))
+
+(defn- input-forms
+  "Forms from argv, or from stdin when called with none."
+  [args]
+  (let [forms (into [] (keep #(first (read-forms %))) args)]
+    (if (seq forms) forms (read-forms (slurp *in*)))))
+
+;; ---------------------------------------------------------
+;; Talking to the server
+;; ---------------------------------------------------------
+
+(defn- connect
+  "Open a socket to the nREPL port, from O11YLITE_NREPL_PORT or a port file."
+  []
+  (let [from-file (some #(when (.exists (io/file %)) (str/trim (slurp %))) port-files)
+        port (or (System/getenv "O11YLITE_NREPL_PORT") from-file)]
+    (when (str/blank? (str port))
+      (binding [*out* *err*]
+        (println "No nREPL port. Start one with 'make repl' from backend/."))
+      (System/exit 1))
+    (try
+      (java.net.Socket. "127.0.0.1" (Long/parseLong port))
+      (catch Exception e
+        (binding [*out* *err*]
+          (println (format "Cannot reach nREPL on port %s (%s)." port (.getMessage e)))
+          (println "Start one with 'make repl' from backend/, or drop a stale backend/.nrepl-port."))
+        (System/exit 1)))))
+
+(defn- read-reply
+  "Read nREPL messages until the status carries \"done\".
+
+  Returns {:value :out :err :status :session}. nREPL creates the session and
+  reports its id on every message, so that is where the session comes from."
+  [in]
+  (let [in (java.io.PushbackInputStream. in)]
+    (loop [acc {:status #{}}]
+      (let [msg (into {} (map (fn [[k v]] [(->str k) v])) (bencode/read-bencode in))
+            status (set (map ->str (get msg "status" [])))
+            acc (cond-> (update acc :status into status)
+                  (contains? msg "value") (assoc :value (->str (get msg "value")))
+                  (contains? msg "out") (update :out str (->str (get msg "out")))
+                  (contains? msg "err") (update :err str (->str (get msg "err")))
+                  (contains? msg "session") (assoc :session (->str (get msg "session"))))]
+        (if (contains? status "done") acc (recur acc))))))
+
+(defn- send!
+  [out msg]
+  (bencode/write-bencode out msg)
+  (.flush out))
+
+(defn- eval-form
+  "Evaluate one form in its own session. Returns true when it succeeded."
+  [out in form]
+  ;; No session in the request: nREPL only accepts a session it issued itself,
+  ;; and handing it one it has never seen fails with "unknown-session".
+  (send! out {"op" "eval" "code" (pr-str form)})
+  (let [{:keys [value status session] stdout :out stderr :err} (read-reply in)]
+    (println "=>" (if (some? value) value "<no value>"))
+    (when (seq stdout) (print stdout) (flush))
+    (when (seq stderr) (print stderr) (flush))
+    (when session
+      (send! out {"op" "close" "session" session})
+      (read-reply in))
+    ;; A failed eval still reports "done"; nREPL marks it "eval-error".
+    (and (contains? status "done")
+         (not (contains? status "eval-error"))
+         (not (contains? status "error")))))
+
+(defn -main
+  [& args]
+  (let [forms (input-forms args)]
+    (when-not (seq forms)
+      (binding [*out* *err*]
+        (println "error: no form to evaluate"))
+      (System/exit 1))
+    (with-open [socket (connect)]
+      (let [out (.getOutputStream socket)
+            in (.getInputStream socket)
+            results (mapv #(eval-form out in %) forms)]
+        (System/exit (if (every? true? results) 0 1))))))
+
+(apply -main *command-line-args*)

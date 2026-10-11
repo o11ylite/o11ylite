@@ -133,6 +133,8 @@
 
   ;; ------------
   ;; REPL with reloaded workflow support
+  ;; Includes integrant/repl so this alias stands alone: dev/user.clj requires
+  ;; integrant.repl at load time.
   :repl/reloaded
   {:extra-paths ["dev" "test"]
    :extra-deps {nrepl/nrepl                  {:mvn/version "1.8.0"}
@@ -146,15 +148,11 @@
                 lambdaisland/kaocha          {:mvn/version "1.91.1392"}
                 org.clojure/test.check       {:mvn/version "1.1.3"}
                 ring/ring-mock               {:mvn/version "0.6.2"}
-                criterium/criterium          {:mvn/version "0.4.6"}}
+                criterium/criterium          {:mvn/version "0.4.6"}
+                integrant/repl               {:mvn/version "0.5.1"}}
    :main-opts  ["--eval" "(apply require clojure.main/repl-requires)"
                 "--main" "nrepl.cmdline"
-                "--middleware" "[cider.nrepl/cider-middleware,portal.nrepl/wrap-portal]"]}
-
-  ;; ------------
-  ;; Integrant REPL utilities for system lifecycle management
-  :lib/integrant-repl
-  {:extra-deps {integrant/repl {:mvn/version "0.5.1"}}}}}
+                "--middleware" "[cider.nrepl/cider-middleware,portal.nrepl/wrap-portal]"]}}}
 
 ;; ------------
 ;; ---------------------------------------------------------

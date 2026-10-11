@@ -173,6 +173,10 @@ Then connect your editor to the REPL and:
 `dev/start` with no arguments starts a bare nREPL REPL — the integrant
 system is dormant until `(go)`.
 
+Scripts and agents have no editor to attach, so `dev/repl-eval` sends forms to
+a running nREPL and prints each value, exiting non-zero on failure. See
+[AGENTS.md](AGENTS.md).
+
 ## Running Services Individually
 
 ```bash

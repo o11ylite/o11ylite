@@ -19,20 +19,22 @@ make test-watch
 Run a specific test:
 
 ```shell
-clojure -M:test/env:test/run --focus o11ylite.integration.health-test/api-status-test
+clojure -M:test/env:test/run --focus o11ylite.integration.api.health-test/api-status-test
 ```
 
 ## REPL Testing
 
-Start the REPL:
+Start the REPL (the Integrant system is dormant until `(go)`):
 
 ```shell
-cd backend && clojure -M:run/dev
+clojure -M:repl/reloaded
 ```
 
-Run tests from REPL:
+Then, from an editor or with `dev/repl-eval`:
 
 ```clojure
 (require '[clojure.test :refer [run-tests]])
-(run-tests 'o11ylite.integration.health-test)
+(run-tests 'o11ylite.integration.api.health-test)
 ```
+
+See [DEVELOPMENT.md](../DEVELOPMENT.md) for the full REPL workflow.
