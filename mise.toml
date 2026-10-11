@@ -39,6 +39,6 @@ caddy = "2.11.7"
 overmind = "2.5.1"
 tmux = "3.7c"
 
-# Dev/repl-eval: a native binary rather than a JVM, so it connects to the REPL
+# dev/repl-eval: a native binary rather than a JVM, so it connects to the REPL
 # in milliseconds instead of paying JVM start-up on every call.
 babashka = "1.13.225"
