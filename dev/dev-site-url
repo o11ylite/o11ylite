@@ -15,8 +15,13 @@ fi
 
 echo "$url"
 
-if curl -sk --connect-timeout 1 "$url" > /dev/null 2>&1; then
-  echo "dev site running? -> true"
-else
-  echo "dev site running? -> false"
-fi
+# Anything that reaches Caddy gets a status code, including the 502 it returns
+# while the Integrant system is still dormant. Ask for a page the backend
+# serves, so a running stack is the only thing that reads as true.
+code="$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 1 --max-time 5 "${url}/explore" || true)"
+
+case "$code" in
+  2?? | 3??) echo "dev site running? -> true (HTTP ${code})" ;;
+  "" | 000)  echo "dev site running? -> false (no response)" ;;
+  *)         echo "dev site running? -> false (HTTP ${code})" ;;
+esac

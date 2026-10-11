@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react"
+import { Fragment, type ReactNode, useEffect, useRef } from "react"
 import { Link } from "@inertiajs/react"
 import { PanelRightIcon } from "lucide-react"
 
@@ -85,18 +85,20 @@ export default function ApplicationLayout({
                 title.map((entry, i) => {
                   const isLast = i === title.length - 1
                   return (
-                    <BreadcrumbItem key={i}>
+                    <Fragment key={i}>
                       {i > 0 && <BreadcrumbSeparator />}
-                      {isLast ? (
-                        <BreadcrumbPage className="font-semibold">
-                          {entry.label}
-                        </BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink render={<Link href={entry.href} />}>
-                          {entry.label}
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
+                      <BreadcrumbItem>
+                        {isLast ? (
+                          <BreadcrumbPage className="font-semibold">
+                            {entry.label}
+                          </BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink render={<Link href={entry.href} />}>
+                            {entry.label}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </Fragment>
                   )
                 })
               )}
