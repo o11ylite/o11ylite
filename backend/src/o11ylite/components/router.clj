@@ -30,6 +30,7 @@
     [o11ylite.routes.alert-rules :as alert-rules]
     [o11ylite.routes.api-keys :as api-keys]
     [o11ylite.routes.data-management :as data-management]
+    [o11ylite.routes.mcp :as mcp]
     [o11ylite.routes.oauth :as oauth]
     [o11ylite.routes.scheduled-jobs :as scheduled-jobs]
     [o11ylite.routes.settings :as settings]
@@ -234,7 +235,27 @@
    is an API-style endpoint (JSON/form body, no CSRF, no session required)."
   [opts]
   ["" {:middleware [wrap-api-defaults -api-exception-middleware]}
-   (oauth/token-routes {:auth-config (:auth-config opts)})])
+   (oauth/token-routes {:auth-config (:auth-config opts)
+                        :sqlite (:sqlite opts)})])
+
+(defn well-known-routes
+  "OAuth discovery documents (RFC 8414, RFC 9728) — public, no auth."
+  [{:keys [auth-config]}]
+  ["" {:middleware [-api-exception-middleware]}
+   (oauth/metadata-routes {:auth-config auth-config})
+   (mcp/metadata-routes {:auth-config auth-config})])
+
+(defn mcp-routes
+  "MCP endpoint. Reads the raw body itself (JSON-RPC parse errors must be
+   reported in-protocol) and authenticates per request — no session or
+   CSRF middleware."
+  [{:keys [auth-config api-key-cache sqlite duckdb-reader blocked-fields]}]
+  ["" {:middleware [-api-exception-middleware]}
+   (mcp/routes {:auth-config auth-config
+                :api-key-cache api-key-cache
+                :sqlite sqlite
+                :duckdb duckdb-reader
+                :blocked-fields blocked-fields})])
 
 ;; ---------------------------------------------------------
 ;; Router Component
@@ -245,7 +266,9 @@
   (ring/ring-handler
     (ring/router
       [(health-routes opts)
+       (well-known-routes opts)
        (oauth-token-routes opts)
+       (mcp-routes opts)
        (api-routes opts)
        (otlp-routes opts)
        (page-routes opts)]

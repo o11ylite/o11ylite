@@ -8,12 +8,13 @@
 
 (ns o11ylite.oauth
   (:import
-    [com.auth0.jwt JWT]
+    [com.auth0.jwt JWT JWTCreator$Builder JWTVerifier]
     [com.auth0.jwt.algorithms Algorithm]
     [com.auth0.jwt.exceptions JWTVerificationException]
+    [com.auth0.jwt.interfaces DecodedJWT]
     [java.security MessageDigest]
     [java.time Instant]
-    [java.util Base64]
+    [java.util Base64 UUID]
     [javax.crypto Mac]
     [javax.crypto.spec SecretKeySpec]))
 
@@ -46,7 +47,9 @@
 ;; JWT Signing
 
 (def ^:private issuer "o11ylite")
-(def ^:private access-token-ttl-seconds 3600)     ; 1 hour
+(def access-token-ttl-seconds
+  "Access token lifetime."
+  3600)
 (def ^:private auth-code-ttl-seconds 300)          ; 5 minutes
 
 (defn- -algorithm
@@ -54,10 +57,25 @@
   [^bytes signing-key]
   (Algorithm/HMAC256 signing-key))
 
+(defn- -with-optional-claim
+  ^JWTCreator$Builder [^JWTCreator$Builder builder ^String claim-name ^String value]
+  (if value
+    (.withClaim builder claim-name value)
+    builder))
+
+(defn- -with-optional-audience
+  ^JWTCreator$Builder [^JWTCreator$Builder builder ^String audience]
+  (if audience
+    (.withAudience builder (into-array String [audience]))
+    builder))
+
 (defn sign-access-token
   "Sign an access token JWT with claims {sub, scope, type: \"access\"}.
+   :audience binds the token to a resource (RFC 8707), e.g. the MCP
+   endpoint; tokens without an audience are only accepted by /api.
+   :client-id records the OAuth client the token was issued to.
    TTL: 1 hour."
-  [signing-key {:keys [sub scope]}]
+  [signing-key {:keys [sub scope audience client-id]}]
   (let [now (Instant/now)
         exp (.plusSeconds now access-token-ttl-seconds)]
     (-> (JWT/create)
@@ -65,24 +83,30 @@
         (.withClaim "type" "access")
         (.withClaim "sub" ^String sub)
         (.withClaim "scope" ^String scope)
+        (-with-optional-claim "client_id" client-id)
+        (-with-optional-audience audience)
         (.withIssuedAt now)
         (.withExpiresAt exp)
         (.sign (-algorithm signing-key)))))
 
 (defn sign-authorization-code
   "Sign an authorization code JWT with claims
-   {sub, scope, code_challenge, redirect_uri, type: \"code\"}.
+   {jti, sub, scope, code_challenge, redirect_uri, client_id, resource,
+   type: \"code\"}. The jti lets the token endpoint enforce single use.
    TTL: 5 minutes."
-  [signing-key {:keys [sub scope code-challenge redirect-uri]}]
+  [signing-key {:keys [sub scope code-challenge redirect-uri client-id resource]}]
   (let [now (Instant/now)
         exp (.plusSeconds now auth-code-ttl-seconds)]
     (-> (JWT/create)
         (.withIssuer issuer)
+        (.withJWTId (str (UUID/randomUUID)))
         (.withClaim "type" "code")
         (.withClaim "sub" ^String sub)
         (.withClaim "scope" ^String scope)
         (.withClaim "code_challenge" ^String code-challenge)
         (.withClaim "redirect_uri" ^String redirect-uri)
+        (-with-optional-claim "client_id" client-id)
+        (-with-optional-claim "resource" resource)
         (.withIssuedAt now)
         (.withExpiresAt exp)
         (.sign (-algorithm signing-key)))))
@@ -96,14 +120,45 @@
                        (.withIssuer (into-array String [issuer]))
                        (.withClaim "type" ^String expected-type)
                        (.build))
-          decoded (.verify verifier ^String token)]
+          ^DecodedJWT decoded (.verify ^JWTVerifier verifier ^String token)]
       {:sub (.asString (.getClaim decoded "sub"))
        :scope (.asString (.getClaim decoded "scope"))
        :type (.asString (.getClaim decoded "type"))
+       :jti (.getId decoded)
+       :exp-ms (some-> (.getExpiresAt decoded) .getTime)
+       :aud (first (.getAudience decoded))
+       :client_id (.asString (.getClaim decoded "client_id"))
+       :resource (.asString (.getClaim decoded "resource"))
        :code_challenge (.asString (.getClaim decoded "code_challenge"))
        :redirect_uri (.asString (.getClaim decoded "redirect_uri"))})
     (catch JWTVerificationException _
       nil)))
+
+(defn verify-access-token
+  "Verify an access token and its audience. Returns claims or nil.
+   expected-audience nil accepts only tokens without an audience
+   (legacy agent tokens used against /api); a string requires an exact
+   match, so tokens minted for the MCP endpoint are not accepted
+   elsewhere and vice versa."
+  [signing-key token expected-audience]
+  (when-let [claims (verify signing-key token "access")]
+    (when (= expected-audience (:aud claims))
+      claims)))
+
+;; ---------------------------------------------------------
+;; Single-use Authorization Codes
+
+(defn consume-code!
+  "Record an authorization code's jti as used. Returns true on first use,
+   false on replay. Expired entries are pruned on every call.
+   used-codes is an atom of jti -> expiry epoch ms."
+  [used-codes {:keys [jti exp-ms]}]
+  (let [now (System/currentTimeMillis)
+        [before _] (swap-vals! used-codes
+                               (fn [m]
+                                 (-> (into {} (filter (fn [[_ exp]] (> exp now))) m)
+                                     (assoc jti exp-ms))))]
+    (and (some? jti) (not (contains? before jti)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

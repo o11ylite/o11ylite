@@ -107,11 +107,19 @@
 (deftest open-mode-oauth-test
   (h/with-system
     (fn []
-      (testing "authorize returns 302 redirect with code and state"
+      (testing "authorize returns 302 redirect with code, state, and iss (RFC 9207)"
         (let [{:keys [response params state]} (-authorize!)]
           (is (= 302 (h/status response)))
           (is (some? (get params "code")))
-          (is (= state (get params "state")))))
+          (is (= state (get params "state")))
+          (is (= "http://localhost:3333" (get params "iss")))))
+
+      (testing "space-separated scopes resolve to the narrowest covering scope"
+        (let [{:keys [params verifier redirect-uri]} (-authorize! {:scope "read%20write"})
+              token-body (-parse-json-body (-exchange! {:code (get params "code")
+                                                        :verifier verifier
+                                                        :redirect-uri redirect-uri}))]
+          (is (= "write" (:scope token-body)))))
 
       (testing "full flow: authorize → exchange → use access token on API"
         (let [{:keys [params verifier redirect-uri]} (-authorize!)
@@ -125,6 +133,7 @@
           (is (= "Bearer" (:token_type token-body)))
           (is (= 3600 (:expires_in token-body)))
           (is (= "write" (:scope token-body)))
+          (is (some? (:refresh_token token-body)))
 
           ;; Use the access token to call an API endpoint
           (let [api-resp (h/get-json "/api/services"
@@ -208,7 +217,8 @@
                               "&scope=superadmin"))]
           (is (= 302 (h/status response)))
           (let [params (-parse-redirect-params (h/header response "location"))]
-            (is (= "invalid_request" (get params "error"))))))
+            (is (= "invalid_scope" (get params "error")))
+            (is (= "http://localhost:3333" (get params "iss"))))))
 
       (testing "token endpoint accepts application/x-www-form-urlencoded"
         (let [{:keys [params verifier redirect-uri]} (-authorize!)
