@@ -9,6 +9,7 @@
   (:require
     [com.brunobonacci.mulog :as mulog]
     [integrant.core :as ig]
+    [o11ylite.auth.public-url :as public-url]
     [o11ylite.kv :as kv]
     [o11ylite.oauth :as oauth]
     [oidc-client.core :as oidc])
@@ -67,6 +68,18 @@
       config)))
 
 ;; ---------------------------------------------------------
+;; Public URL
+
+(defn- -resolve-public-url
+  "Canonicalize O11YLITE_PUBLIC_URL. Fails fast on an invalid value so a
+   typo does not silently fall back to Host-header derivation."
+  [{:keys [public-url]}]
+  (when public-url
+    (or (public-url/canonical-uri public-url)
+        (throw (ex-info "O11YLITE_PUBLIC_URL must be an absolute http(s) URL"
+                        {:o11ylite.auth.public_url public-url})))))
+
+;; ---------------------------------------------------------
 ;; Component Lifecycle
 
 (defmethod ig/init-key :auth/config
@@ -81,7 +94,12 @@
     {:oidc-config oidc-config
      :session-key session-key
      :jwt-signing-key (oauth/derive-signing-key session-key)
-     :open-mode? open-mode?}))
+     :open-mode? open-mode?
+     :public-url (-resolve-public-url core-config)
+     ;; In-memory OAuth state. O11yLite runs as a single process, so
+     ;; process-local state is sufficient for these short-lived entries.
+     :used-auth-codes (atom {})          ; code jti -> expiry epoch ms (single-use codes)
+     :client-metadata-cache (atom {})})) ; client_id URL -> cached metadata document
 
 (defmethod ig/halt-key! :auth/config
   [_ _]

@@ -58,29 +58,31 @@
   [request]
   (str/starts-with? (:uri request) "/oauth/"))
 
-(defn- -extract-bearer-token
+(defn extract-bearer-token
   "Extract token from 'Authorization: Bearer <token>' header, or nil."
   [request]
   (when-let [auth-header (get-in request [:headers "authorization"])]
     (when (str/starts-with? auth-header "Bearer ")
       (subs auth-header 7))))
 
-(defn- -bearer-principal
-  "Attempt to resolve a principal from the Authorization: Bearer header.
-   Dispatches on token prefix: o11y_ → API key, otherwise → JWT.
-   Returns a principal map or nil."
-  [{:keys [api-key-cache auth-config]} request]
-  (when-let [token (-extract-bearer-token request)]
+(defn bearer-principal
+  "Resolve a principal from the Authorization: Bearer header.
+   Dispatches on token prefix: o11y_ → API key, otherwise → JWT access
+   token whose audience must equal `audience` (nil for /api, the MCP
+   resource URI for /mcp). Returns a principal map or nil."
+  [{:keys [api-key-cache auth-config]} request audience]
+  (when-let [token (extract-bearer-token request)]
     (if (str/starts-with? token "o11y_")
       (when-let [key-info (api-key-cache/validate-token api-key-cache token)]
         {:type :api-key
          :scope (:scope key-info)
          :id (:id key-info)
          :name (:name key-info)})
-      (when-let [claims (oauth/verify (:jwt-signing-key auth-config) token "access")]
+      (when-let [claims (oauth/verify-access-token (:jwt-signing-key auth-config) token audience)]
         {:type :access-token
          :scope (:scope claims)
-         :sub (:sub claims)}))))
+         :sub (:sub claims)
+         :client-id (:client_id claims)}))))
 
 (defn make-wrap-identity
   "Create identity middleware. Always enforces — caller should omit in open mode."
@@ -100,7 +102,7 @@
                         (-session-principal (get-in request [:session :user]))))
 
         :else
-        (if-let [principal (-bearer-principal deps request)]
+        (if-let [principal (bearer-principal deps request nil)]
           (handler (assoc request :auth/principal principal))
           (if (-api-request? request)
             (response/json 401 {:error "Authentication required"})

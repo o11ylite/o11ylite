@@ -20,7 +20,7 @@
 - **Explore.** Query and visualize traces, logs, and metrics with a built-in query builder and trace waterfall view.
 - **Alert Rules.** Define alert rules with Alertmanager-compatible webhook notifications.
 - **Notebooks.** Compose and share investigative workflows combining queries and notes.
-- **Agent native.** Built-in OAuth PKCE and an [agent skill package](docs/agent-native.md) let LLM agents query telemetry, manage alerts, and edit notebooks out of the box.
+- **Agent native.** A built-in [MCP server](docs/agent-native.md#mcp-server) with OAuth, plus an [agent skill package](docs/agent-native.md), let LLM agents query telemetry, manage alerts, and edit notebooks out of the box.
 
 ## Philosophy
 
