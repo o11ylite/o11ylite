@@ -63,11 +63,12 @@
 
 (defn- -build-merge-sql
   "Build the ducklake_merge_adjacent_files SQL with optional parameters."
-  [{:keys [max-compacted-files min-file-size max-file-size]}]
+  [{:keys [max-compacted-files min-file-size max-file-size newer-than]}]
   (let [params (cond-> []
                  max-compacted-files (conj (format "max_compacted_files => %d" max-compacted-files))
                  min-file-size       (conj (format "min_file_size => %d" min-file-size))
-                 max-file-size       (conj (format "max_file_size => %d" max-file-size)))]
+                 max-file-size       (conj (format "max_file_size => %d" max-file-size))
+                 newer-than          (conj (format "newer_than => TIMESTAMPTZ '%s'" newer-than)))]
     (if (seq params)
       (format "CALL ducklake_merge_adjacent_files('o11ylite', %s)" (str/join ", " params))
       "CALL ducklake_merge_adjacent_files('o11ylite')")))
@@ -116,13 +117,16 @@
      :max-compacted-files - max output files per batch (optional)
      :min-file-size       - exclude files smaller than this (bytes, optional)
      :max-file-size       - exclude files at or larger than this (bytes, optional)
+     :newer-than          - only consider files created at or after this
+                            Instant (optional)
 
    See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
-  [writer-events writer-metrics {:keys [max-compacted-files target-file-size tier-name] :as opts}]
+  [writer-events writer-metrics {:keys [max-compacted-files target-file-size tier-name newer-than] :as opts}]
   (span/with-span! [::merge-adjacent-files {:o11ylite.ducklake.compaction.max_compacted_files (:max-compacted-files opts)
                                             :o11ylite.ducklake.compaction.target_file_size    (:target-file-size opts)
                                             :o11ylite.ducklake.compaction.min_file_size       (:min-file-size opts)
-                                            :o11ylite.ducklake.compaction.max_file_size       (:max-file-size opts)}]
+                                            :o11ylite.ducklake.compaction.max_file_size       (:max-file-size opts)
+                                            :o11ylite.ducklake.compaction.newer_than          (some-> newer-than str)}]
     ;; Set target file size before merging (catalog-level setting). Run on
     ;; the events writer with both held — set_option mutates ducklake_metadata.
     (with-both-writers [conn writer-events writer-metrics]
@@ -180,29 +184,61 @@
 ;;
 ;; Every tier sets max_file_size below its target so that output files
 ;; from one call are excluded from subsequent calls.
+;;
+;; ## Bounding tier scans
+;;
+;; Each tier passes newer_than = now - <lookback>. Small uses 6h; medium and
+;; large use 25h (one partition day plus an hour of margin).
+;;
+;; Medium and large need a full partition window so chunks produced earlier in
+;; the day can still merge into target-size files before the partition closes.
+;;
+;; Small needs a longer window than its 5m cadence would suggest. A small-tier
+;; output inherits its oldest input's begin_snapshot, so the window also caps
+;; how long that output can keep accumulating: once the snapshot ages out, the
+;; output can never merge again. At 1h, a low-volume partition can strand
+;; sub-1MB outputs below medium's min_file_size forever. Six hours gives it six
+;; times as long to reach 1MB. It is still bounded; if 6h is not enough for a
+;; very low-volume partition, lower medium's min_file_size or accept that the
+;; file is small anyway.
+;;
+;; The windows are deliberately finite. newer_than compares against a file's
+;; begin_snapshot, and DuckLake reuses old snapshot ids when it creates files:
+;; a merge output inherits its oldest input's snapshot. So a file outside the
+;; window is not a candidate, even if it was written recently. That is an
+;; accepted trade-off for a time-series store: the window bounds work and
+;; intentionally stops compacting old data. Data inlining is disabled (see
+;; core_config.clj); if it is enabled, the small window must cover the
+;; inlining flush delay because flushed files carry their original insert
+;; snapshot.
 
 (def compaction-tiers
   "Tiered compaction definitions, run sequentially from smallest to largest.
    :interval-key maps to an app-config setting (minutes).
    :loop? true means the tier uses max-compacted-files and loops until drained.
+   :newer-than-lookback-minutes bounds the tier's scan to files whose
+   begin_snapshot is within that many minutes of now.
    See: https://ducklake.select/docs/stable/duckdb/maintenance/merge_adjacent_files"
   [{:tier-name     :small
     :interval-key  :compaction-small-interval-minutes
     :target-file-size "5MB"
     :max-file-size    1048576
-    :loop?            false}
+    :loop?            false
+    :newer-than-lookback-minutes 360}
    {:tier-name     :medium
     :interval-key  :compaction-medium-interval-minutes
     :target-file-size "32MB"
     :min-file-size    1048576
     :max-file-size    10485760
-    :loop?            true}
+    :loop?            true
+    :newer-than-lookback-minutes 1500}
    {:tier-name     :large
     :interval-key  :compaction-large-interval-minutes
     :target-file-size "256MB"
     :min-file-size    10485760
     :max-file-size    134217728       ; 128MB — below target to avoid re-merging outputs
-    :loop?            true}])
+    :loop?            true
+    :newer-than-lookback-minutes 1500}])
 
 (defn tier-kv-key
   "KV store key for a tier's last-run timestamp."
@@ -224,20 +260,24 @@
 
 (defn- -tier-merge-opts
   "Build merge options for a tier. Looping tiers include max-compacted-files;
-   non-looping tiers omit it for a single unbounded call."
-  [{:keys [target-file-size min-file-size max-file-size loop? tier-name]} max-compacted-files]
+   non-looping tiers omit it for a single unbounded call. A non-nil
+   newer-than adds the time filter."
+  [{:keys [target-file-size min-file-size max-file-size loop? tier-name]} max-compacted-files newer-than]
   (cond-> {:target-file-size target-file-size
            :min-file-size    min-file-size
            :max-file-size    max-file-size
            :tier-name        tier-name}
-    loop? (assoc :max-compacted-files max-compacted-files)))
+    loop?      (assoc :max-compacted-files max-compacted-files)
+    newer-than (assoc :newer-than newer-than)))
 
 (defn run-tiered-compaction!
   "Run due compaction tiers sequentially.
 
    The small tier runs a single unbounded merge (no max_compacted_files) to
-   compact all new small files in one pass. Medium and large tiers use
-   max_compacted_files and loop until their backlogs are drained.
+   compact all new small files in one pass. Every tier bounds its scan with
+   newer_than = now - lookback; see compaction-tiers for the per-tier window.
+   Medium and large tiers use max_compacted_files and loop until their
+   backlogs are drained.
 
    Each tier checks whether its interval has elapsed (via KV store) and
    skips if not due. Tiers run sequentially because target_file_size is a
@@ -247,11 +287,13 @@
    e.g. {:compaction-small-interval-minutes 5, ...}"
   [writer-events writer-metrics sqlite max-compacted-files tier-intervals]
   (span/with-span! [::run-tiered-compaction {:o11ylite.ducklake.compaction.max_compacted_files max-compacted-files}]
-    (doseq [{:keys [tier-name interval-key] :as tier} compaction-tiers]
-      (let [interval-ms (* (get tier-intervals interval-key 60) 60000)]
+    (doseq [{:keys [tier-name interval-key newer-than-lookback-minutes] :as tier} compaction-tiers]
+      (let [interval-ms (* (get tier-intervals interval-key 60) 60000)
+            newer-than  (when newer-than-lookback-minutes
+                          (.minusMillis (Instant/now) (* newer-than-lookback-minutes 60000)))]
         (when (-tier-due? sqlite tier-name interval-ms)
           (merge-adjacent-files! writer-events writer-metrics
-                                 (-tier-merge-opts tier max-compacted-files))
+                                 (-tier-merge-opts tier max-compacted-files newer-than))
           (-record-tier-run! sqlite tier-name))))))
 
 (defn- -delete-table-older-than!
