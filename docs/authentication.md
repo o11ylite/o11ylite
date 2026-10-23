@@ -201,7 +201,7 @@ Refresh with `{"grant_type": "refresh_token", "refresh_token": "...", "client_id
 
 - PKCE (S256) is mandatory, and authorization codes are single-use signed JWTs with a 5-minute TTL.
 - Local agents may only redirect to `localhost`.
-- MCP clients must register redirect URIs in their metadata document, and redirects must match exactly. The consent page shows the client and the redirect host, and warns when the redirect goes to `localhost`.
+- MCP clients must register redirect URIs in their metadata document, and redirects must match exactly. Loopback URIs (`localhost`, `127.0.0.1`, `[::1]`) match with the port ignored, so a native client that registers the port-less form works on its per-session port ([RFC 8252 §7.3](https://datatracker.ietf.org/doc/html/rfc8252#section-7.3)). The consent page shows the client and the redirect host, and warns when the redirect goes to `localhost`.
 - When fetching client metadata documents, O11yLite requires https, refuses private, loopback, and link-local addresses, does not follow redirects, and caps the response at 64 KB and 5 seconds.
 - Only public clients are supported: there are no client secrets and no `private_key_jwt`.
 - Dynamic Client Registration (deprecated in the MCP 2026-07-28 spec) is not supported.

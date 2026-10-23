@@ -88,7 +88,7 @@
   (if (client-metadata/cimd-client-id? client_id)
     (try
       (let [client (client-metadata/resolve-client (:client-metadata-cache auth-config) client_id)]
-        (if (some #{redirect_uri} (:redirect-uris client))
+        (if (some #(client-metadata/redirect-uri-match? % redirect_uri) (:redirect-uris client))
           {:client client}
           {:fatal (-fatal-error "invalid_request"
                                 "redirect_uri is not registered in the client metadata document")}))

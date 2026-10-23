@@ -51,6 +51,46 @@
   (is (nil? (public-url/canonical-uri "https://example.com/mcp#frag")))
   (is (nil? (public-url/canonical-uri "ftp://example.com"))))
 
+(deftest redirect-uri-match-test
+  (testing "non-loopback URIs must match exactly"
+    (is (client-metadata/redirect-uri-match?
+          "https://client.example.com/callback" "https://client.example.com/callback"))
+    (is (not (client-metadata/redirect-uri-match?
+               "https://client.example.com/callback" "https://client.example.com/callback2"))))
+
+  (testing "loopback URIs match with the port ignored"
+    (is (client-metadata/redirect-uri-match?
+          "http://localhost/callback" "http://localhost:3118/callback"))
+    (is (client-metadata/redirect-uri-match?
+          "http://127.0.0.1/callback" "http://127.0.0.1:33418/callback"))
+    (is (client-metadata/redirect-uri-match?
+          "http://localhost:8080/callback" "http://localhost/callback"))
+    (is (client-metadata/redirect-uri-match?
+          "http://[::1]/callback" "http://[::1]:3118/callback")))
+
+  (testing "loopback matches still require the same host and path"
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback" "http://localhost:3118/other")))
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback" "http://127.0.0.1:3118/callback")))
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback" "http://localhost.evil.com:3118/callback")))
+    (is (not (client-metadata/redirect-uri-match?
+               "https://localhost/callback" "http://localhost:3118/callback"))))
+
+  (testing "loopback matches still require the same query, and reject fragments"
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback" "http://localhost:3118/callback?next=x")))
+    (is (client-metadata/redirect-uri-match?
+          "http://localhost/callback?a=1" "http://localhost:3118/callback?a=1"))
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback?a=1" "http://localhost:3118/callback?a=2")))
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback" "http://localhost:3118/callback#frag")))
+    ;; An out-of-range port parses with no host; it must not throw.
+    (is (not (client-metadata/redirect-uri-match?
+               "http://localhost/callback" "http://localhost:2147483648/callback")))))
+
 (deftest client-metadata-document-test
   (testing "a valid document is normalized"
     (is (= {:client-id client-id

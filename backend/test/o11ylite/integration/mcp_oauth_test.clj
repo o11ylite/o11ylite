@@ -36,12 +36,27 @@
    "redirect_uris" [redirect-uri]
    "token_endpoint_auth_method" "none"})
 
+(def ^:private native-client-id
+  "Shaped like Claude Code's document: loopback redirects, no port."
+  "https://claude.ai/oauth/claude-code-client-metadata")
+
+(def ^:private native-redirect-uri
+  "The ephemeral port a native client listens on for one sign-in."
+  "http://localhost:33418/callback")
+
+(def ^:private native-client-document
+  {"client_id" native-client-id
+   "client_name" "Claude Code"
+   "redirect_uris" ["http://localhost/callback" "http://127.0.0.1/callback"]
+   "token_endpoint_auth_method" "none"})
+
 (defn- -fake-fetch
   "Stand-in for the network fetch of the client metadata document."
   [uri]
-  (if (= client-id (str uri))
-    client-document
-    (throw (ex-info "unexpected fetch" {:type ::client-metadata/fetch-failed}))))
+  (cond
+    (= client-id (str uri)) client-document
+    (= native-client-id (str uri)) native-client-document
+    :else (throw (ex-info "unexpected fetch" {:type ::client-metadata/fetch-failed}))))
 
 (defn- -query-params
   [url]
@@ -289,7 +304,39 @@
                 ingest-key (-create-key! "ingest")]
             (is (= 200 (h/status (mcp/call-tool "list_services" {} {:token read-key}))))
             (is (= 403 (h/status (mcp/call-tool "save_alert_rule" {} {:token read-key}))))
-            (is (= 403 (h/status (mcp/request "tools/list" {} {:token ingest-key}))))))))))
+            (is (= 403 (h/status (mcp/request "tools/list" {} {:token ingest-key}))))))
+
+        (testing "a native client's port-less loopback registration accepts the session port"
+          ;; Claude Code registers http://localhost/callback in its metadata
+          ;; document and then sends http://localhost:<ephemeral>/callback.
+          (let [verifier (oidc/random-pkce-code-verifier)
+                challenge (oidc/pkce-code-challenge verifier)
+                params {:challenge challenge :scope "read"
+                        :client-id native-client-id
+                        :redirect-uri native-redirect-uri}
+                session (:session (-login! (h/header (h/no-redirect-get (-authorize-path params))
+                                                     "location")))
+                consent (-consent! (-authorize-path params) session)]
+            (is (= 200 (:status consent)) "authorize accepts the port-bearing loopback redirect")
+            (is (true? (get-in consent [:page :props :localhost_redirect])))
+
+            (let [location (-decide! consent "approve")
+                  code (get (-query-params location) "code")
+                  token (:json (-token! {"grant_type" "authorization_code" :code code
+                                         :code_verifier verifier
+                                         :redirect_uri native-redirect-uri
+                                         :client_id native-client-id
+                                         :resource resource}))]
+              (is (str/starts-with? location native-redirect-uri))
+              (is (= 200 (h/status (mcp/request "tools/list" {} {:token (:access_token token)})))))
+
+            (testing "a different loopback path is still rejected"
+              (let [resp (h/no-redirect-get (-authorize-path (assoc params
+                                                                    :challenge "abc"
+                                                                    :redirect-uri "http://localhost:33418/elsewhere"))
+                                            {:headers {"Cookie" (str "ring-session=" session)}})]
+                (is (= 400 (h/status resp)))
+                (is (= "invalid_request" (:error (-json resp))))))))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment
