@@ -170,6 +170,46 @@
       (is (= 1 (:files-created result)) "Should merge all small files into one")
       (is (= 3 (:files-processed result)) "Should process all three input files"))))
 
+(deftest newer-than-bounds-compaction-test
+  (testing "newer_than excludes files written before the cutoff"
+    (let [overrides {:service "test-service" :timestamp (Instant/now)}]
+      (h/ingest-sample-events! 5 overrides)
+      (h/ingest-sample-events! 5 overrides)
+      (h/ingest-sample-events! 5 overrides))
+
+    (let [result (ducklake/merge-adjacent-files!
+                   (writer-events) (writer-metrics)
+                   {:target-file-size "5MB"
+                    :max-file-size    1048576
+                    :newer-than       (.plus (Instant/now) 1 ChronoUnit/HOURS)})]
+      (is (zero? (:files-created result)))
+      (is (zero? (:files-processed result))))
+
+    (testing "the same files are compacted without newer_than"
+      (let [result (ducklake/merge-adjacent-files!
+                     (writer-events) (writer-metrics)
+                     {:target-file-size "5MB"
+                      :max-file-size    1048576})]
+        (is (= 1 (:files-created result)))
+        (is (= 3 (:files-processed result))))))
+
+  (testing "each tier bounds its scan to its configured lookback"
+    (let [calls  (atom [])
+          before (Instant/now)]
+      (with-redefs [ducklake/merge-adjacent-files!
+                    (fn [_ _ opts]
+                      (swap! calls conj opts)
+                      {:files-created 0 :files-processed 0})]
+        (ducklake/run-tiered-compaction! (writer-events) (writer-metrics) (sqlite) 5 all-tiers-due))
+      (let [after (Instant/now)]
+        (doseq [[tier lookback] [[:small 360] [:medium 1500] [:large 1500]]]
+          (let [cutoff (:newer-than (some #(when (= tier (:tier-name %)) %) @calls))]
+            (is (instance? Instant cutoff) (str tier))
+            (is (.isAfter ^Instant cutoff (.minus before (inc lookback) ChronoUnit/MINUTES))
+                (str tier " lower bound"))
+            (is (.isBefore ^Instant cutoff (.minus after (dec lookback) ChronoUnit/MINUTES))
+                (str tier " upper bound"))))))))
+
 ;; ---------------------------------------------------------
 ;; Rich Comment
 (comment
