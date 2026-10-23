@@ -7,6 +7,13 @@ An InertiaJS frontend.
 * TailwindCSS
 * shadcn
 
+## TypeScript
+
+The build runs TypeScript 7 (`tsc` comes from `@typescript/native`).
+`typescript-eslint` still needs the TypeScript 6 compiler API, so the
+`typescript` dependency is aliased to `@typescript/typescript6`. Keep both
+aliases until typescript-eslint supports TypeScript 7.
+
 ## Adding shadcn Components
 
 Use the shadcn CLI to add components:
