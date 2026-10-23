@@ -149,6 +149,38 @@
   [uri]
   (boolean (and (string? uri) (re-matches localhost-redirect-pattern uri))))
 
+(defn- -loopback-parts
+  "Split a loopback redirect URI into [host path query], dropping the port,
+   or nil when the URI is not usable as a loopback redirect.
+
+   Native clients listen on an ephemeral port per session, so they
+   register the port-less form (`http://localhost/callback`) and send a
+   port-bearing one. RFC 8252 §7.3 requires the AS to ignore the port for
+   the IP-literal form; localhost gets the same treatment so a single
+   registration works for both. Everything else still has to match: path,
+   query, and host, and a redirect URI never carries a fragment
+   (RFC 6749 §3.1.2)."
+  [uri]
+  (when (localhost-redirect? uri)
+    (try
+      (let [parsed (URI. uri)]
+        ;; getHost is nil when the port is out of range.
+        (when-let [host (some-> (.getHost parsed) str/lower-case)]
+          (when (nil? (.getRawFragment parsed))
+            [host (or (not-empty (.getRawPath parsed)) "/") (.getRawQuery parsed)])))
+      (catch URISyntaxException _ nil))))
+
+(defn redirect-uri-match?
+  "True when the redirect URI presented in an authorization request
+   matches one registered for the client.
+
+   Loopback URIs match with the port ignored; every other URI must match
+   the registered value exactly."
+  [registered requested]
+  (or (= registered requested)
+      (when-let [requested-parts (-loopback-parts requested)]
+        (= requested-parts (-loopback-parts registered)))))
+
 (defn- -allowed-redirect-uri?
   "Redirect URIs must be https or loopback http (MCP authorization spec)."
   [uri]
