@@ -124,7 +124,11 @@ Each API key has a scope. Scopes form a hierarchy — higher scopes include all 
 O11yLite acts as its own OAuth 2.1 authorization server. It issues short-lived JWT access tokens through the Authorization Code flow with PKCE. Two kinds of clients use it:
 
 - **Local agents**, such as the bundled skill's `auth.py`. They send no `client_id` (or an opaque one) and redirect to `localhost`. The flow auto-approves, the same model as `gh auth login`.
-- **MCP clients**, such as Claude, ChatGPT, or Claude Code, connecting to the [MCP endpoint](agent-native.md#mcp-server). They identify themselves with a [Client ID Metadata Document](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00): the `client_id` is an HTTPS URL that serves the client's name and allowed redirect URIs. The user sees a consent page before any code is issued.
+- **MCP clients**, such as Claude, ChatGPT, or Claude Code, connecting to the [MCP endpoint](agent-native.md#mcp-server). They identify themselves in one of two ways:
+  - **Dynamic Client Registration** (`POST /oauth/register`, RFC 7591): the client registers its name and redirect URIs, then uses the opaque `client_id` it receives. Most MCP clients use this.
+  - **Client ID Metadata Document** (CIMD): the `client_id` is an HTTPS URL that serves the client's name and allowed redirect URIs.
+
+  Either way the user sees a consent page before any code is issued.
 
 In **OIDC mode** the user logs in first (if not already). In **open mode** no login is needed.
 
@@ -141,17 +145,56 @@ The issuer, the MCP resource identifier, and the OIDC redirect URI are all deriv
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/.well-known/oauth-authorization-server` | GET | Authorization server metadata (RFC 8414). |
+| `/oauth/register` | POST | Dynamic Client Registration (RFC 7591). |
 | `/oauth/authorize` | GET | Authorization endpoint. Auto-approves local agents; shows a consent page to MCP clients. |
 | `/oauth/authorize` | POST | Consent page decision (browser only, CSRF-protected). |
 | `/oauth/token` | POST | Token endpoint: `authorization_code` and `refresh_token` grants. |
+
+### Dynamic client registration
+
+MCP clients that do not use a Client ID Metadata Document register with `POST /oauth/register` (RFC 7591). No client secret is issued: these are public clients, and PKCE plus the consent page protect the flow. The registration endpoint is advertised as `registration_endpoint` in the metadata document.
+
+The MCP 2026-07-28 spec deprecates Dynamic Client Registration in favour of CIMD, but many clients still implement only registration, so O11yLite supports both.
+
+```json
+{
+  "client_name": "Claude",
+  "client_uri": "https://claude.ai",
+  "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none"
+}
+```
+
+Response (`201 Created`):
+
+```json
+{
+  "client_id": "mcp_client_...",
+  "client_id_issued_at": 1761000000,
+  "client_name": "Claude",
+  "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none"
+}
+```
+
+Rules:
+
+- `redirect_uris` is required. Each must be `https`, or `http` on a loopback host (`localhost`, `127.0.0.1`, `[::1]`), without a fragment or userinfo.
+- `token_endpoint_auth_method` must be `none`. `grant_types` may only contain `authorization_code` and `refresh_token`, and `response_types` must be `["code"]`.
+- `scope`, when present, caps what the client may request at authorization time.
+- Registrations are limited to 60 per hour per source address. The table keeps the newest 1000 clients and prunes the oldest.
 
 ### Authorization request parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `response_type` | Yes | Must be `code` |
-| `client_id` | MCP clients | HTTPS URL of a Client ID Metadata Document. Omit for local agents. |
-| `redirect_uri` | Yes | Local agents: `http://localhost:*` or `http://127.0.0.1:*`. MCP clients: must be listed in the metadata document (https or localhost). |
+| `client_id` | MCP clients | Opaque id from `/oauth/register`, or the HTTPS URL of a Client ID Metadata Document. Omit for local agents. |
+| `redirect_uri` | Yes | Local agents: `http://localhost:*` or `http://127.0.0.1:*`. MCP clients: must be registered, either through `/oauth/register` or in the metadata document (https or localhost). |
 | `code_challenge` | Yes | PKCE S256 challenge (`BASE64URL(SHA256(code_verifier))`) |
 | `code_challenge_method` | Yes | Must be `S256` |
 | `scope` | No | Default `write`. Space-separated; any of `ingest`, `read`, `write`, `admin`. The grant is the narrowest scope that covers all requested ones. |
@@ -201,10 +244,10 @@ Refresh with `{"grant_type": "refresh_token", "refresh_token": "...", "client_id
 
 - PKCE (S256) is mandatory, and authorization codes are single-use signed JWTs with a 5-minute TTL.
 - Local agents may only redirect to `localhost`.
-- MCP clients must register redirect URIs in their metadata document, and redirects must match exactly. The consent page shows the client and the redirect host, and warns when the redirect goes to `localhost`.
+- MCP clients must register redirect URIs, either dynamically or in their metadata document, and redirects must match exactly. The consent page shows the client and the redirect host, and warns when the redirect goes to `localhost`.
+- Dynamic registration is open by design: it is rate-limited and the table is capped, every authorization still shows the consent page, and a self-registered client is labelled as such on that page.
 - When fetching client metadata documents, O11yLite requires https, refuses private, loopback, and link-local addresses, does not follow redirects, and caps the response at 64 KB and 5 seconds.
 - Only public clients are supported: there are no client secrets and no `private_key_jwt`.
-- Dynamic Client Registration (deprecated in the MCP 2026-07-28 spec) is not supported.
 
 ## Health endpoints
 

@@ -192,7 +192,8 @@
      ;; Auth routes (outside identity check — handled internally)
      (oidc/routes auth-config)
      ;; OAuth authorize endpoint (needs session for OIDC mode)
-     (oauth/authorize-routes {:auth-config auth-config})
+     (oauth/authorize-routes {:auth-config auth-config
+                              :sqlite sqlite})
      (home/routes {})
      (explore/routes {})
      (trace/routes {})
@@ -238,6 +239,14 @@
    (oauth/token-routes {:auth-config (:auth-config opts)
                         :sqlite (:sqlite opts)})])
 
+(defn oauth-register-routes
+  "Dynamic Client Registration. No api-defaults: the handler reads and
+   parses its own body to cap the size and turn malformed JSON into 400."
+  [opts]
+  ["" {:middleware [-api-exception-middleware]}
+   (oauth/register-routes {:auth-config (:auth-config opts)
+                           :sqlite (:sqlite opts)})])
+
 (defn well-known-routes
   "OAuth discovery documents (RFC 8414, RFC 9728) — public, no auth."
   [{:keys [auth-config]}]
@@ -268,6 +277,7 @@
       [(health-routes opts)
        (well-known-routes opts)
        (oauth-token-routes opts)
+       (oauth-register-routes opts)
        (mcp-routes opts)
        (api-routes opts)
        (otlp-routes opts)

@@ -99,7 +99,8 @@
      ;; In-memory OAuth state. O11yLite runs as a single process, so
      ;; process-local state is sufficient for these short-lived entries.
      :used-auth-codes (atom {})          ; code jti -> expiry epoch ms (single-use codes)
-     :client-metadata-cache (atom {})})) ; client_id URL -> cached metadata document
+     :client-metadata-cache (atom {})    ; client_id URL -> cached metadata document
+     :registration-attempts (atom {})})) ; source address -> recent registration timestamps
 
 (defmethod ig/halt-key! :auth/config
   [_ _]

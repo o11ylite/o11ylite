@@ -38,6 +38,7 @@ const baseProps = {
     id: "https://client.example.com/oauth/metadata.json",
     host: "client.example.com",
     uri: null,
+    self_registered: false,
   },
   redirect_uri: "https://client.example.com/callback",
   redirect_host: "client.example.com",
@@ -75,6 +76,19 @@ describe("OAuthConsent", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "a program running on this computer"
     )
+  })
+
+  it("says when the application registered itself", () => {
+    render(
+      <OAuthConsent
+        {...baseProps}
+        client={{ ...baseProps.client, self_registered: true }}
+      />
+    )
+
+    expect(
+      screen.getByText(/registered itself/i)
+    ).toBeInTheDocument()
   })
 
   it("posts the original parameters with the decision", () => {

@@ -6,26 +6,32 @@
 ;; GET  /.well-known/oauth-authorization-server — RFC 8414 metadata
 ;; GET  /oauth/authorize — validates the request; auto-approves local
 ;;      agents (no client_id or opaque client_id + localhost redirect),
-;;      renders a consent page for Client ID Metadata Document clients
+;;      renders a consent page for registered clients and Client ID
+;;      Metadata Document clients
 ;; POST /oauth/authorize — consent page decision (CSRF-protected)
+;; POST /oauth/register  — Dynamic Client Registration (RFC 7591)
 ;; POST /oauth/token     — authorization_code and refresh_token grants
 ;;
 ;; Authorization codes and access tokens are stateless JWTs (see
 ;; o11ylite.oauth). Refresh tokens are stored and rotated (see
-;; o11ylite.oauth.refresh-token). Authorization responses carry `iss`
-;; (RFC 9207); a `resource` parameter (RFC 8707) binds tokens to the
-;; MCP endpoint.
+;; o11ylite.oauth.refresh-token). Registered clients live in SQLite
+;; (see o11ylite.store.oauth-client). Authorization responses carry
+;; `iss` (RFC 9207); a `resource` parameter (RFC 8707) binds tokens to
+;; the MCP endpoint.
 ;; ---------------------------------------------------------
 
 (ns o11ylite.routes.oauth
   (:require
     [clojure.string :as str]
     [com.brunobonacci.mulog :as mulog]
+    [jsonista.core :as json]
     [o11ylite.auth.public-url :as public-url]
     [o11ylite.auth.scope :as scope]
     [o11ylite.oauth :as oauth]
     [o11ylite.oauth.client-metadata :as client-metadata]
     [o11ylite.oauth.refresh-token :as refresh-token]
+    [o11ylite.oauth.registration :as registration]
+    [o11ylite.store.oauth-client :as client-store]
     [o11ylite.util.response :as response]
     [ring.util.codec :as codec]
     [ring.util.response :as rr])
@@ -81,11 +87,22 @@
 ;; ---------------------------------------------------------
 ;; Authorization Request Validation
 
+(defn- -registered-client
+  "Look up a client created by Dynamic Client Registration and check
+   that redirect_uri is one of its registered URIs."
+  [sqlite client-id redirect-uri]
+  (when-let [client (client-store/get-client sqlite client-id)]
+    (if (some #{redirect-uri} (:redirect-uris client))
+      {:client client}
+      {:fatal (-fatal-error "invalid_request"
+                            "redirect_uri is not registered for this client")})))
+
 (defn- -resolve-client
   "Identify the client and check its redirect_uri.
    Returns {:client ...} or {:fatal response}."
-  [auth-config {:keys [client_id redirect_uri]}]
-  (if (client-metadata/cimd-client-id? client_id)
+  [auth-config sqlite {:keys [client_id redirect_uri]}]
+  (cond
+    (client-metadata/cimd-client-id? client_id)
     (try
       (let [client (client-metadata/resolve-client (:client-metadata-cache auth-config) client_id)]
         (if (some #{redirect_uri} (:redirect-uris client))
@@ -102,15 +119,28 @@
                               (if (= ::client-metadata/fetch-failed (:type (ex-data e)))
                                 "The client metadata document could not be fetched"
                                 (ex-message e)))}))
-    (if (and (string? redirect_uri) (re-matches legacy-redirect-pattern redirect_uri))
-      {:client {:client-id client_id :legacy? true}}
-      {:fatal (-fatal-error "invalid_request"
-                            "redirect_uri must be http://localhost or http://127.0.0.1")})))
+
+    (and (string? client_id) (not (str/blank? client_id)))
+    (or (-registered-client sqlite client_id redirect_uri)
+        ;; Unknown opaque ids from local agents keep the auto-approve
+        ;; path: the code can only reach a loopback port.
+        (if (and (string? redirect_uri) (re-matches legacy-redirect-pattern redirect_uri))
+          {:client {:client-id client_id :legacy? true}}
+          {:fatal (-fatal-error "invalid_client"
+                                "Unknown client_id; register the client first")}))
+
+    (and (string? redirect_uri) (re-matches legacy-redirect-pattern redirect_uri))
+    {:client {:client-id client_id :legacy? true}}
+
+    :else
+    {:fatal (-fatal-error "invalid_request"
+                          "redirect_uri must be http://localhost or http://127.0.0.1")}))
 
 (defn- -validate-params
   "Validate the remaining parameters. Returns {:error :description} or
    a map of resolved values."
-  [auth-config request {:keys [response_type code_challenge code_challenge_method scope resource]}]
+  [auth-config request client
+   {:keys [response_type code_challenge code_challenge_method scope resource]}]
   (let [granted-scope (scope/resolve-requested (if (str/blank? scope) default-scope scope))
         mcp-resource (public-url/mcp-resource auth-config request)
         canonical-resource (some-> resource public-url/canonical-uri)]
@@ -127,6 +157,11 @@
       (nil? granted-scope)
       {:error "invalid_scope" :description (str "Invalid scope: " scope)}
 
+      (and (:scope client) granted-scope
+           (not (scope/has-scope? (:scope client) granted-scope)))
+      {:error "invalid_scope"
+       :description (str "The client is not registered for scope " granted-scope)}
+
       (and resource (not= canonical-resource mcp-resource))
       {:error "invalid_target" :description (str "Unknown resource. Use " mcp-resource)}
 
@@ -140,15 +175,15 @@
    {:fatal response}           — reply directly, never redirect
    {:redirect-error response}  — error sent to the client's redirect_uri
    {:authz {...}}              — a valid request"
-  [auth-config request params]
-  (let [{:keys [client fatal]} (-resolve-client auth-config params)]
+  [auth-config sqlite request params]
+  (let [{:keys [client fatal]} (-resolve-client auth-config sqlite params)]
     (if fatal
       {:fatal fatal}
       (let [base {:client client
                   :redirect-uri (:redirect_uri params)
                   :state (:state params)
                   :issuer (public-url/base-url auth-config request)}
-            validated (-validate-params auth-config request params)]
+            validated (-validate-params auth-config request client params)]
         (if (:error validated)
           {:redirect-error (-redirect-with-error base (:error validated) (:description validated))}
           {:authz (merge base
@@ -203,8 +238,9 @@
     (response/inertia "OAuthConsent"
                       {:client {:name (:client-name client)
                                 :id (:client-id client)
-                                :host (-host-of (:client-id client))
-                                :uri (:client-uri client)}
+                                :host (or (:client-host client) "Not provided")
+                                :uri (:client-uri client)
+                                :self_registered (true? (:self-registered? client))}
                        :redirect_uri redirect-uri
                        :redirect_host (-host-of redirect-uri)
                        :localhost_redirect (client-metadata/localhost-redirect? redirect-uri)
@@ -219,11 +255,11 @@
   "GET /oauth/authorize — Authorization endpoint.
    Login comes first so anonymous callers cannot make the server fetch
    client metadata documents (open mode has no login)."
-  [{:keys [auth-config]}]
+  [{:keys [auth-config sqlite]}]
   (fn [request]
     (if-let [sub (-current-sub auth-config request)]
       (let [{:keys [fatal redirect-error authz]}
-            (-resolve-authorization-request auth-config request (:params request))]
+            (-resolve-authorization-request auth-config sqlite request (:params request))]
         (cond
           fatal fatal
           redirect-error redirect-error
@@ -237,13 +273,13 @@
   "POST /oauth/authorize — consent page decision. Body carries the
    original authorization params plus decision: approve | deny.
    Re-validates everything; nothing from the GET is trusted."
-  [{:keys [auth-config]}]
+  [{:keys [auth-config sqlite]}]
   (fn [request]
     (let [body (:body request)
           params (select-keys body authorization-param-keys)]
       (if-let [sub (-current-sub auth-config request)]
         (let [{:keys [fatal redirect-error authz]}
-              (-resolve-authorization-request auth-config request params)]
+              (-resolve-authorization-request auth-config sqlite request params)]
           (cond
             fatal fatal
             redirect-error redirect-error
@@ -382,6 +418,95 @@
           (assoc-in [:headers "Pragma"] "no-cache")))))
 
 ;; ---------------------------------------------------------
+;; Dynamic Client Registration (RFC 7591)
+
+(def ^:private registrations-per-hour
+  "Per-source-address registration limit. A client registers once, so
+   this is only an anti-flood guard, not a quota users can hit."
+  60)
+
+(def ^:private registration-window-ms (* 60 60 1000))
+(def ^:private max-registration-bytes (* 64 1024))
+
+(defn- -registration-response
+  "Registration responses must not be cached (RFC 7591 §3.2)."
+  [status body]
+  (-> (response/json status body)
+      (assoc-in [:headers "Cache-Control"] "no-store")))
+
+(defn- -registration-error
+  [status error description]
+  (-registration-response status {:error error :error_description description}))
+
+(defn- -registration-allowed?
+  "Sliding-window limit keyed by the direct peer address. Behind a proxy
+   every client shares one bucket, which is fine at this volume: a proxy
+   that fans out many distinct clients would need forwarded-for handling."
+  [auth-config request]
+  (let [ip (or (:remote-addr request) "unknown")
+        now (System/currentTimeMillis)
+        window-start (- now registration-window-ms)
+        [_ after]
+        (swap-vals! (:registration-attempts auth-config)
+                    (fn [attempts]
+                      (let [attempts (into {} (filter (fn [[_ times]]
+                                                        (> (peek times) window-start)))
+                                           attempts)]
+                        (update attempts ip (fnil conj []) now))))]
+    (<= (count (get after ip)) registrations-per-hour)))
+
+(defn- -read-registration-body
+  "Read and parse the JSON registration request, capped at
+   max-registration-bytes. Returns {:body map} or {:error :description}.
+   Read here rather than through wrap-json-body so malformed JSON is a
+   400, not a 500."
+  [request]
+  (let [content-type (str/lower-case (get-in request [:headers "content-type"] ""))]
+    (if-not (str/includes? content-type "application/json")
+      {:error "invalid_client_metadata"
+       :description "Content-Type must be application/json"}
+      (if-let [^java.io.InputStream in (:body request)]
+        (let [buf (.readNBytes in (inc max-registration-bytes))]
+          (cond
+            (> (alength buf) max-registration-bytes)
+            {:error "invalid_client_metadata" :description "Request body is too large"}
+
+            :else
+            (try
+              (let [parsed (json/read-value (String. buf "UTF-8")
+                                            json/keyword-keys-object-mapper)]
+                (if (map? parsed)
+                  {:body parsed}
+                  {:error "invalid_client_metadata"
+                   :description "Request body must be a JSON object"}))
+              (catch com.fasterxml.jackson.core.JacksonException _
+                {:error "invalid_client_metadata"
+                 :description "Request body is not valid JSON"}))))
+        {:error "invalid_client_metadata" :description "Request body is required"}))))
+
+(defn- -make-register-handler
+  "POST /oauth/register — Dynamic Client Registration. Public clients
+   only: no secret is issued, and every authorization still needs consent."
+  [{:keys [auth-config sqlite]}]
+  (fn [request]
+    (if-not (-registration-allowed? auth-config request)
+      (-> (-registration-error 429 "too_many_requests"
+                               "Too many registrations; try again later")
+          (assoc-in [:headers "Retry-After"] (str (quot registration-window-ms 1000))))
+      (let [{:keys [body error description]} (-read-registration-body request)]
+        (if error
+          (-registration-error 400 error description)
+          (let [{:keys [client error description]} (registration/validate-request body)]
+            (if error
+              (-registration-error 400 error description)
+              (let [client (assoc client :client-id (registration/new-client-id))
+                    stored (client-store/create! sqlite client)]
+                (mulog/log ::client-registered
+                           :o11ylite.oauth.client_id (:client-id stored)
+                           :o11ylite.oauth.client_name (:client-name stored))
+                (-registration-response 201 (registration/response-body stored))))))))))
+
+;; ---------------------------------------------------------
 ;; Authorization Server Metadata (RFC 8414)
 
 (defn- -make-metadata-handler
@@ -391,6 +516,7 @@
       (response/json 200 {:issuer issuer
                           :authorization_endpoint (str issuer "/oauth/authorize")
                           :token_endpoint (str issuer "/oauth/token")
+                          :registration_endpoint (str issuer "/oauth/register")
                           :response_types_supported ["code"]
                           :response_modes_supported ["query"]
                           :grant_types_supported ["authorization_code" "refresh_token"]
@@ -417,6 +543,13 @@
   [opts]
   ["/oauth"
    ["/token" {:post {:handler (token-handler opts)}}]])
+
+(defn register-routes
+  "Dynamic Client Registration route (POST, RFC 7591). Reads and parses
+   its own body so it can cap the size and answer malformed JSON with 400."
+  [opts]
+  ["/oauth"
+   ["/register" {:post {:handler (-make-register-handler opts)}}]])
 
 (defn metadata-routes
   "Authorization server metadata (public, no auth)."

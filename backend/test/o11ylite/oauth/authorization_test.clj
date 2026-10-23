@@ -8,11 +8,13 @@
 
 (ns o11ylite.oauth.authorization-test
   (:require
+    [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [o11ylite.auth.public-url :as public-url]
     [o11ylite.auth.scope :as scope]
     [o11ylite.oauth :as oauth]
-    [o11ylite.oauth.client-metadata :as client-metadata])
+    [o11ylite.oauth.client-metadata :as client-metadata]
+    [o11ylite.oauth.registration :as registration])
   (:import
     [java.net InetAddress]))
 
@@ -55,6 +57,7 @@
   (testing "a valid document is normalized"
     (is (= {:client-id client-id
             :client-name "Example Client"
+            :client-host "client.example.com"
             :client-uri nil
             :redirect-uris ["https://client.example.com/callback" "http://127.0.0.1:8080/cb"]}
            (client-metadata/validate-document client-id valid-doc))))
@@ -110,6 +113,60 @@
     (is (nil? (oauth/verify-access-token k mcp-token nil)))
     (is (some? (oauth/verify-access-token k api-token nil)))
     (is (nil? (oauth/verify-access-token k api-token "https://x/mcp")))))
+
+(deftest client-registration-test
+  (testing "a minimal request defaults the display name and scope"
+    (is (= {:client-name "Unnamed application"
+            :client-uri nil
+            :client-host nil
+            :redirect-uris ["https://client.example.com/cb"]
+            :scope nil}
+           (:client (registration/validate-request
+                      {:redirect_uris ["https://client.example.com/cb"]})))))
+
+  (testing "a full request is normalized"
+    (is (= {:client-name "Example Client"
+            :client-uri "https://client.example.com"
+            :client-host "client.example.com"
+            :redirect-uris ["https://client.example.com/cb" "http://localhost:1234/cb"]
+            :scope "write"}
+           (:client (registration/validate-request
+                      {:redirect_uris ["https://client.example.com/cb" "http://localhost:1234/cb"]
+                       :client_name " Example Client "
+                       :client_uri "https://client.example.com"
+                       :scope "read write"
+                       :grant_types ["authorization_code" "refresh_token"]
+                       :response_types ["code"]
+                       :token_endpoint_auth_method "none"})))))
+
+  (testing "invalid registrations are refused"
+    (doseq [[body error]
+            [[["not" "an" "object"] "invalid_client_metadata"]
+             [{} "invalid_client_metadata"]
+             [{:redirect_uris []} "invalid_client_metadata"]
+             [{:redirect_uris ["https://client.example.com/cb" 42]} "invalid_client_metadata"]
+             [{:redirect_uris ["http://client.example.com/cb"]} "invalid_redirect_uri"]
+             [{:redirect_uris ["https://client.example.com/cb#frag"]} "invalid_redirect_uri"]
+             [{:redirect_uris ["https://user:pw@client.example.com/cb"]} "invalid_redirect_uri"]
+             [{:redirect_uris (vec (repeat 11 "https://client.example.com/cb"))}
+              "invalid_client_metadata"]
+             [{:redirect_uris ["https://client.example.com/cb"]
+               :client_uri "javascript:alert(1)"} "invalid_client_metadata"]
+             [{:redirect_uris ["https://client.example.com/cb"]
+               :scope "read superadmin"} "invalid_client_metadata"]
+             [{:redirect_uris ["https://client.example.com/cb"]
+               :grant_types ["client_credentials"]} "invalid_client_metadata"]
+             [{:redirect_uris ["https://client.example.com/cb"]
+               :response_types ["token"]} "invalid_client_metadata"]
+             [{:redirect_uris ["https://client.example.com/cb"]
+               :token_endpoint_auth_method "client_secret_basic"} "invalid_client_metadata"]]]
+      (is (= error (:error (registration/validate-request body))) (pr-str body))))
+
+  (testing "client ids are opaque and unique"
+    (let [a (registration/new-client-id)
+          b (registration/new-client-id)]
+      (is (str/starts-with? a "mcp_client_"))
+      (is (not= a b)))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

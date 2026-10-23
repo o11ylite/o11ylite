@@ -22,7 +22,7 @@ claude mcp add --transport http o11ylite https://o11ylite.yourcompany.com/mcp
 **Authentication** follows the MCP authorization spec, so clients handle it automatically:
 
 - **Open mode**: no authentication.
-- **OIDC mode**: the first request returns `401` with a pointer to `/.well-known/oauth-protected-resource/mcp`. The client then runs OAuth against O11yLite's built-in authorization server, using a Client ID Metadata Document. You log in if needed, approve the client on a consent page, and the client receives an access token bound to `/mcp` plus a refresh token. See [Agent auth](authentication.md#agent-auth-oauth-21).
+- **OIDC mode**: the first request returns `401` with a pointer to `/.well-known/oauth-protected-resource/mcp`. The client then runs OAuth against O11yLite's built-in authorization server. It either registers itself (Dynamic Client Registration) or identifies itself with a Client ID Metadata Document. You log in if needed, approve the client on a consent page, and the client receives an access token bound to `/mcp` plus a refresh token. See [Agent auth](authentication.md#agent-auth-oauth-21).
 - **Headless**: send an API key instead: `Authorization: Bearer o11y_...`. A `read` key can use the read-only tools; a `write` key can use all tools. This goes beyond the MCP spec, which only covers OAuth tokens, but it lets CI and scripts connect without a browser.
 
 Set `O11YLITE_PUBLIC_URL` to the URL clients use; remote clients require `https`. Requests that carry a browser `Origin` header are refused unless it matches `O11YLITE_PUBLIC_URL`, or is a loopback origin when that setting is unset. This protects against DNS rebinding.

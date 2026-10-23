@@ -2,8 +2,9 @@
 ;; o11ylite.integration.mcp-oauth-test
 ;;
 ;; End-to-end MCP authorization in OIDC mode: 401 challenge →
-;; Client ID Metadata Document client → consent page → code (+ iss) →
-;; audience-bound access token → MCP calls → refresh rotation.
+;; Client ID Metadata Document and dynamically registered clients →
+;; consent page → code (+ iss) → audience-bound access token → MCP
+;; calls → refresh rotation.
 ;; Also covers scopes, API keys, and token audience separation.
 ;; ---------------------------------------------------------
 
@@ -161,7 +162,8 @@
           (testing "the consent page shows who is asking and where the code goes"
             (is (= 200 (:status consent)))
             (is (= "OAuthConsent" (get-in consent [:page :component])))
-            (is (= {:name "Example MCP Client" :id client-id :host "client.example.com" :uri nil}
+            (is (= {:name "Example MCP Client" :id client-id :host "client.example.com"
+                    :uri nil :self_registered false}
                    (get-in consent [:page :props :client])))
             (is (= "client.example.com" (get-in consent [:page :props :redirect_host])))
             (is (false? (get-in consent [:page :props :localhost_redirect])))
@@ -272,6 +274,107 @@
                                                     (assoc (get-in consent [:page :props :authorization_params])
                                                            :decision "approve"))})]
               (is (= 403 (h/status resp))))))
+
+        (testing "dynamic client registration (RFC 7591)"
+          (let [redirect "https://dcr.example.com/callback"
+                resp (h/post-json "/oauth/register"
+                                  {:client_name "DCR Test Client"
+                                   :client_uri "https://dcr.example.com"
+                                   :redirect_uris [redirect]
+                                   :scope "read write"
+                                   :token_endpoint_auth_method "none"})
+                dcr-client-id (get-in resp [:body :client_id])]
+            (is (= 201 (h/status resp)))
+            (is (= "no-store" (h/header resp "cache-control")))
+            (is (str/starts-with? dcr-client-id "mcp_client_"))
+            (is (= [redirect] (get-in resp [:body :redirect_uris])))
+            (is (= "write" (get-in resp [:body :scope])))
+            (is (= "none" (get-in resp [:body :token_endpoint_auth_method])))
+            (is (number? (get-in resp [:body :client_id_issued_at])))
+
+            (testing "the metadata advertises the registration endpoint"
+              (is (= (str base "/oauth/register")
+                     (:registration_endpoint
+                       (:body (h/get-json "/.well-known/oauth-authorization-server"))))))
+
+            (testing "invalid registrations are refused"
+              (doseq [[body error]
+                      [[{:redirect_uris ["http://evil.example/cb"]} "invalid_redirect_uri"]
+                       [{:redirect_uris []} "invalid_client_metadata"]
+                       [{:redirect_uris [redirect]
+                         :token_endpoint_auth_method "client_secret_basic"}
+                        "invalid_client_metadata"]
+                       [{:redirect_uris [redirect] :scope "read superadmin"}
+                        "invalid_client_metadata"]]]
+                (let [r (h/post-json "/oauth/register" body)]
+                  (is (= 400 (h/status r)) (pr-str body))
+                  (is (= error (get-in r [:body :error])) (pr-str body)))))
+
+            (testing "malformed JSON is a 400, not a 500"
+              (is (= 400 (h/status (h/post "/oauth/register"
+                                           {:headers {"Content-Type" "application/json"}
+                                            :body "{not json"})))))
+
+            (testing "a registered client goes through login and consent"
+              (let [verifier (oidc/random-pkce-code-verifier)
+                    challenge (oidc/pkce-code-challenge verifier)
+                    path (-authorize-path {:challenge challenge :scope "read write"
+                                           :client-id dcr-client-id
+                                           :redirect-uri redirect :state "dcr"})
+                    login-redirect (h/no-redirect-get path)
+                    {:keys [session return-to]} (-login! (h/header login-redirect "location"))
+                    consent (-consent! return-to session)]
+                (is (= "DCR Test Client" (get-in consent [:page :props :client :name])))
+                (is (= "dcr.example.com" (get-in consent [:page :props :client :host])))
+                (is (true? (get-in consent [:page :props :client :self_registered])))
+
+                (testing "an unregistered id cannot use a non-localhost redirect"
+                  (let [r (h/no-redirect-get
+                            (-authorize-path {:challenge challenge :scope "read"
+                                              :client-id "o11y_unregistered"
+                                              :redirect-uri "https://evil.example/cb"})
+                            {:headers {"Cookie" (str "ring-session=" session)}})]
+                    (is (= 400 (h/status r)))
+                    (is (= "invalid_client" (:error (-json r))))))
+
+                (testing "a redirect_uri outside the registration is refused"
+                  (let [r (h/no-redirect-get
+                            (-authorize-path {:challenge challenge :scope "read"
+                                              :client-id dcr-client-id
+                                              :redirect-uri "https://dcr.example.com/other"})
+                            {:headers {"Cookie" (str "ring-session=" session)}})]
+                    (is (= 400 (h/status r)))
+                    (is (= "invalid_request" (:error (-json r))))))
+
+                (testing "the registered scope caps what the client may request"
+                  (let [r (h/no-redirect-get
+                            (-authorize-path {:challenge challenge :scope "admin"
+                                              :client-id dcr-client-id
+                                              :redirect-uri redirect})
+                            {:headers {"Cookie" (str "ring-session=" session)}})]
+                    (is (= "invalid_scope"
+                           (get (-query-params (h/header r "location")) "error")))))
+
+                (let [code (get (-query-params (-decide! consent "approve")) "code")
+                      exchange {"grant_type" "authorization_code" "code" code
+                                "code_verifier" verifier "redirect_uri" redirect
+                                "client_id" dcr-client-id "resource" resource}
+                      token-resp (-token! exchange)
+                      access-token (get-in token-resp [:json :access_token])
+                      refresh-token (get-in token-resp [:json :refresh_token])]
+                  (is (some? access-token))
+                  (is (= 200 (h/status (mcp/request "tools/list" {} {:token access-token}))))
+
+                  (testing "refresh requires the registered client_id"
+                    (is (= "invalid_grant"
+                           (get-in (-token! {"grant_type" "refresh_token"
+                                             "refresh_token" refresh-token
+                                             "client_id" "o11y_other"})
+                                   [:json :error])))
+                    (is (some? (get-in (-token! {"grant_type" "refresh_token"
+                                                 "refresh_token" refresh-token
+                                                 "client_id" dcr-client-id})
+                                       [:json :access_token])))))))))
 
         (testing "login only returns to same-site paths (no open redirect)"
           (is (= "/" (:return-to (-login! "/auth/login?return_to=https%3A%2F%2Fevil.example%2F"))))

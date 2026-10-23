@@ -17,6 +17,7 @@ type OAuthClient = {
   id: string
   host: string
   uri: string | null
+  self_registered: boolean
 }
 
 type OAuthConsentProps = {
@@ -76,6 +77,12 @@ export default function OAuthConsent({
             <div>
               <dt className="text-muted-foreground">Application identity</dt>
               <dd className="font-medium break-all">{client.host}</dd>
+              {client.self_registered && (
+                <dd className="text-muted-foreground">
+                  This application registered itself. Its name comes from the
+                  application, not from a verified identity document.
+                </dd>
+              )}
             </div>
             <div>
               <dt className="text-muted-foreground">Access requested</dt>

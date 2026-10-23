@@ -189,6 +189,9 @@
       {:client-id client-id
        :client-name (let [n (str/trim client_name)]
                       (if (> (count n) 100) (str (subs n 0 100) "…") n))
+       ;; The document URL's host is the client's verified identity; the
+       ;; optional client_uri is not. The consent page shows this host.
+       :client-host (.getHost (URI. client-id))
        :client-uri (when (string? client_uri) client_uri)
        :redirect-uris (vec redirect_uris)})))
 
