@@ -27,7 +27,7 @@ helm = "4.3.1"
 
 # Release pipeline creates the GitHub release. Installed from the GitHub
 # release rather than the aqua registry entry, whose attestation check fails.
-"github:cli/cli" = "2.102.0"
+"github:cli/cli" = "2.102.1"
 
 # --- Development only, past this point -------------------------------------
 # dev/start: Caddy terminates TLS on o11ylite.localhost and proxies a single
