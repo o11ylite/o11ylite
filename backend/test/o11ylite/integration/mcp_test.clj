@@ -12,6 +12,7 @@
     [clojure.test :refer [deftest is testing use-fixtures]]
     [jsonista.core :as json]
     [o11ylite.notebook :as notebook]
+    [o11ylite.store.metrics.metadata :as metadata]
     [o11ylite.store.services :as services]
     [o11ylite.test-helpers :as h]
     [o11ylite.test-helpers.mcp :as mcp]))
@@ -95,16 +96,16 @@
                                                   :limit 3
                                                   :fields ["service" "trace_id" "timestamp"]})
           row (first (:rows result))]
-      (is (= 3 (:row_count result)))
+      (is (= 3 (:total_count result)))
       (is (true? (:has_more result)))
       (is (= #{:service :trace_id :timestamp} (set (keys row))))
-      (is (re-matches #"\d{4}-\d{2}-\d{2}T.*Z" (:timestamp row)) "timestamps are ISO-8601")
+      (is (number? (:timestamp row)) "timestamps are epoch ms, same as the HTTP API")
       (is (re-matches #"\d{4}-\d{2}-\d{2}T.*Z" (get-in result [:time_range :start])))
 
       (testing "cursor pagination"
         (let [next-page (mcp/tool-result "query_events" {:time_range {:last "2h"} :limit 3
                                                          :cursor (:next_cursor result)})]
-          (is (= 3 (:row_count next-page)))))
+          (is (= 3 (count (:rows next-page))))))
 
       (testing "get_trace"
         (let [trace (mcp/tool-result "get_trace" {:trace_id (:trace_id row)})]
@@ -116,6 +117,27 @@
                                                   :aggregations [{:id "A" :function "count" :field "*"}]
                                                   :group_by ["service"]})]
       (is (= [{:service "checkout" (keyword "count(*)") 20}] (:rows result))))
+
+    (testing "aggregate rows keep null and empty group_by keys"
+      (h/ingest-sample-events! 3 {:service "empty-name-service"
+                                  :name nil
+                                  :meta.signal_type :log})
+      (h/ingest-sample-events! 1 {:service "empty-string-name-service"
+                                  :name ""
+                                  :meta.signal_type :log})
+      (let [result (mcp/tool-result "query_events"
+                                    {:time_range {:last "2h"}
+                                     :filter {:field "service" :op "=" :value "empty-name-service"}
+                                     :aggregations [{:id "A" :function "count" :field "*"}]
+                                     :group_by ["name"]})
+            empty-string-result
+            (mcp/tool-result "query_events"
+                             {:time_range {:last "2h"}
+                              :filter {:field "service" :op "=" :value "empty-string-name-service"}
+                              :aggregations [{:id "A" :function "count" :field "*"}]
+                              :group_by ["name"]})]
+        (is (= [{:name nil (keyword "count(*)") 3}] (:rows result)))
+        (is (= [{:name "" (keyword "count(*)") 1}] (:rows empty-string-result)))))
 
     (let [result (mcp/tool-result "query_events" {:time_range {:last "2h"}
                                                   :aggregations [{:id "A" :function "count" :field "*"}]
@@ -136,7 +158,59 @@
       (is (some? metric-name))
       (is (= "gauge" (:metric_type described)))
       (is (seq (:series result)))
-      (is (str/includes? (mcp/tool-error-text "describe_metric" {:name "nope"}) "not found"))))
+      (is (str/includes? (mcp/tool-error-text "describe_metric" {:name "nope"}) "not found")))
+
+    (testing "filter applicability is reported as diagnostics, not a status"
+      (h/ingest-sample-metrics! 1 {:name "container.cpu.usage"
+                                   :service "dsh-yawn-control-plane"
+                                   :attr.service.name "dsh-yawn-control-plane"
+                                   :attr.k8s.pod.name "pod-1"})
+      (h/ingest-sample-metrics! 1 {:name "k8s.container.cpu_limit"
+                                   :service "dsh-yawn-control-plane"
+                                   :attr.k8s.pod.name "pod-1"})
+      (metadata/upsert-metrics! (:db/sqlite h/*system*)
+                                {"container.cpu.usage"
+                                 {:metric_type :gauge
+                                  :attributes #{"attr.service.name" "attr.k8s.pod.name"}}
+                                 "k8s.container.cpu_limit"
+                                 {:metric_type :gauge
+                                  :attributes #{"attr.k8s.pod.name"}}})
+
+      (let [mcp-query {:time_range {:last "2h"}
+                       :filter {:field "attr.service.name" :op "="
+                                :value "dsh-yawn-control-plane"}
+                       :metrics [{:id "A" :name "container.cpu.usage" :agg "avg"}
+                                 {:id "B" :name "k8s.container.cpu_limit" :agg "avg"}]}
+            result (mcp/tool-result "query_metrics" mcp-query)
+            now (System/currentTimeMillis)
+            rest-result (h/post-json "/api/query/metrics"
+                                     {:time_range {:start (- now (* 2 60 60 1000))
+                                                   :end now}
+                                      :filter (:filter mcp-query)
+                                      :metrics (:metrics mcp-query)})]
+        (is (= 1 (count (:series result))))
+        (is (= ["attr.service.name"]
+               (get-in result [:diagnostics 0 :fields])))
+        (is (= "k8s.container.cpu_limit" (get-in result [:diagnostics 0 :metric])))
+        (is (= "B" (get-in result [:diagnostics 0 :id])))
+        (is (str/includes? (get-in result [:diagnostics 0 :message])
+                           "attr.service.name"))
+        (is (nil? (:metric_status result)))
+        (is (nil? (:series_counts result)))
+        (is (nil? (get-in result [:series 0 :status])))
+        (is (= (:diagnostics result)
+               (get-in rest-result [:body :data :diagnostics]))
+            "REST and MCP expose the same diagnostics"))
+
+      (testing "a filter that applies but matches nothing has no diagnostic"
+        (let [result (mcp/tool-result "query_metrics"
+                                      {:time_range {:last "2h"}
+                                       :filter {:field "attr.k8s.pod.name" :op "="
+                                                :value "no-such-pod"}
+                                       :metrics [{:id "A" :name "container.cpu.usage" :agg "avg"}]})]
+          (is (empty? (:series result)))
+          (is (nil? (:diagnostics result)))
+          (is (nil? (:metric_status result)))))))
 
   (testing "alert rule tools"
     (let [created (mcp/tool-result "save_alert_rule" (-alert-rule-args {:enabled false}))

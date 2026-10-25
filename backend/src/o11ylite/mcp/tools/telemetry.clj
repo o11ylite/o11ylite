@@ -7,6 +7,8 @@
 ;; Tools call the same validation and execution functions as the REST
 ;; API (o11ylite.api.*), then trim results for model context: event
 ;; rows drop null columns and can be projected to selected fields.
+;; Metric results carry per-series and per-metric status so an empty
+;; result distinguishes "no data" from "the filter cannot apply".
 ;; ---------------------------------------------------------
 
 (ns o11ylite.mcp.tools.telemetry
@@ -106,27 +108,20 @@
 (def ^:private default-event-limit 50)
 
 (defn- -validated-events-query
-  "Validate against the events query engine and normalize filter values.
-   Returns [query field-metadata]."
+  "Validate against the events query engine and normalize filter values."
   [duckdb query]
   (let [fields (schema/fetch-event-fields duckdb)]
     (some-> (events.query/validate fields query) support/query-error!)
-    [(query-util/normalize-filter fields query) fields]))
+    (query-util/normalize-filter fields query)))
 
-(defn- -instant-keys
-  "Row keys whose column type is instant (timestamps)."
-  [field-metadata]
-  (into #{} (keep (fn [[k v]] (when (= "instant" (some-> (:type v) name)) k))) field-metadata))
-
-(defn- -trim-row
-  "Drop null columns, optionally project to `fields`, and render
-   timestamps as ISO-8601."
-  [instant-keys fields row]
-  (let [row (cond-> (support/drop-nil-values row)
-              (seq fields) (select-keys (map keyword fields)))]
-    (reduce (fn [r k] (if (contains? r k) (update r k support/epoch-ms->iso) r))
-            row
-            instant-keys)))
+(defn- -project-row
+  "Optionally project a row to the caller's explicit `fields`.
+   No null columns are removed: rows are the same data the HTTP query API
+   returns."
+  [fields row]
+  (if (seq fields)
+    (select-keys row (map keyword fields))
+    row))
 
 (def query-events
   "Tool: query events (spans and logs)."
@@ -137,8 +132,7 @@
         "\"span_event\", or \"log\"). Built-in fields: service, name, trace_id, span_id, "
         "timestamp, span.duration_ms, span.status_code; attributes are attr.*.\n"
         "- Raw rows: omit aggregations; visualization {\"type\":\"table\"} (default). "
-        "Use fields to return only the columns you need; null columns are dropped. "
-        "Page with cursor = next_cursor.\n"
+        "Use fields to return only the columns you need. Page with cursor = next_cursor.\n"
         "- Aggregates: aggregations [{\"id\":\"A\",\"function\":\"count\",\"field\":\"*\"}] "
         "with group_by, optional having on aggregation ids, and "
         "visualization {\"type\":\"table\",\"sort\":{\"ref\":\"A\",\"order\":\"desc\"}}.\n"
@@ -175,7 +169,7 @@
      (support/validate! query-events-args args)
      (let [time-range (support/resolve-time-range (:time_range args) "1h" (-now))
            visualization (or (:visualization args) {:type "table"})
-           [query field-metadata]
+           query
            (-validated-events-query
              (:duckdb deps)
              (cond-> (-> (select-keys args [:filter :aggregations :group_by :having :cursor])
@@ -184,14 +178,11 @@
                (= "table" (:type visualization))
                (assoc :limit (or (:limit args) default-event-limit))))
            {:keys [data metadata]} (events.query/execute (:duckdb deps) query)
-           trim (partial -trim-row (-instant-keys field-metadata) (:fields args))]
+           project (partial -project-row (:fields args))]
        (merge {:time_range (support/time-range->iso time-range)
                :query_time_ms (:query_time_ms metadata)}
               (if (= "table" (:type visualization))
-                (-> data
-                    (update :rows #(mapv trim %))
-                    (dissoc :total_count)
-                    (assoc :row_count (count (:rows data))))
+                (update data :rows #(mapv project %))
                 data))))})
 
 ;; ---------------------------------------------------------
@@ -219,7 +210,7 @@
    (fn [{:keys [deps]} args]
      (support/validate! get-trace-args args)
      (let [time-range (support/resolve-time-range (:time_range args) "24h" (-now))
-           [query field-metadata]
+           query
            (-validated-events-query
              (:duckdb deps)
              {:time_range time-range
@@ -229,7 +220,7 @@
        (cond-> {:trace_id (:trace_id args)
                 :time_range (support/time-range->iso time-range)
                 :span_count (count spans)
-                :spans (mapv (partial -trim-row (-instant-keys field-metadata) nil) spans)}
+                :spans spans}
          (empty? spans)
          (assoc :hint "No spans found. Widen time_range if the trace is older."))))})
 
@@ -288,7 +279,11 @@
    (str "Query metric time series. Each metric gets an id (A-Z) and an aggregation valid for "
         "its type: gauge sum/avg/min/max/last, sum sum/rate, histogram count/sum/avg/min/max "
         "(use describe_metric). Formulas combine ids, e.g. {\"id\":\"F1\",\"expr\":\"B / A * 100\"}. "
-        "filter and group_by use the metric's attribute names (attr.*).")
+        "filter and group_by use the metric's attribute names (attr.*).\n"
+        "If a requested metric returns no series because a filter field is not one of its "
+        "attributes, the response includes a non-fatal diagnostics entry naming the metric and "
+        "field. The query is still valid and other metrics are unaffected. Call describe_metric "
+        "to check a metric's attributes before filtering on them.")
    :input-schema
    (js/object-schema
      {:time_range support/time-range-json-schema

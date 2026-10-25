@@ -198,6 +198,27 @@ Controls how query results are rendered. All fields optional.
 
 One series per `(labels, metric)` combination. `labels` is `{}` when no `group_by`.
 
+#### Diagnostics
+
+If a requested metric returns no series because a filter field is not one of that metric's recorded attributes, the query still succeeds. `data.diagnostics` then contains a non-fatal warning:
+
+```json
+{
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "metric_filter_not_applicable",
+      "metric": "k8s.container.cpu_limit",
+      "id": "B",
+      "fields": ["attr.service.name"],
+      "message": "..."
+    }
+  ]
+}
+```
+
+`diagnostics` is omitted when empty. It is evaluated after execution: a metric that returned data produces no warning, even if its metadata is stale. Other metrics in the same request are unaffected. The MCP `query_metrics` tool returns the same diagnostics array.
+
 ---
 
 ## Examples

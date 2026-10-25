@@ -8,6 +8,7 @@
 
 (ns o11ylite.store.metrics.query-validation-test
   (:require
+    [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [o11ylite.store.metrics.metadata :as metadata]
     [o11ylite.store.metrics.query-validation :as validation]))
@@ -203,3 +204,92 @@
       (is (re-find #"sum metrics" error))
       (is (re-find #"rate" error))   ; allowed value
       (is (re-find #"sum" error))))) ; allowed value
+
+;; ---------------------------------------------------------
+;; Per-Metric Filter Diagnostics
+
+(defn- filter-diagnostics
+  "Run filter-diagnostics with mocked metadata and the given returned series."
+  [metrics-map query series]
+  (with-redefs [metadata/get-metric (mock-metadata metrics-map)]
+    (validation/filter-diagnostics nil query series)))
+
+(defn- metric-with-filter
+  [filter]
+  {:id "A" :name "test.metric" :agg "avg" :filter filter})
+
+(deftest filter-diagnostics-test
+  (let [attrs #{"attr.host.name"}
+        metrics-map {"test.metric" {:metric_type :gauge :attributes attrs}}
+        missing-attr-query {:filter {:field "attr.service.name" :op "=" :value "x"}
+                            :metrics [(metric-with-filter nil)]}]
+    (testing "missing attr.* field with no returned series produces a diagnostic"
+      (let [result (filter-diagnostics metrics-map missing-attr-query [])
+            diagnostic (first result)]
+        (is (= 1 (count result)))
+        (is (= "warning" (:severity diagnostic)))
+        (is (= "metric_filter_not_applicable" (:code diagnostic)))
+        (is (= "test.metric" (:metric diagnostic)))
+        (is (= "A" (:id diagnostic)))
+        (is (= ["attr.service.name"] (:fields diagnostic)))
+        (is (str/includes? (:message diagnostic) "test.metric"))
+        (is (str/includes? (:message diagnostic) "attr.service.name"))))
+
+    (testing "no diagnostic when the metric returned data (metadata may be stale)"
+      (is (empty? (filter-diagnostics metrics-map missing-attr-query [{:id "A"}]))))
+
+    (testing "known attr.* field and non-attribute fields produce no diagnostic"
+      (is (empty? (filter-diagnostics
+                    metrics-map
+                    {:filter {:field "attr.host.name" :op "=" :value "x"}
+                     :metrics [(metric-with-filter nil)]}
+                    [])))
+      (is (empty? (filter-diagnostics
+                    metrics-map
+                    {:filter {:field "service" :op "=" :value "x"}
+                     :metrics [(metric-with-filter nil)]}
+                    []))))
+
+    (testing "metadata stored without the attr. prefix still matches"
+      (is (empty? (filter-diagnostics
+                    {"test.metric" {:metric_type :gauge :attributes #{"host.name"}}}
+                    {:filter {:field "attr.host.name" :op "=" :value "x"}
+                     :metrics [(metric-with-filter nil)]}
+                    []))))
+
+    (testing "AND needs every branch; OR needs only one"
+      (is (= 1 (count (filter-diagnostics
+                        metrics-map
+                        {:filter {:and [{:field "attr.host.name" :op "=" :value "x"}
+                                        {:field "attr.missing" :op "=" :value "y"}]}
+                         :metrics [(metric-with-filter nil)]}
+                        []))))
+      (is (empty? (filter-diagnostics
+                    metrics-map
+                    {:filter {:or [{:field "attr.host.name" :op "=" :value "x"}
+                                   {:field "attr.missing" :op "=" :value "y"}]}
+                     :metrics [(metric-with-filter nil)]}
+                    [])))
+      (is (= 1 (count (filter-diagnostics
+                        metrics-map
+                        {:filter {:or [{:field "attr.missing" :op "=" :value "x"}
+                                       {:field "attr.other.missing" :op "=" :value "y"}]}
+                         :metrics [(metric-with-filter nil)]}
+                        [])))))
+
+    (testing "per-metric filters are checked too"
+      (let [result (filter-diagnostics
+                     metrics-map
+                     {:metrics [(metric-with-filter
+                                  {:field "attr.missing" :op "=" :value "x"})]}
+                     [])]
+        (is (= ["attr.missing"] (get-in result [0 :fields])))))
+
+    (testing "unknown metrics have no metadata and produce no diagnostic"
+      (let [result (with-redefs [metadata/get-metric (constantly nil)]
+                     (validation/filter-diagnostics
+                       nil
+                       {:filter {:field "attr.anything" :op "=" :value "x"}
+                        :metrics [(metric-with-filter nil)]}
+                       []))]
+        (is (empty? result))))))
