@@ -2,8 +2,9 @@
 ;; o11ylite.mcp.tools.workspace
 ;;
 ;; MCP tools over saved objects: alert rules (read + save) and
-;; notebooks (create). Writes go through the same malli validation
-;; as the UI routes (o11ylite.routes.alert-rules / notebooks).
+;; notebooks (list, read, create, update). Writes go through the same
+;; malli validation as the UI routes (o11ylite.routes.alert-rules /
+;; notebooks).
 ;; ---------------------------------------------------------
 
 (ns o11ylite.mcp.tools.workspace
@@ -39,6 +40,48 @@
 (defn- -url
   [context path]
   (str (:base-url context) path))
+
+(defn- -notebook-url
+  [context id]
+  (-url context (str "/notebooks/" id)))
+
+(defn- -notebook-summary
+  [context notebook]
+  (-> (select-keys notebook [:id :name :description :cell_count :created_at :updated_at])
+      (assoc :url (-notebook-url context (:id notebook)))))
+
+(def ^:private read-only-cell-keys
+  [:id :notebook_id :position :created_at :updated_at])
+
+(defn- -cell-params
+  "Drop read-only fields returned by get_notebook, so a read-modify-write
+   round-trip works. Unknown fields are left in place and rejected by
+   notebook.schema/cell."
+  [cell]
+  (apply dissoc cell read-only-cell-keys))
+
+(def ^:private notebook-cell-json-schema
+  {:type "object"
+   :properties {:title {:type ["string" "null"]}
+                :description {:type ["string" "null"]}
+                :query_mode {:enum ["events" "metrics"]}
+                :query {:type "object"
+                        :description (str "Query in the query_events/query_metrics shape without "
+                                          "time_range or cursor. For time_series cells, "
+                                          "query.visualization carries overlay, render_as, and "
+                                          "hidden_metrics (see query_metrics).")}
+                :pinned_from {:type ["string" "null"]}
+                :pinned_to {:type ["string" "null"]}
+                :id {:type "string" :description "Read-only; ignored on write."}
+                :notebook_id {:type "string" :description "Read-only; ignored on write."}
+                :position {:type "integer" :description "Read-only; ignored on write."}
+                :created_at {:type "integer" :description "Read-only; ignored on write."}
+                :updated_at {:type "integer" :description "Read-only; ignored on write."}}
+   :required ["query_mode" "query"]
+   :additionalProperties false})
+
+(def ^:private notebook-cells-args
+  [:vector {:max 50} [:map-of :keyword :any]])
 
 ;; ---------------------------------------------------------
 ;; list_alert_rules
@@ -164,13 +207,51 @@
           :url (-url context (str "/alert-rules/" saved-id "/edit"))})))})
 
 ;; ---------------------------------------------------------
+;; list_notebooks
+
+(def list-notebooks
+  "Tool: list notebooks."
+  {:name "list_notebooks"
+   :title "List notebooks"
+   :description (str "List saved notebooks with cell count and last-updated time. Use "
+                     "get_notebook for the cell queries and chart settings.")
+   :input-schema (js/object-schema {})
+   :annotations read-only
+   :scope "read"
+   :handler (fn [{:keys [deps] :as context} args]
+              (support/validate! [:map {:closed true}] args)
+              {:notebooks (mapv (partial -notebook-summary context)
+                                (notebook/list-notebooks (:sqlite deps)))})})
+
+;; ---------------------------------------------------------
+;; get_notebook
+
+(def get-notebook
+  "Tool: get one notebook with its cells."
+  {:name "get_notebook"
+   :title "Get notebook"
+   :description (str "Get one notebook with its ordered cells. Each cell includes its full "
+                     "query and chart settings (query.visualization.overlay, render_as, "
+                     "hidden_metrics). Read this before update_notebook.")
+   :input-schema (js/object-schema {:id {:type "string" :description "Notebook id."}} [:id])
+   :annotations read-only
+   :scope "read"
+   :handler (fn [{:keys [deps] :as context} args]
+              (support/validate! [:map {:closed true} [:id [:string {:min 1}]]] args)
+              (if-let [saved (notebook/get-notebook-by-id (:sqlite deps) (:id args))]
+                {:notebook saved
+                 :url (-notebook-url context (:id args))}
+                (throw (protocol/tool-error (str "Notebook not found: " (:id args)
+                                                 ". Use list_notebooks to find ids.")))))})
+
+;; ---------------------------------------------------------
 ;; create_notebook
 
 (def ^:private create-notebook-args
   [:map {:closed true}
    [:name :any]
    [:description {:optional true} :any]
-   [:cells {:optional true} [:vector {:max 50} [:map-of :keyword :any]]]])
+   [:cells {:optional true} notebook-cells-args]])
 
 (def create-notebook
   "Tool: create a notebook with cells."
@@ -180,23 +261,17 @@
    (str "Save an investigation as a notebook the user can open in the UI. Each cell is a "
         "query in the query_events (query_mode \"events\") or query_metrics "
         "(query_mode \"metrics\") shape without time_range or cursor; events cells need a "
-        "visualization. Cells follow the notebook's time picker unless pinned_from/pinned_to "
-        "(ISO-8601) freeze them to a window, e.g. the incident. Returns the notebook URL.")
+        "visualization. For time_series cells, set query.visualization to preserve chart "
+        "layout: overlay (default false: one chart per metric/formula), render_as "
+        "(\"line\" default, \"stacked_area\", \"bar\"), and hidden_metrics (default []: series "
+        "ids A-Z or F1-F9 to hide while still evaluating them). Cells follow the notebook's "
+        "time picker unless pinned_from/pinned_to (ISO-8601) freeze them to a window, e.g. "
+        "the incident. Returns the notebook URL.")
    :input-schema
    (js/object-schema
      {:name {:type "string" :minLength 1 :maxLength 255}
-      :description {:type "string"}
-      :cells {:type "array"
-              :maxItems 50
-              :items {:type "object"
-                      :properties {:title {:type "string"}
-                                   :description {:type "string"}
-                                   :query_mode {:enum ["events" "metrics"]}
-                                   :query {:type "object"}
-                                   :pinned_from {:type "string"}
-                                   :pinned_to {:type "string"}}
-                      :required ["query_mode" "query"]
-                      :additionalProperties false}}}
+      :description {:type ["string" "null"]}
+      :cells {:type "array" :maxItems 50 :items notebook-cell-json-schema}}
      [:name])
    :annotations {:readOnlyHint false :destructiveHint false :idempotentHint false
                  :openWorldHint false}
@@ -209,16 +284,78 @@
        (when-let [error (notebook-schema/validate-notebook notebook-params)]
          (throw (protocol/tool-error "Invalid notebook" (:error error))))
        (doseq [[i cell] (map-indexed vector cells)]
-         (when-let [error (notebook-schema/validate-cell cell)]
+         (when-let [error (notebook-schema/validate-cell (-cell-params cell))]
            (throw (protocol/tool-error (str "Invalid cell at index " i) (:error error)))))
        (let [id (-new-id)]
          (jdbc/with-transaction [tx (:sqlite deps)]
            (notebook/create-notebook! tx id notebook-params)
            (doseq [cell cells]
-             (notebook/create-cell! tx (-new-id) (assoc cell :notebook_id id))))
+             (notebook/create-cell! tx (-new-id) (-> cell
+                                                     -cell-params
+                                                     (assoc :notebook_id id)))))
          {:id id
           :cell_count (count cells)
-          :url (-url context (str "/notebooks/" id))})))})
+          :url (-notebook-url context id)})))})
+
+;; ---------------------------------------------------------
+;; update_notebook
+
+(def ^:private update-notebook-args
+  [:map {:closed true}
+   [:id [:string {:min 1}]]
+   [:name {:optional true} :any]
+   [:description {:optional true} :any]
+   [:cells {:optional true} notebook-cells-args]])
+
+(def update-notebook
+  "Tool: update a notebook and optionally replace its cells."
+  {:name "update_notebook"
+   :title "Update notebook"
+   :description
+   (str "Update a notebook by id. Omit name/description to keep them; omit cells to keep "
+        "the current cells, or send cells to replace the entire list in order. Read the "
+        "notebook with get_notebook first, change the cell query (including "
+        "query.visualization.overlay, render_as, and hidden_metrics), then send all cells "
+        "back; read-only cell fields (id, notebook_id, position, timestamps) are ignored. "
+        "Chart settings default to one chart per metric/formula, \"line\" rendering, and no "
+        "hidden series. Returns the updated notebook and its URL.")
+   :input-schema
+   (js/object-schema
+     {:id {:type "string" :description "Notebook id to update."}
+      :name {:type "string" :minLength 1 :maxLength 255}
+      :description {:type ["string" "null"]}
+      :cells {:type "array" :maxItems 50 :items notebook-cell-json-schema}}
+     [:id])
+   :annotations {:readOnlyHint false :destructiveHint true :idempotentHint false
+                 :openWorldHint false}
+   :scope "write"
+   :handler
+   (fn [{:keys [deps] :as context} args]
+     (support/validate! update-notebook-args args)
+     (let [sqlite (:sqlite deps)
+           id (:id args)
+           existing (notebook/get-notebook-by-id sqlite id)]
+       (when-not existing
+         (throw (protocol/tool-error (str "Notebook not found: " id
+                                          ". Use list_notebooks to find ids."))))
+       (let [notebook-params (cond-> {:name (:name existing)
+                                      :description (:description existing)}
+                               (contains? args :name) (assoc :name (:name args))
+                               (contains? args :description) (assoc :description (:description args)))
+             cells (vec (:cells args))]
+         (when-let [error (notebook-schema/validate-notebook notebook-params)]
+           (throw (protocol/tool-error "Invalid notebook" (:error error))))
+         (when (contains? args :cells)
+           (doseq [[i cell] (map-indexed vector cells)]
+             (when-let [error (notebook-schema/validate-cell (-cell-params cell))]
+               (throw (protocol/tool-error (str "Invalid cell at index " i) (:error error))))))
+         (if (contains? args :cells)
+           (notebook/update-notebook-with-cells!
+             sqlite id notebook-params
+             (mapv #(-> % -cell-params (assoc :id (-new-id))) cells))
+           (notebook/update-notebook! sqlite id notebook-params))
+         {:notebook (notebook/get-notebook-by-id sqlite id)
+          :url (-notebook-url context id)})))})
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

@@ -112,6 +112,11 @@
    [:name {:optional true} [:string {:min 1 :max 128}]]
    [:unit {:optional true} [:string {:max 32}]]])
 
+(def series-ref
+  "Series identifier used by render-only visualization state: a metric id
+   (A-Z) or a formula id (F1-F9)."
+  [:or metric-ref formula-ref])
+
 ;; ---------------------------------------------------------
 ;; Having Schema
 
@@ -142,11 +147,11 @@
    [:bucket_ms {:optional true} [:int {:min 1}]]
    [:overlay {:optional true} :boolean]
    [:render_as {:optional true} [:enum "line" "stacked_area" "bar"]]
-   ;; UI-only render hint: source-metric ids whose series should be
-   ;; hidden from the chart. Backend ignores this for query execution
-   ;; but persists it (e.g. notebook cells) so the rendering state
-   ;; survives reloads.
-   [:hidden_metrics {:optional true} [:vector metric-ref]]])
+   ;; Render-only hint: series ids (metrics A-Z and formulas F1-F9)
+   ;; whose series should be hidden from the chart. Backend ignores this
+   ;; for query execution but persists it (e.g. notebook cells) so the
+   ;; rendering state survives reloads.
+   [:hidden_metrics {:optional true} [:vector series-ref]]])
 
 (def visualization
   "Visualization config for metrics queries. Currently only time_series is supported."

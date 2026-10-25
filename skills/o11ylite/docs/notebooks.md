@@ -198,6 +198,8 @@ See `docs/events-query.md` for filter, aggregation, having, and visualization sy
 }
 ```
 
+Cells persist the time-series chart settings in `query.visualization`. `overlay`, `render_as`, and `hidden_metrics` open exactly as saved in the UI; omitting them keeps the defaults (one chart per metric/formula, line rendering, nothing hidden).
+
 See `docs/metrics-query.md` for metric definition and filter syntax.
 
 **Response:** `303` redirect to `/notebooks/:id`.

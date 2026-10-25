@@ -29,7 +29,10 @@
    workspace/list-alert-rules
    workspace/get-alert-rule
    workspace/save-alert-rule
-   workspace/create-notebook])
+   workspace/list-notebooks
+   workspace/get-notebook
+   workspace/create-notebook
+   workspace/update-notebook])
 
 (def instructions
   "Server instructions returned by server/discover."
@@ -39,7 +42,9 @@
        "list_metrics, describe_metric. Attribute fields are prefixed attr. "
        "(e.g. attr.http.route). Time ranges accept {\"last\":\"1h\"} or ISO-8601 "
        "start/end; the default is the last hour. Prefer aggregations over raw rows "
-       "for questions about rates, counts, or latency."))
+       "for questions about rates, counts, or latency. Time series charts render one "
+       "chart per metric/formula by default; query_metrics/query_events visualization "
+       "settings control overlay, render_as, and hidden_metrics."))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

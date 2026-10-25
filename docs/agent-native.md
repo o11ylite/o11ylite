@@ -37,13 +37,16 @@ Set `O11YLITE_PUBLIC_URL` to the URL clients use; remote clients require `https`
 | `get_trace` | read | All spans of one trace |
 | `list_metrics` | read | Metric names, types, and units |
 | `describe_metric` | read | A metric's attributes, temporality, and type |
-| `query_metrics` | read | Metric time series with formulas |
+| `query_metrics` | read | Metric time series with formulas and chart settings |
 | `list_alert_rules` | read | Alert rules and whether they are firing |
 | `get_alert_rule` | read | One rule with its query and alert instances |
 | `save_alert_rule` | write | Create or replace an alert rule |
+| `list_notebooks` | read | Saved notebooks with cell counts |
+| `get_notebook` | read | One notebook with cell queries and chart settings |
 | `create_notebook` | write | Save an investigation as a notebook |
+| `update_notebook` | write | Update notebook metadata or replace its cells |
 
-Time ranges accept `{"last": "1h"}` or ISO-8601 `start`/`end`. Tool output renders timestamps as ISO-8601 and omits null columns.
+Time ranges accept `{"last": "1h"}` or ISO-8601 `start`/`end`. Tool output renders timestamps as ISO-8601 and omits null columns. Time series accept `visualization` chart settings: `overlay` (default `false`, one chart per metric/formula), `render_as` (`"line"` default, `"stacked_area"`, `"bar"`), and `hidden_metrics` (metric IDs A–Z or formula IDs F1–F9 to hide; hidden series are still evaluated).
 
 ## Agent skill
 
@@ -92,7 +95,7 @@ Once authenticated, the agent can:
 - **Query events, logs, and traces** — filter by service, duration, status; aggregate and group; view trace waterfalls
 - **Query metrics** — gauges, counters, histograms with appropriate aggregations
 - **Manage alert rules** — create, update, delete alert rules with webhook notifications
-- **Manage notebooks** — create investigative notebooks with query cells and markdown notes
+- **Manage notebooks** — create and update investigative notebooks with query cells and chart settings
 
 ## Example prompts
 

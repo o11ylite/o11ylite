@@ -179,7 +179,7 @@ Bucketed time series. Requires at least one aggregation.
 `bucket_ms` is optional — auto-selected based on time range if omitted.
 
 Optional visualization fields:
-- `overlay` (boolean, default `false`) — when multiple metrics are present, draw them in a single chart instead of one chart per metric.
+- `overlay` (boolean, default `false`) — draw all series in a single chart instead of one chart per aggregation.
 - `render_as` (`"line"` | `"stacked_area"` | `"bar"`, default `"line"`) — draw each series as a line, as a filled region stacked on top of the others, or as a stacked bar per bucket. Stacked area and bar treat missing buckets as 0 so the stack has no holes; pick either for part-of-whole views (e.g. request count by status code).
 
 **Response:**

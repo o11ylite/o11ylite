@@ -18,6 +18,7 @@
 
 (def create-notebook! store/create-notebook!)
 (def update-notebook! store/update-notebook!)
+(def update-notebook-with-cells! store/update-notebook-with-cells!)
 (def delete-notebook! store/delete-notebook!)
 (def get-notebook-by-id store/get-notebook-by-id)
 (def list-notebooks store/list-notebooks)
