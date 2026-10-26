@@ -36,8 +36,18 @@ const mockTraceResult: TraceQueryResult = {
       "span.duration_ms": 100,
       timestamp: 1200,
     },
+    {
+      span_id: "span-3",
+      parent_span_id: "span-2",
+      name: "grandchild",
+      service: "svc-b",
+      "meta.signal_type": "span",
+      "span.status_code": "OK",
+      "span.duration_ms": 50,
+      timestamp: 1250,
+    },
   ],
-  total_count: 2,
+  total_count: 3,
 }
 
 const server = setupServer(
@@ -132,6 +142,48 @@ describe("Trace page — span click opens side panel", () => {
 
     expect(getPanelWidthStyle()).toContain("var(--panel-width)")
     expect(await screen.findByRole("heading", { name: "Span Details" })).toBeInTheDocument()
+  })
+
+  it("collapses and expands a span group without selecting the span", async () => {
+    const user = userEvent.setup()
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    expect(screen.getByText("child")).toBeInTheDocument()
+    expect(screen.getByText("grandchild")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Collapse root" }))
+
+    expect(screen.getByText("root")).toBeInTheDocument()
+    expect(screen.queryByText("child")).not.toBeInTheDocument()
+    expect(screen.queryByText("grandchild")).not.toBeInTheDocument()
+    expect(screen.getByText("+2")).toBeInTheDocument()
+    expect(document.querySelector("aside")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Expand root" }))
+
+    expect(screen.getByText("child")).toBeInTheDocument()
+    expect(screen.getByText("grandchild")).toBeInTheDocument()
+  })
+
+  it("expands and collapses all span groups from the toolbar", async () => {
+    const user = userEvent.setup()
+
+    renderTrace()
+
+    expect(await screen.findByText("grandchild")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Collapse all span groups" }))
+
+    expect(screen.getByText("root")).toBeInTheDocument()
+    expect(screen.queryByText("child")).not.toBeInTheDocument()
+    expect(screen.getByText("1 of 3 spans visible")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Expand all span groups" }))
+
+    expect(screen.getByText("grandchild")).toBeInTheDocument()
+    expect(screen.getByText("3 of 3 spans visible")).toBeInTheDocument()
   })
 
   it("respects the toggle when the panel is already open", async () => {
