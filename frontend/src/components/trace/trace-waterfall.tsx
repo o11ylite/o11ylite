@@ -1,5 +1,7 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
+import { ChevronRight } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { TraceSpan } from "@/types"
 
@@ -10,8 +12,14 @@ import type { TraceSpan } from "@/types"
 interface SpanNode extends TraceSpan {
   depth: number
   children: SpanNode[]
+  descendantCount: number
   spanEvents: TraceSpan[] // Span events belonging to this span (rendered as markers)
 }
+
+// Above this many spans, start with every parent collapsed so the page opens
+// with a navigable overview instead of a wall of rows. Expand all restores the
+// previous always-expanded behaviour.
+const AUTO_COLLAPSE_SPAN_COUNT = 80
 
 // ============================================================================
 // Tree Building
@@ -25,7 +33,13 @@ function buildSpanTree(spans: TraceSpan[]): SpanNode[] {
   // Create a map of span_id to SpanNode (for actual spans only)
   const nodeMap = new Map<string, SpanNode>()
   for (const span of actualSpans) {
-    nodeMap.set(span.span_id, { ...span, depth: 0, children: [], spanEvents: [] })
+    nodeMap.set(span.span_id, {
+      ...span,
+      depth: 0,
+      children: [],
+      descendantCount: 0,
+      spanEvents: [],
+    })
   }
 
   // Attach span_events to their parent span (for rendering as markers on the same row)
@@ -52,13 +66,16 @@ function buildSpanTree(spans: TraceSpan[]): SpanNode[] {
     }
   }
 
-  // Calculate depths via DFS
-  function setDepths(node: SpanNode, depth: number) {
+  // Calculate depths and descendant counts via DFS
+  function setDepths(node: SpanNode, depth: number): number {
     node.depth = depth
     node.children.sort((a, b) => a.timestamp - b.timestamp)
+    let descendants = 0
     for (const child of node.children) {
-      setDepths(child, depth + 1)
+      descendants += 1 + setDepths(child, depth + 1)
     }
+    node.descendantCount = descendants
+    return descendants
   }
 
   // Sort roots by timestamp
@@ -70,11 +87,12 @@ function buildSpanTree(spans: TraceSpan[]): SpanNode[] {
   return roots
 }
 
-function flattenTree(roots: SpanNode[]): SpanNode[] {
+function flattenTree(roots: SpanNode[], collapsedSpanIds: Set<string>): SpanNode[] {
   const result: SpanNode[] = []
 
   function traverse(node: SpanNode) {
     result.push(node)
+    if (collapsedSpanIds.has(node.span_id)) return
     for (const child of node.children) {
       traverse(child)
     }
@@ -85,6 +103,23 @@ function flattenTree(roots: SpanNode[]): SpanNode[] {
   }
 
   return result
+}
+
+function collectParentSpanIds(roots: SpanNode[]): Set<string> {
+  const ids = new Set<string>()
+
+  function traverse(node: SpanNode) {
+    if (node.children.length > 0) ids.add(node.span_id)
+    for (const child of node.children) {
+      traverse(child)
+    }
+  }
+
+  for (const root of roots) {
+    traverse(root)
+  }
+
+  return ids
 }
 
 // ============================================================================
@@ -152,6 +187,8 @@ function SpanRow({
   traceDuration,
   serviceColorMap,
   isSelected,
+  isCollapsed,
+  onToggleCollapse,
   onClick,
 }: {
   span: SpanNode
@@ -159,6 +196,8 @@ function SpanRow({
   traceDuration: number
   serviceColorMap: Map<string, number>
   isSelected: boolean
+  isCollapsed: boolean
+  onToggleCollapse: () => void
   onClick: () => void
 }) {
   const leftPercent = ((span.timestamp - traceStart) / traceDuration) * 100
@@ -177,6 +216,7 @@ function SpanRow({
   const labelInside = barEndPercent > 85
 
   const hasEvents = span.spanEvents.length > 0
+  const hasChildren = span.children.length > 0
 
   return (
     <div
@@ -192,7 +232,37 @@ function SpanRow({
           className="flex items-center gap-1.5 truncate text-sm font-medium"
           style={{ paddingLeft: `${span.depth * 16}px` }}
         >
+          {hasChildren ? (
+            <button
+              type="button"
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${span.name}`}
+              aria-expanded={!isCollapsed}
+              title={isCollapsed ? "Expand span group" : "Collapse span group"}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleCollapse()
+              }}
+            >
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                  !isCollapsed && "rotate-90"
+                )}
+              />
+            </button>
+          ) : (
+            <span className="size-5 shrink-0" aria-hidden />
+          )}
           <span className="truncate">{span.name}</span>
+          {isCollapsed && span.descendantCount > 0 && (
+            <span
+              className="shrink-0 rounded bg-muted px-1 text-[10px] font-normal text-muted-foreground"
+              title={`${span.descendantCount} hidden span${span.descendantCount === 1 ? "" : "s"}`}
+            >
+              +{span.descendantCount}
+            </span>
+          )}
           {hasEvents && (
             <span className="shrink-0 text-xs text-amber-500" title={`${span.spanEvents.length} event(s)`}>
               ({span.spanEvents.length})
@@ -240,6 +310,46 @@ function SpanRow({
             traceDuration={traceDuration}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+function TraceToolbar({
+  visibleCount,
+  totalCount,
+  onExpandAll,
+  onCollapseAll,
+}: {
+  visibleCount: number
+  totalCount: number
+  onExpandAll: () => void
+  onCollapseAll: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-border bg-muted/10 px-2 py-1">
+      <span className="text-xs text-muted-foreground">
+        {visibleCount} of {totalCount} spans visible
+      </span>
+      <div className="flex items-center gap-0.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          aria-label="Expand all span groups"
+          onClick={onExpandAll}
+        >
+          Expand all
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          aria-label="Collapse all span groups"
+          onClick={onCollapseAll}
+        >
+          Collapse all
+        </Button>
       </div>
     </div>
   )
@@ -294,9 +404,8 @@ export function TraceWaterfall({
   selectedSpanId?: string | null
   onSpanSelect?: (spanId: string | null) => void
 }) {
-  const { flatSpans, traceStart, traceDuration } = useMemo(() => {
+  const { roots, actualSpanCount, traceStart, traceDuration } = useMemo(() => {
     const tree = buildSpanTree(spans)
-    const flat = flattenTree(tree)
 
     // Calculate trace timeline bounds (only from actual spans, not span_events)
     let minTimestamp = Infinity
@@ -308,14 +417,38 @@ export function TraceWaterfall({
     }
 
     return {
-      flatSpans: flat,
+      roots: tree,
+      actualSpanCount: spans.filter((span) => span["meta.signal_type"] === "span").length,
       traceStart: minTimestamp,
       traceDuration: maxEnd - minTimestamp,
     }
   }, [spans])
 
+  const collapsibleSpanIds = useMemo(() => collectParentSpanIds(roots), [roots])
+  const [collapsedSpanIds, setCollapsedSpanIds] = useState<Set<string>>(() =>
+    actualSpanCount > AUTO_COLLAPSE_SPAN_COUNT
+      ? new Set(collapsibleSpanIds)
+      : new Set()
+  )
+  const visibleSpans = useMemo(
+    () => flattenTree(roots, collapsedSpanIds),
+    [roots, collapsedSpanIds]
+  )
+
   // Service color mapping (stable across renders)
   const serviceColorMap = useMemo(() => new Map<string, number>(), [])
+
+  const toggleCollapsed = (spanId: string) => {
+    setCollapsedSpanIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(spanId)) {
+        next.delete(spanId)
+      } else {
+        next.add(spanId)
+      }
+      return next
+    })
+  }
 
   if (traceDuration <= 0) {
     return (
@@ -327,9 +460,17 @@ export function TraceWaterfall({
 
   return (
     <div className="flex flex-col overflow-auto rounded-md border border-border">
+      {collapsibleSpanIds.size > 0 && (
+        <TraceToolbar
+          visibleCount={visibleSpans.length}
+          totalCount={actualSpanCount}
+          onExpandAll={() => setCollapsedSpanIds(new Set())}
+          onCollapseAll={() => setCollapsedSpanIds(new Set(collapsibleSpanIds))}
+        />
+      )}
       <TimelineHeader traceDuration={traceDuration} />
       <div className="flex-1">
-        {flatSpans.map((span) => (
+        {visibleSpans.map((span) => (
           <SpanRow
             key={span.span_id}
             span={span}
@@ -337,6 +478,8 @@ export function TraceWaterfall({
             traceDuration={traceDuration}
             serviceColorMap={serviceColorMap}
             isSelected={selectedSpanId === span.span_id}
+            isCollapsed={collapsedSpanIds.has(span.span_id)}
+            onToggleCollapse={() => toggleCollapsed(span.span_id)}
             onClick={() => {
               // Toggle selection: click again to deselect
               const newSelection = selectedSpanId === span.span_id ? null : span.span_id
