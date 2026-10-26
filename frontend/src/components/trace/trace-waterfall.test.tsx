@@ -29,7 +29,7 @@ function makeSpan({
 }
 
 describe("TraceWaterfall grouping", () => {
-  it("starts with parent groups collapsed for large traces", async () => {
+  it("starts with all groups expanded for large traces", async () => {
     const user = userEvent.setup()
     const children = Array.from({ length: 80 }, (_, index) =>
       makeSpan({
@@ -45,6 +45,12 @@ describe("TraceWaterfall grouping", () => {
     ]
 
     render(<TraceWaterfall spans={spans} />)
+
+    expect(screen.getByText("root")).toBeInTheDocument()
+    expect(screen.getByText("child 0")).toBeInTheDocument()
+    expect(screen.getByText("81 of 81 spans visible")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Collapse all span groups" }))
 
     expect(screen.getByText("root")).toBeInTheDocument()
     expect(screen.queryByText("child 0")).not.toBeInTheDocument()

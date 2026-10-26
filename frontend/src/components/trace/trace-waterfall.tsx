@@ -16,11 +16,6 @@ interface SpanNode extends TraceSpan {
   spanEvents: TraceSpan[] // Span events belonging to this span (rendered as markers)
 }
 
-// Above this many spans, start with every parent collapsed so the page opens
-// with a navigable overview instead of a wall of rows. Expand all restores the
-// previous always-expanded behaviour.
-const AUTO_COLLAPSE_SPAN_COUNT = 80
-
 // ============================================================================
 // Tree Building
 // ============================================================================
@@ -227,7 +222,7 @@ function SpanRow({
       onClick={onClick}
     >
       {/* Left column: span info */}
-      <div className="flex w-[300px] shrink-0 flex-col justify-center border-r border-border px-2 py-1">
+      <div className="flex w-[260px] shrink-0 flex-col justify-center border-r border-border px-2 py-1 sm:w-[300px]">
         <div
           className="flex items-center gap-1.5 truncate text-sm font-medium"
           style={{ paddingLeft: `${span.depth * 16}px` }}
@@ -235,7 +230,7 @@ function SpanRow({
           {hasChildren ? (
             <button
               type="button"
-              className="inline-flex size-5 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:size-5"
               aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${span.name}`}
               aria-expanded={!isCollapsed}
               title={isCollapsed ? "Expand span group" : "Collapse span group"}
@@ -246,13 +241,13 @@ function SpanRow({
             >
               <ChevronRight
                 className={cn(
-                  "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                  "h-4 w-4 text-muted-foreground transition-transform sm:h-3.5 sm:w-3.5",
                   !isCollapsed && "rotate-90"
                 )}
               />
             </button>
           ) : (
-            <span className="size-5 shrink-0" aria-hidden />
+            <span className="size-6 shrink-0 sm:size-5" aria-hidden />
           )}
           <span className="truncate">{span.name}</span>
           {isCollapsed && span.descendantCount > 0 && (
@@ -327,15 +322,21 @@ function TraceToolbar({
   onCollapseAll: () => void
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-border bg-muted/10 px-2 py-1">
-      <span className="text-xs text-muted-foreground">
-        {visibleCount} of {totalCount} spans visible
-      </span>
-      <div className="flex items-center gap-0.5">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/10 px-2 py-1.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          {visibleCount} of {totalCount} spans visible
+        </span>
+        <span className="text-[10px] text-muted-foreground sm:hidden">
+          Swipe to see timeline
+        </span>
+      </div>
+      <div className="ml-auto flex items-center gap-0.5">
         <Button
           type="button"
           variant="ghost"
           size="xs"
+          className="h-8 px-2 sm:h-6"
           aria-label="Expand all span groups"
           onClick={onExpandAll}
         >
@@ -345,6 +346,7 @@ function TraceToolbar({
           type="button"
           variant="ghost"
           size="xs"
+          className="h-8 px-2 sm:h-6"
           aria-label="Collapse all span groups"
           onClick={onCollapseAll}
         >
@@ -366,7 +368,7 @@ function TimelineHeader({ traceDuration }: { traceDuration: number }) {
 
   return (
     <div className="flex border-b border-border bg-muted/30">
-      <div className="w-[300px] shrink-0 border-r border-border px-2 py-2 text-xs font-medium text-muted-foreground">
+      <div className="w-[260px] shrink-0 border-r border-border px-2 py-2 text-xs font-medium text-muted-foreground sm:w-[300px]">
         Span
       </div>
       <div className="relative flex-1 overflow-hidden px-2 py-2">
@@ -425,10 +427,8 @@ export function TraceWaterfall({
   }, [spans])
 
   const collapsibleSpanIds = useMemo(() => collectParentSpanIds(roots), [roots])
-  const [collapsedSpanIds, setCollapsedSpanIds] = useState<Set<string>>(() =>
-    actualSpanCount > AUTO_COLLAPSE_SPAN_COUNT
-      ? new Set(collapsibleSpanIds)
-      : new Set()
+  const [collapsedSpanIds, setCollapsedSpanIds] = useState<Set<string>>(
+    () => new Set()
   )
   const visibleSpans = useMemo(
     () => flattenTree(roots, collapsedSpanIds),
@@ -459,7 +459,7 @@ export function TraceWaterfall({
   }
 
   return (
-    <div className="flex flex-col overflow-auto rounded-md border border-border">
+    <div className="overflow-auto rounded-md border border-border">
       {collapsibleSpanIds.size > 0 && (
         <TraceToolbar
           visibleCount={visibleSpans.length}
@@ -468,25 +468,29 @@ export function TraceWaterfall({
           onCollapseAll={() => setCollapsedSpanIds(new Set(collapsibleSpanIds))}
         />
       )}
-      <TimelineHeader traceDuration={traceDuration} />
-      <div className="flex-1">
-        {visibleSpans.map((span) => (
-          <SpanRow
-            key={span.span_id}
-            span={span}
-            traceStart={traceStart}
-            traceDuration={traceDuration}
-            serviceColorMap={serviceColorMap}
-            isSelected={selectedSpanId === span.span_id}
-            isCollapsed={collapsedSpanIds.has(span.span_id)}
-            onToggleCollapse={() => toggleCollapsed(span.span_id)}
-            onClick={() => {
-              // Toggle selection: click again to deselect
-              const newSelection = selectedSpanId === span.span_id ? null : span.span_id
-              onSpanSelect?.(newSelection)
-            }}
-          />
-        ))}
+      <div className="overflow-x-auto">
+        <div className="min-w-[720px]">
+          <TimelineHeader traceDuration={traceDuration} />
+          <div>
+            {visibleSpans.map((span) => (
+              <SpanRow
+                key={span.span_id}
+                span={span}
+                traceStart={traceStart}
+                traceDuration={traceDuration}
+                serviceColorMap={serviceColorMap}
+                isSelected={selectedSpanId === span.span_id}
+                isCollapsed={collapsedSpanIds.has(span.span_id)}
+                onToggleCollapse={() => toggleCollapsed(span.span_id)}
+                onClick={() => {
+                  // Toggle selection: click again to deselect
+                  const newSelection = selectedSpanId === span.span_id ? null : span.span_id
+                  onSpanSelect?.(newSelection)
+                }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
