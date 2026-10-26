@@ -87,12 +87,32 @@ describe("AppSidebar — System submenu persistence", () => {
   })
 
   it("does not overwrite stored 'true' when the user lands on a /system/* route", () => {
-    // Regression guard: forcing open on system routes is a *display* override,
-    // not a write. The user's persisted preference (here: open) must survive.
+    // Regression guard: landing on a system route must not discard a stored
+    // open preference.
     window.localStorage.setItem(STORAGE_KEY, "true")
     inertiaState.url = "/system/settings"
 
     renderSidebar()
+
+    expect(getSystemTrigger()).toHaveAttribute("aria-expanded", "true")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("true")
+  })
+
+  it("opens on entry to a /system/* route and can then be closed", async () => {
+    const user = userEvent.setup()
+    inertiaState.url = "/system/settings"
+    window.localStorage.setItem(STORAGE_KEY, "false")
+
+    renderSidebar()
+
+    expect(getSystemTrigger()).toHaveAttribute("aria-expanded", "true")
+
+    await user.click(getSystemTrigger())
+
+    expect(getSystemTrigger()).toHaveAttribute("aria-expanded", "false")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("false")
+
+    await user.click(getSystemTrigger())
 
     expect(getSystemTrigger()).toHaveAttribute("aria-expanded", "true")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("true")
