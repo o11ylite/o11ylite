@@ -75,17 +75,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const user = auth?.user
 
   // Persist the System submenu open/closed state across page navigations and
-  // reloads. When the current route matches any system item, force the menu
-  // open so the active item is always visible (e.g. deep-linking into
-  // /system/api-keys).
+  // reloads. Open it when the current route is under /system so the active
+  // item is visible, but only when entering that section. Staying controlled
+  // by the stored value afterwards lets the user close the menu on system
+  // pages too.
   const isOnSystemRoute = systemItems.some(
     (item) => url === item.url || url.startsWith(item.url + "/")
   )
-  const [systemOpenStored, setSystemOpenStored] = useLocalStorage(
+  const [systemOpen, setSystemOpen] = useLocalStorage(
     "o11ylite.sidebar.system-open",
-    false
+    isOnSystemRoute
   )
-  const systemOpen = isOnSystemRoute || systemOpenStored
+  React.useEffect(() => {
+    if (isOnSystemRoute) {
+      setSystemOpen(true)
+    }
+  }, [isOnSystemRoute, setSystemOpen])
 
   return (
     <Sidebar {...props}>
@@ -133,7 +138,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <Collapsible
               open={systemOpen}
-              onOpenChange={setSystemOpenStored}
+              onOpenChange={setSystemOpen}
               className="group/collapsible"
             >
               <SidebarMenuItem>
