@@ -252,7 +252,29 @@
   (testing "render_as rejects unknown values"
     (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
                    :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
-                   :visualization {:type "time_series" :render_as "pie"}}))))
+                   :visualization {:type "time_series" :render_as "pie"}})))
+
+  (testing "overlay is a boolean"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                 :visualization {:type "time_series" :overlay true}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                   :visualization {:type "time_series" :overlay "yes"}})))
+
+  (testing "hidden_metrics accepts metric ids and formula ids"
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                 :visualization {:type "time_series" :hidden_metrics ["A"]}}))
+    (is (valid? {:time_range {:start 1702000000000 :end 1702003600000}
+                 :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                 :visualization {:type "time_series" :hidden_metrics ["F1"]}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                   :visualization {:type "time_series" :hidden_metrics ["a"]}}))
+    (is (invalid? {:time_range {:start 1702000000000 :end 1702003600000}
+                   :metrics [{:id "A" :name "cpu.utilization" :agg "avg"}]
+                   :visualization {:type "time_series" :hidden_metrics ["F10"]}}))))
 
 ;; ---------------------------------------------------------
 ;; Full Query Examples

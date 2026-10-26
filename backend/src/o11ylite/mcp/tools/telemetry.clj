@@ -98,7 +98,12 @@
    [:group_by {:optional true} :any]
    [:having {:optional true} :any]
    [:visualization {:optional true}
-    [:map [:type [:enum "table" "time_series"]]]]
+    [:map
+     [:type [:enum "table" "time_series"]]
+     [:sort {:optional true} :any]
+     [:bucket_ms {:optional true} [:int {:min 1}]]
+     [:overlay {:optional true} :boolean]
+     [:render_as {:optional true} [:enum "line" "stacked_area" "bar"]]]]
    [:limit {:optional true} [:int {:min 1 :max 1000}]]
    [:cursor {:optional true} [:maybe :string]]
    [:fields {:optional true} [:vector :string]]])
@@ -143,7 +148,9 @@
         "with group_by, optional having on aggregation ids, and "
         "visualization {\"type\":\"table\",\"sort\":{\"ref\":\"A\",\"order\":\"desc\"}}.\n"
         "- Over time: visualization {\"type\":\"time_series\"} (requires aggregations; "
-        "optional bucket_ms).\n"
+        "optional bucket_ms). By default each aggregation renders in its own chart; set "
+        "overlay true to put them in one chart, and render_as to \"line\" (default), "
+        "\"stacked_area\", or \"bar\".\n"
         "Filter example: {\"and\":[{\"field\":\"service\",\"op\":\"=\",\"value\":\"api\"},"
         "{\"field\":\"span.duration_ms\",\"op\":\">\",\"value\":500}]}.")
    :input-schema
@@ -158,10 +165,16 @@
                              "Filter on aggregation results, e.g. {\"ref\":\"A\",\"op\":\">\",\"value\":10}.")
       :visualization {:type "object"
                       :description (str "{\"type\":\"table\"} (optional sort {field|ref, order}) or "
-                                        "{\"type\":\"time_series\"} (optional bucket_ms).")
+                                        "{\"type\":\"time_series\"} (optional bucket_ms, overlay, "
+                                        "render_as). Time series render one chart per aggregation "
+                                        "by default.")
                       :properties {:type {:enum ["table" "time_series"]}
                                    :sort (js/from-malli events-schema/sort-config)
-                                   :bucket_ms {:type "integer" :minimum 1}}
+                                   :bucket_ms {:type "integer" :minimum 1}
+                                   :overlay {:type "boolean"
+                                             :description "Default false: one chart per aggregation. true: all series in one chart."}
+                                   :render_as {:enum ["line" "stacked_area" "bar"]
+                                               :description "How to draw each series. Default \"line\"."}}
                       :required ["type"]}
       :limit {:type "integer" :minimum 1 :maximum 1000
               :description "Maximum rows (default 50)."}
@@ -278,7 +291,8 @@
    [:filter {:optional true} :any]
    [:group_by {:optional true} :any]
    [:having {:optional true} :any]
-   [:bucket_ms {:optional true} [:int {:min 1}]]])
+   [:bucket_ms {:optional true} [:int {:min 1}]]
+   [:visualization {:optional true} metrics-schema/time-series-visualization]])
 
 (def query-metrics
   "Tool: query metric time series."
@@ -288,7 +302,15 @@
    (str "Query metric time series. Each metric gets an id (A-Z) and an aggregation valid for "
         "its type: gauge sum/avg/min/max/last, sum sum/rate, histogram count/sum/avg/min/max "
         "(use describe_metric). Formulas combine ids, e.g. {\"id\":\"F1\",\"expr\":\"B / A * 100\"}. "
-        "filter and group_by use the metric's attribute names (attr.*).")
+        "filter and group_by use the metric's attribute names (attr.*).\n"
+        "Chart settings: by default each metric/formula renders in its own chart. Set "
+        "visualization {\"type\":\"time_series\",\"overlay\":true} to draw all series in one "
+        "chart, render_as \"line\" (default), \"stacked_area\", or \"bar\", and hidden_metrics "
+        "(default []: nothing hidden) to hide evaluated series from the chart, e.g. "
+        "[\"B\",\"F1\"] (metric ids A-Z or formula ids F1-F9). Hidden series are still "
+        "evaluated and returned. If series use different units (bytes and a percentage), "
+        "keep overlay false or hide the mismatched series so one axis does not flatten "
+        "the others.")
    :input-schema
    (js/object-schema
      {:time_range support/time-range-json-schema
@@ -301,7 +323,15 @@
       :having (js/from-malli metrics-schema/having-expr
                              "Drop points where the predicate on a metric/formula id fails.")
       :bucket_ms {:type "integer" :minimum 1
-                  :description "Bucket size in ms (auto-selected when omitted)."}}
+                  :description "Bucket size in ms (auto-selected when omitted)."}
+      :visualization (-> (js/from-malli
+                           metrics-schema/time-series-visualization
+                           (str "Chart settings. overlay defaults to false (one chart per "
+                                "metric/formula); render_as defaults to \"line\"; hidden_metrics "
+                                "defaults to [] and lists series ids (A-Z or F1-F9) to hide from "
+                                "the chart. Hidden series are still evaluated and returned."))
+                         (assoc-in [:properties :bucket_ms :description]
+                                   "Render hint only; use the top-level bucket_ms to control metrics bucketing."))}
      [:metrics])
    :annotations read-only
    :scope "read"
@@ -309,7 +339,8 @@
    (fn [{:keys [deps]} args]
      (support/validate! query-metrics-args args)
      (let [{:keys [sqlite duckdb]} deps
-           query (-> (select-keys args [:metrics :formulas :filter :group_by :having :bucket_ms])
+           query (-> (select-keys args [:metrics :formulas :filter :group_by :having
+                                        :bucket_ms :visualization])
                      (assoc :time_range (support/resolve-time-range (:time_range args) "1h" (-now))))]
        (some-> (metrics.query/validate sqlite duckdb query) support/query-error!)
        (let [{:keys [data metadata]} (metrics.query/execute duckdb sqlite query)]

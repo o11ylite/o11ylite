@@ -46,7 +46,8 @@
     (let [tools (get-in (mcp/request "tools/list" {}) [:body :result :tools])]
       (is (= ["list_services" "list_event_fields" "query_events" "get_trace" "list_metrics"
               "describe_metric" "query_metrics" "list_alert_rules" "get_alert_rule"
-              "save_alert_rule" "create_notebook"]
+              "save_alert_rule" "list_notebooks" "get_notebook" "create_notebook"
+              "update_notebook"]
              (mapv :name tools))))
     (is (= 405 (h/status (h/get-request "/mcp"))))
     (is (= 405 (h/status (h/delete-request "/mcp"))))
@@ -119,7 +120,9 @@
 
     (let [result (mcp/tool-result "query_events" {:time_range {:last "2h"}
                                                   :aggregations [{:id "A" :function "count" :field "*"}]
-                                                  :visualization {:type "time_series"}})]
+                                                  :visualization {:type "time_series"
+                                                                  :overlay true
+                                                                  :render_as "bar"}})]
       (is (seq (:series result))))
 
     (testing "query errors are tool errors the model can fix"
@@ -136,7 +139,27 @@
       (is (some? metric-name))
       (is (= "gauge" (:metric_type described)))
       (is (seq (:series result)))
-      (is (str/includes? (mcp/tool-error-text "describe_metric" {:name "nope"}) "not found"))))
+      (is (str/includes? (mcp/tool-error-text "describe_metric" {:name "nope"}) "not found"))
+
+      (testing "chart settings accept metric and formula ids"
+        (let [result (mcp/tool-result "query_metrics"
+                                      {:time_range {:last "2h"}
+                                       :metrics [{:id "A" :name metric-name :agg "avg"}]
+                                       :formulas [{:id "F1" :expr "A * 2"}]
+                                       :visualization {:type "time_series"
+                                                       :overlay true
+                                                       :render_as "bar"
+                                                       :hidden_metrics ["A" "F1"]}})]
+          (is (seq (:series result)))
+          (is (some #(= "F1" (:id %)) (:series result)))))
+      (testing "hidden_metrics rejects unknown series ids"
+        (is (str/includes?
+              (mcp/tool-error-text "query_metrics"
+                                   {:time_range {:last "2h"}
+                                    :metrics [{:id "A" :name metric-name :agg "avg"}]
+                                    :visualization {:type "time_series"
+                                                    :hidden_metrics ["a"]}})
+              "hidden_metrics")))))
 
   (testing "alert rule tools"
     (let [created (mcp/tool-result "save_alert_rule" (-alert-rule-args {:enabled false}))
@@ -188,7 +211,65 @@
         (is (str/includes? (mcp/tool-error-text "create_notebook"
                                                 {:name "Bad" :cells [{:query_mode "events" :query {}}]})
                            "index 0"))
-        (is (= before (count (notebook/list-notebooks (:db/sqlite h/*system*)))))))))
+        (is (str/includes? (mcp/tool-error-text "create_notebook"
+                                                {:name "Bad"
+                                                 :cells [{:query_mode "events"
+                                                          :query {:visualization {:type "table"}}
+                                                          :typo true}]})
+                           "disallowed key"))
+        (is (= before (count (notebook/list-notebooks (:db/sqlite h/*system*))))))))
+
+  (testing "notebook chart settings survive read and update"
+    (let [viz {:type "time_series" :overlay true :render_as "bar" :hidden_metrics ["F1"]}
+          cell {:title "Memory usage vs 2 GiB limit"
+                :query_mode "metrics"
+                :query {:metrics [{:id "A" :name "container.memory.usage" :agg "max"}
+                                  {:id "B" :name "container.memory.working_set" :agg "max"}
+                                  {:id "C" :name "container.memory.limit" :agg "max"}]
+                        :formulas [{:id "F1" :expr "A / C * 100" :unit "%"}]
+                        :visualization viz}}
+          created (mcp/tool-result "create_notebook" {:name "Memory" :cells [cell]})
+          id (:id created)
+          fetched (mcp/tool-result "get_notebook" {:id id})]
+      (is (= 1 (count (get-in fetched [:notebook :cells]))))
+      (is (= viz (get-in fetched [:notebook :cells 0 :query :visualization])))
+      (is (= "F1" (get-in fetched [:notebook :cells 0 :query :formulas 0 :id])))
+      (is (some #(= id (:id %)) (:notebooks (mcp/tool-result "list_notebooks" {}))))
+
+      (testing "metadata-only update keeps cells"
+        (let [renamed (mcp/tool-result "update_notebook" {:id id :name "Memory renamed"})]
+          (is (= "Memory renamed" (get-in renamed [:notebook :name])))
+          (is (= viz (get-in renamed [:notebook :cells 0 :query :visualization])))))
+
+      (testing "cell replacement preserves chart settings"
+        (let [read-cells (get-in (mcp/tool-result "get_notebook" {:id id}) [:notebook :cells])
+              updated-viz (assoc viz :overlay false :hidden_metrics ["B" "F1"])
+              updated (mcp/tool-result "update_notebook"
+                                       {:id id
+                                        :cells [(assoc-in (first read-cells)
+                                                          [:query :visualization]
+                                                          updated-viz)]})]
+          (is (= updated-viz (get-in updated [:notebook :cells 0 :query :visualization])))
+          (is (= 1 (count (get-in updated [:notebook :cells]))))))
+
+      (testing "invalid replacement leaves the notebook intact"
+        (is (str/includes? (mcp/tool-error-text "update_notebook"
+                                                {:id id :cells [{:query_mode "events" :query {}}]})
+                           "index 0"))
+        (is (str/includes? (mcp/tool-error-text "update_notebook"
+                                                {:id id
+                                                 :cells [{:query_mode "events"
+                                                          :query {:visualization {:type "table"}}
+                                                          :typo true}]})
+                           "disallowed key"))
+        (let [saved (mcp/tool-result "get_notebook" {:id id})]
+          (is (= "Memory renamed" (get-in saved [:notebook :name])))
+          (is (= ["B" "F1"]
+                 (get-in saved [:notebook :cells 0 :query :visualization :hidden_metrics])))))
+
+      (testing "unknown ids"
+        (is (str/includes? (mcp/tool-error-text "get_notebook" {:id "missing"}) "not found"))
+        (is (str/includes? (mcp/tool-error-text "update_notebook" {:id "missing"}) "not found"))))))
 
 ;; ---------------------------------------------------------
 ;; Rich Comment

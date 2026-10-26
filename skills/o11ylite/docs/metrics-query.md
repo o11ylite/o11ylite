@@ -165,9 +165,9 @@ Controls how query results are rendered. All fields optional.
 | Field            | Type               | Default | Description                                              |
 |------------------|--------------------|---------|----------------------------------------------------------|
 | `bucket_ms`      | integer            | auto    | Bucket width in ms                                       |
-| `overlay`        | boolean            | `false` | When multiple series are present, draw them in a single chart instead of one chart per metric |
+| `overlay`        | boolean            | `false` | When multiple series are present, draw them in a single chart instead of one chart per metric/formula |
 | `render_as`      | `"line"` \| `"stacked_area"` \| `"bar"` | `"line"` | How to draw each series. Stacked area and bar treat missing buckets as 0 so the stack has no holes; pick either for part-of-whole views |
-| `hidden_metrics` | string[]           | `[]`    | Source-metric IDs whose series should be hidden from the chart. Render-only — the backend ignores this for query execution but persists it (e.g. in notebook cells) so the hiding state survives reloads |
+| `hidden_metrics` | string[]           | `[]`    | Series IDs to hide from the chart: metric IDs A–Z or formula IDs F1–F9. Render-only — the backend ignores this for query execution but persists it (e.g. in notebook cells) so the hiding state survives reloads. Hidden series are still evaluated. |
 
 ---
 

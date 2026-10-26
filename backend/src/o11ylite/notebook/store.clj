@@ -124,6 +124,17 @@
         WHERE id = ?"
        title description query_mode (-serialize-query query) pinned_from pinned_to now id])))
 
+(defn update-notebook-with-cells!
+  "Update a notebook's metadata and replace every cell in one transaction.
+   `cells` is ordered; each cell must carry its own :id plus the fields
+   accepted by create-cell!. Returns nil."
+  [sqlite id {:keys [name description]} cells]
+  (jdbc/with-transaction [tx sqlite]
+    (update-notebook! tx id {:name name :description description})
+    (jdbc/execute! tx ["DELETE FROM notebook_cells WHERE notebook_id = ?" id])
+    (doseq [cell cells]
+      (create-cell! tx (:id cell) (assoc cell :notebook_id id)))))
+
 (defn delete-cell!
   "Delete a cell by ID and renumber remaining cells so positions stay contiguous."
   [sqlite id]
