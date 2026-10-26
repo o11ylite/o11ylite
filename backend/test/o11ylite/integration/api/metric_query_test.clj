@@ -1029,3 +1029,39 @@
         ;; F1 = 10, fails > 50 -> formula series dropped, but source series A and B remain
         (is (empty? f1-series))
         (is (= #{"A" "B"} (set (map :id series))))))))
+
+;; ---------------------------------------------------------
+;; Diagnostics
+
+(deftest metrics-query-filter-diagnostics-test
+  (testing "a valid filter that cannot apply to one metric produces a diagnostic, not an error"
+    (h/ingest-sample-metrics! 1 {:name "diagnostics.with.attr"
+                                 :attr.service.name "svc-a"})
+    (h/ingest-sample-metrics! 1 {:name "diagnostics.without.attr"
+                                 :attr.k8s.pod.name "pod-a"})
+    (metadata/upsert-metrics! (sqlite)
+                              {"diagnostics.with.attr"
+                               {:metric_type :gauge
+                                :attributes #{"attr.service.name"}}
+                               "diagnostics.without.attr"
+                               {:metric_type :gauge
+                                :attributes #{"attr.k8s.pod.name"}}})
+
+    (let [now (System/currentTimeMillis)
+          response (h/post-json "/api/query/metrics"
+                                {:time_range {:start (- now (* 2 60 60 1000))
+                                              :end (+ now 60000)}
+                                 :filter {:field "attr.service.name" :op "=" :value "svc-a"}
+                                 :metrics [{:id "A" :name "diagnostics.with.attr" :agg "avg"}
+                                           {:id "B" :name "diagnostics.without.attr" :agg "avg"}]})
+          data (get-in response [:body :data])]
+      (is (= 200 (h/status response)))
+      (is (= ["A"] (map :id (:series data))))
+      (is (= [{:severity "warning"
+               :code "metric_filter_not_applicable"
+               :metric "diagnostics.without.attr"
+               :id "B"
+               :fields ["attr.service.name"]}]
+             (map #(dissoc % :message) (:diagnostics data))))
+      (is (string? (get-in data [:diagnostics 0 :message])))
+      (is (nil? (:metric_status data))))))

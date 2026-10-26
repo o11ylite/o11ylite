@@ -43,7 +43,7 @@ Set `O11YLITE_PUBLIC_URL` to the URL clients use; remote clients require `https`
 | `save_alert_rule` | write | Create or replace an alert rule |
 | `create_notebook` | write | Save an investigation as a notebook |
 
-Time ranges accept `{"last": "1h"}` or ISO-8601 `start`/`end`. Tool output renders timestamps as ISO-8601 and omits null columns.
+Time ranges accept `{"last": "1h"}` or ISO-8601 `start`/`end`. Tool query results use the same rows and timestamps as the HTTP query API; `fields` can project raw row columns. `query_metrics` may include a non-fatal `diagnostics` array when a valid filter cannot apply to one of the requested metrics.
 
 ## Agent skill
 

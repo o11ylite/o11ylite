@@ -240,7 +240,14 @@
                       ;; \"F1\"), :metric nil, :formula <expr>, :name (\"F1\"
                       ;; or \"F1: <user-name>\"), and a :unit (explicit or
                       ;; inferred from operands when all share the same unit).
-                      ...]}
+                      ...]
+              :diagnostics [{:severity \"warning\"
+                             :code \"metric_filter_not_applicable\"
+                             :metric \"k8s.container.cpu_limit\"
+                             :id \"D\"
+                             :fields [\"attr.service.name\"]
+                             :message \"...\"}]}
+       ;; :diagnostics is omitted when empty.
       :metadata {:query_time_ms N}}"
   ([duckdb sqlite query]
    (execute duckdb sqlite query nil))
@@ -269,11 +276,13 @@
          all-series (if (and having (formula-ids (:ref having)))
                       (formula/apply-having-to-formula with-formulas having)
                       with-formulas)
+         diagnostics (query-validation/filter-diagnostics sqlite query all-series)
          query-time-ms (- (System/currentTimeMillis) start-time)]
-     {:data {:bucket_ms resolved-bucket-ms
-             :start_ms start-ms
-             :end_ms end-ms
-             :series all-series}
+     {:data (cond-> {:bucket_ms resolved-bucket-ms
+                     :start_ms start-ms
+                     :end_ms end-ms
+                     :series all-series}
+              (seq diagnostics) (assoc :diagnostics diagnostics))
       :metadata {:query_time_ms query-time-ms}})))
 
 ;; ---------------------------------------------------------
