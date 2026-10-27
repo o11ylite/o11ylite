@@ -57,7 +57,7 @@
 
   ;; Connection pooling & JDBC
   com.zaxxer/HikariCP {:mvn/version "7.1.0"}
-  com.github.seancorfield/next.jdbc {:mvn/version "1.4.70"}
+  com.github.seancorfield/next.jdbc {:mvn/version "1.4.72"}
   com.github.seancorfield/honeysql {:mvn/version "2.8.85"}
 
   ;; Migrations
