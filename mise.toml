@@ -41,4 +41,4 @@ tmux = "3.7c"
 
 # dev/repl-eval: a native binary rather than a JVM, so it connects to the REPL
 # in milliseconds instead of paying JVM start-up on every call.
-babashka = "1.13.226"
+babashka = "1.13.227"
