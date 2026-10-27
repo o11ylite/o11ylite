@@ -73,11 +73,14 @@ export default function ApplicationLayout({
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
+          <Breadcrumb className="min-w-0 flex-1 overflow-hidden">
+            <BreadcrumbList className="min-w-0 flex-nowrap">
               {typeof title === "string" || title === undefined ? (
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="font-semibold">
+                <BreadcrumbItem className="min-w-0">
+                  <BreadcrumbPage
+                    className="truncate font-semibold"
+                    title={typeof title === "string" ? title : undefined}
+                  >
                     {title ?? "Home"}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
@@ -87,9 +90,12 @@ export default function ApplicationLayout({
                   return (
                     <Fragment key={i}>
                       {i > 0 && <BreadcrumbSeparator />}
-                      <BreadcrumbItem>
+                      <BreadcrumbItem className={isLast ? "min-w-0" : "shrink-0"}>
                         {isLast ? (
-                          <BreadcrumbPage className="font-semibold">
+                          <BreadcrumbPage
+                            className="truncate font-semibold"
+                            title={entry.label}
+                          >
                             {entry.label}
                           </BreadcrumbPage>
                         ) : (
@@ -104,7 +110,7 @@ export default function ApplicationLayout({
               )}
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="ml-auto flex h-full items-center gap-2">
+          <div className="ml-auto flex h-full shrink-0 items-center gap-2">
             {showTimeRange && <TimeRangeSelector />}
             {rightPanelTrigger}
           </div>

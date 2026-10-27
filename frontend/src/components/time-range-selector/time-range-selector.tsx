@@ -108,7 +108,7 @@ export function TimeRangeSelector() {
           <Button
             variant="outline"
             size="sm"
-            className="min-w-[160px] justify-between gap-2"
+            className="w-[150px] min-w-0 justify-between gap-2 sm:w-auto sm:min-w-[160px]"
           />
         }
       >
