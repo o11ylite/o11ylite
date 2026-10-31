@@ -19,7 +19,7 @@ make = "4.4.1"
 
 # Frontend build and test runtime. Keep the major in step with the node image
 # in the Dockerfile.
-node = "24"
+node = "26"
 
 # Lints and packages chart/o11ylite. On Helm 4: Helm 3 stops receiving security
 # fixes on 2027-02-10.
