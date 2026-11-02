@@ -1,11 +1,14 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { usePage } from "@inertiajs/react"
 
 import ApplicationLayout from "@/components/layouts/application-layout"
 import { TraceWaterfall, SpanDetailsPanel } from "@/components/trace"
+import { resolveTraceFocus } from "@/components/trace/trace-subtree"
 import { ResultsLoading, ResultsError } from "@/components/results"
+import { Button } from "@/components/ui/button"
 import { flattenApiError } from "@/lib/api-error"
+import { useSpanFocus } from "@/hooks/use-span-focus"
 import { useTimeRange, resolveTimeRange } from "@/hooks/use-time-range"
 import type { TraceQueryResult } from "@/types"
 
@@ -43,6 +46,11 @@ async function fetchTrace(
 export default function Trace() {
   const { trace_id } = usePage<{ trace_id: string }>().props
   const { from, to } = useTimeRange()
+  const {
+    focusedSpanId: urlFocusedSpanId,
+    setFocusedSpanId,
+    clearFocusHref,
+  } = useSpanFocus()
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
 
   // Use stable strings for query key to prevent infinite refetch loops.
@@ -58,14 +66,64 @@ export default function Trace() {
     },
   })
 
+  const resolvedFocus = useMemo(
+    () => (data ? resolveTraceFocus(data.spans, urlFocusedSpanId) : null),
+    [data, urlFocusedSpanId]
+  )
+  const focusedSpan = resolvedFocus?.focusSpan
+  const focusSpanId = focusedSpan?.span_id ?? null
+  const focusedSubtree = resolvedFocus?.subtree ?? null
+
+  const handleSpanSelect = (spanId: string | null) => {
+    setSelectedSpanId(spanId)
+  }
+
+  const handleZoomIn = (spanId: string) => {
+    // Keep the panel only when the selected span is the new root. Clearing it
+    // here avoids a panel blink while the Inertia visit updates the URL.
+    setSelectedSpanId((current) => (current === spanId ? current : null))
+    setFocusedSpanId(spanId)
+  }
+
   // Find the selected span to get its timestamp
   const selectedSpan = selectedSpanId
     ? data?.spans.find((s) => s.span_id === selectedSpanId && s["meta.signal_type"] === "span")
     : null
 
-  const rightPanel = selectedSpan ? (
-    <SpanDetailsPanel spanId={selectedSpan.span_id} spans={data?.spans ?? []} />
+  // A selection outside the focused subtree stays hidden while zoomed in.
+  const selectedSpanIsVisible =
+    !selectedSpan ||
+    !focusSpanId ||
+    selectedSpan.span_id === focusSpanId ||
+    Boolean(
+      focusedSubtree?.some(
+        (span) =>
+          span["meta.signal_type"] === "span" &&
+          span.span_id === selectedSpan.span_id
+      )
+    )
+
+  const rightPanel = selectedSpan && selectedSpanIsVisible ? (
+    <SpanDetailsPanel
+      spanId={selectedSpan.span_id}
+      traceId={trace_id}
+      spans={data?.spans ?? []}
+      onFocus={
+        selectedSpan.span_id === focusSpanId
+          ? undefined
+          : () => handleZoomIn(selectedSpan.span_id)
+      }
+    />
   ) : undefined
+
+  const title = focusedSpan
+    ? [
+        { label: `Trace: ${trace_id}`, href: clearFocusHref },
+        { label: focusedSpan.name },
+      ]
+    : `Trace: ${trace_id}`
+
+  const focusMissing = Boolean(urlFocusedSpanId && data && !focusedSpan)
 
   const renderContent = () => {
     if (isLoading) return <ResultsLoading />
@@ -78,16 +136,41 @@ export default function Trace() {
       )
     }
     return (
-      <TraceWaterfall
-        spans={data.spans}
-        selectedSpanId={selectedSpanId}
-        onSpanSelect={setSelectedSpanId}
-      />
+      <div className="flex h-full flex-col gap-2">
+        {focusMissing && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+          >
+            <span className="min-w-0">
+              Span <span className="font-mono text-xs">{urlFocusedSpanId}</span> is
+              not part of this trace. Showing the full trace.
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="ml-auto h-7 px-2"
+              onClick={() => setFocusedSpanId(null)}
+            >
+              Clear focus
+            </Button>
+          </div>
+        )}
+        <TraceWaterfall
+          spans={data.spans}
+          focusSpanId={focusSpanId}
+          selectedSpanId={selectedSpanId}
+          onSpanSelect={handleSpanSelect}
+          onZoomIn={handleZoomIn}
+          onZoomOut={focusSpanId ? () => setFocusedSpanId(null) : undefined}
+        />
+      </div>
     )
   }
 
   return (
-    <ApplicationLayout title={`Trace: ${trace_id}`} showTimeRange rightPanel={rightPanel}>
+    <ApplicationLayout title={title} showTimeRange rightPanel={rightPanel}>
       <div className="flex h-full flex-col">{renderContent()}</div>
     </ApplicationLayout>
   )
