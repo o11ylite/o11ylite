@@ -91,8 +91,16 @@ export function buildColumns(
     if (field === "trace_id") {
       return {
         ...baseColumn,
-        cell: ({ getValue }: { getValue: () => unknown }) => (
-          <TraceIdCell value={getValue()} />
+        // Raw event rows always carry their timestamp, even when the column is
+        // hidden; aggregated rows do not, and get a link without a time window.
+        cell: ({
+          getValue,
+          row,
+        }: {
+          getValue: () => unknown
+          row: { original: RowData }
+        }) => (
+          <TraceIdCell value={getValue()} timestamp={row.original.timestamp} />
         ),
       }
     }

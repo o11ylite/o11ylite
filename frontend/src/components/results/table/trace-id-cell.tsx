@@ -5,8 +5,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { buildTraceHref } from "@/lib/trace-link"
 
-export function TraceIdCell({ value }: { value: unknown }) {
+export function TraceIdCell({
+  value,
+  timestamp,
+}: {
+  value: unknown
+  timestamp?: unknown
+}) {
   if (value === null || value === undefined || value === "") {
     return null
   }
@@ -23,7 +30,7 @@ export function TraceIdCell({ value }: { value: unknown }) {
       <TooltipTrigger
         render={
           <Link
-            href={`/trace/${traceId}`}
+            href={buildTraceHref(traceId, timestamp)}
             className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
           />
         }
