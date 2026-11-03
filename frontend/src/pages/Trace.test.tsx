@@ -50,12 +50,18 @@ const mockTraceResult: TraceQueryResult = {
   total_count: 3,
 }
 
+let lastSpanDetailsBody: { filter?: unknown } | null = null
+
 const server = setupServer(
   http.post("/api/query/events", async ({ request }) => {
-    const body = (await request.json()) as { visualization?: { type?: string } }
+    const body = (await request.json()) as {
+      visualization?: { type?: string }
+      filter?: unknown
+    }
     if (body.visualization?.type === "trace") {
       return HttpResponse.json({ data: mockTraceResult })
     }
+    lastSpanDetailsBody = body
     // Span details query (visualization.type === "table")
     return HttpResponse.json({
       data: {
@@ -78,6 +84,9 @@ beforeAll(() => server.listen())
 afterEach(() => {
   server.resetHandlers()
   window.localStorage.clear()
+  mockRouterPush.mockClear()
+  lastSpanDetailsBody = null
+  mockState.url = `https://localhost/trace/${TRACE_ID}`
 })
 afterAll(() => server.close())
 
@@ -85,12 +94,24 @@ afterAll(() => server.close())
 // Inertia Mocks
 // ============================================================================
 
-const mockUrl = `https://localhost/trace/${TRACE_ID}`
+const { mockState, mockRouterPush } = vi.hoisted(() => ({
+  mockState: {
+    url: "https://localhost/trace/abc123def456",
+    // Callback that makes React re-render when the mocked router changes the URL.
+    onUrlChange: null as (() => void) | null,
+  },
+  mockRouterPush: vi.fn(),
+}))
 
 vi.mock("@inertiajs/react", () => ({
-  usePage: () => ({ url: mockUrl, props: { trace_id: TRACE_ID } }),
+  usePage: () => ({ url: mockState.url, props: { trace_id: "abc123def456" } }),
   router: {
-    push: vi.fn(),
+    push: (opts: { url: string }) => {
+      mockRouterPush(opts)
+      const existingUrl = new URL(mockState.url)
+      mockState.url = new URL(opts.url, existingUrl.origin).toString()
+      mockState.onUrlChange?.()
+    },
     on: vi.fn(),
   },
   Link: ({ children, href }: { children: React.ReactNode; href: string }) =>
@@ -114,10 +135,24 @@ function createTestQueryClient() {
   })
 }
 
+/** Re-render when the mocked router changes the URL, like Inertia does. */
+function TraceWithUrlSync() {
+  const [, forceUpdate] = React.useReducer((x: number) => x + 1, 0)
+
+  React.useEffect(() => {
+    mockState.onUrlChange = forceUpdate
+    return () => {
+      mockState.onUrlChange = null
+    }
+  }, [])
+
+  return <Trace />
+}
+
 function renderTrace() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <Trace />
+      <TraceWithUrlSync />
     </QueryClientProvider>
   )
 }
@@ -199,5 +234,167 @@ describe("Trace page — span click opens side panel", () => {
     await user.click(screen.getByRole("button", { name: "Toggle Right Panel" }))
 
     expect(getPanelWidthStyle()).toContain("width: 0")
+  })
+})
+
+describe("Trace page — zoom into a span", () => {
+  it("renders only the focused span subtree when the URL has ?span", async () => {
+    mockState.url = `https://localhost/trace/${TRACE_ID}?span=span-2`
+
+    renderTrace()
+
+    expect(await screen.findByText("grandchild")).toBeInTheDocument()
+    expect(screen.queryByText("root")).not.toBeInTheDocument()
+    expect(screen.getByText("Focused on")).toBeInTheDocument()
+    expect(screen.getByText("2 of 2 spans visible")).toBeInTheDocument()
+  })
+
+  it("zooms in from a row action and reflects the span in the URL", async () => {
+    const user = userEvent.setup()
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Zoom into child" }))
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: `/trace/${TRACE_ID}?span=span-2`,
+        preserveState: true,
+        preserveScroll: true,
+      })
+    )
+    expect(screen.queryByText("root")).not.toBeInTheDocument()
+    expect(screen.getByText("Focused on")).toBeInTheDocument()
+  })
+
+  it("shows the full trace again from the focus banner", async () => {
+    const user = userEvent.setup()
+    mockState.url = `https://localhost/trace/${TRACE_ID}?span=span-2`
+
+    renderTrace()
+
+    expect(await screen.findByText("grandchild")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Show full trace" }))
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      expect.objectContaining({ url: `/trace/${TRACE_ID}` })
+    )
+    expect(screen.getByText("root")).toBeInTheDocument()
+    expect(screen.queryByText("Focused on")).not.toBeInTheDocument()
+  })
+
+  it("falls back to the full trace when the span is unknown", async () => {
+    mockState.url = `https://localhost/trace/${TRACE_ID}?span=missing`
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    expect(screen.getByText("child")).toBeInTheDocument()
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /not part of this trace/i
+    )
+  })
+
+  it("preserves the time range when entering and leaving focus", async () => {
+    const user = userEvent.setup()
+    mockState.url = `https://localhost/trace/${TRACE_ID}?from=now-1h&to=now`
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Zoom into child" }))
+
+    expect(mockRouterPush).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: `/trace/${TRACE_ID}?from=now-1h&to=now&span=span-2`,
+      })
+    )
+
+    await user.click(screen.getByRole("button", { name: "Show full trace" }))
+
+    expect(mockRouterPush).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: `/trace/${TRACE_ID}?from=now-1h&to=now`,
+      })
+    )
+  })
+
+  it("keeps the details panel when zooming into the selected span", async () => {
+    const user = userEvent.setup()
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    await user.click(screen.getByText("child"))
+    expect(
+      await screen.findByRole("heading", { name: "Span Details" })
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Zoom in" }))
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      expect.objectContaining({ url: `/trace/${TRACE_ID}?span=span-2` })
+    )
+    expect(
+      screen.getByRole("heading", { name: "Span Details" })
+    ).toBeInTheDocument()
+  })
+
+  it("closes the details panel when zooming into a different span", async () => {
+    const user = userEvent.setup()
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    await user.click(screen.getByText("child"))
+    expect(
+      await screen.findByRole("heading", { name: "Span Details" })
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Zoom into grandchild" }))
+
+    expect(await screen.findByText("Focused on")).toBeInTheDocument()
+    expect(
+      screen.queryByRole("heading", { name: "Span Details" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("scopes span details requests to the trace", async () => {
+    const user = userEvent.setup()
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    await user.click(screen.getByText("child"))
+    await screen.findByRole("heading", { name: "Span Details" })
+
+    expect(lastSpanDetailsBody?.filter).toEqual({
+      and: [
+        { field: "trace_id", op: "=", value: TRACE_ID },
+        { field: "span_id", op: "=", value: "span-2" },
+      ],
+    })
+  })
+
+  it("treats an empty span param as no focus", async () => {
+    mockState.url = `https://localhost/trace/${TRACE_ID}?span=`
+
+    renderTrace()
+
+    expect(await screen.findByText("root")).toBeInTheDocument()
+    expect(screen.queryByText("Focused on")).not.toBeInTheDocument()
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
+  it("clears focus from the trace breadcrumb", async () => {
+    mockState.url = `https://localhost/trace/${TRACE_ID}?from=now-1h&to=now&span=span-2`
+
+    renderTrace()
+
+    expect(await screen.findByText("grandchild")).toBeInTheDocument()
+    expect(
+      screen.getByRole("link", { name: `Trace: ${TRACE_ID}` })
+    ).toHaveAttribute("href", `/trace/${TRACE_ID}?from=now-1h&to=now`)
   })
 })

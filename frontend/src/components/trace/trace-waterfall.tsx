@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react"
-import { ChevronRight } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ChevronRight, ZoomIn } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { TraceSpan } from "@/types"
+import { resolveTraceFocus } from "./trace-subtree"
 
 // ============================================================================
 // Types
@@ -127,6 +128,10 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, value))
+}
+
 // ============================================================================
 // Service Colors
 // ============================================================================
@@ -163,7 +168,7 @@ function SpanEventMarker({
   traceStart: number
   traceDuration: number
 }) {
-  const leftPercent = ((event.timestamp - traceStart) / traceDuration) * 100
+  const leftPercent = clampPercent(((event.timestamp - traceStart) / traceDuration) * 100)
 
   return (
     <div
@@ -185,6 +190,7 @@ function SpanRow({
   isCollapsed,
   onToggleCollapse,
   onClick,
+  onZoom,
 }: {
   span: SpanNode
   traceStart: number
@@ -194,12 +200,20 @@ function SpanRow({
   isCollapsed: boolean
   onToggleCollapse: () => void
   onClick: () => void
+  onZoom?: () => void
 }) {
-  const leftPercent = ((span.timestamp - traceStart) / traceDuration) * 100
   const durationMs = span["span.duration_ms"] ?? 0
-  const widthPercent = (durationMs / traceDuration) * 100
-  // Ensure minimum width for visibility
-  const displayWidth = Math.max(widthPercent, 0.5)
+  // Clock skew can put a child slightly outside the focused span. Clip both
+  // edges so the bar covers only the visible part of the timeline.
+  const timelineEnd = traceStart + traceDuration
+  const clippedStart = Math.max(span.timestamp, traceStart)
+  const clippedEnd = Math.min(span.timestamp + durationMs, timelineEnd)
+  const leftPercent = clampPercent(((clippedStart - traceStart) / traceDuration) * 100)
+  const widthPercent = clampPercent(
+    (Math.max(clippedEnd - clippedStart, 0) / traceDuration) * 100
+  )
+  // Ensure minimum width for visibility, but never overflow the timeline.
+  const displayWidth = Math.max(Math.min(widthPercent, 100 - leftPercent), 0.5)
 
   const statusCode = span["span.status_code"]
   const isError = statusCode === "ERROR" || statusCode === "error"
@@ -249,7 +263,7 @@ function SpanRow({
           ) : (
             <span className="size-6 shrink-0 sm:size-5" aria-hidden />
           )}
-          <span className="truncate">{span.name}</span>
+          <span className="min-w-0 truncate">{span.name}</span>
           {isCollapsed && span.descendantCount > 0 && (
             <span
               className="shrink-0 rounded bg-muted px-1 text-[10px] font-normal text-muted-foreground"
@@ -262,6 +276,20 @@ function SpanRow({
             <span className="shrink-0 text-xs text-amber-500" title={`${span.spanEvents.length} event(s)`}>
               ({span.spanEvents.length})
             </span>
+          )}
+          {onZoom && (
+            <button
+              type="button"
+              className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted-foreground/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:size-5"
+              aria-label={`Zoom into ${span.name}`}
+              title="Zoom into this span"
+              onClick={(event) => {
+                event.stopPropagation()
+                onZoom()
+              }}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
           )}
         </div>
         <div
@@ -399,37 +427,71 @@ function TimelineHeader({ traceDuration }: { traceDuration: number }) {
 
 export function TraceWaterfall({
   spans,
+  focusSpanId,
   selectedSpanId,
   onSpanSelect,
+  onZoomIn,
+  onZoomOut,
 }: {
   spans: TraceSpan[]
+  focusSpanId?: string | null
   selectedSpanId?: string | null
   onSpanSelect?: (spanId: string | null) => void
+  onZoomIn?: (spanId: string) => void
+  onZoomOut?: () => void
 }) {
-  const { roots, actualSpanCount, traceStart, traceDuration } = useMemo(() => {
-    const tree = buildSpanTree(spans)
+  const { roots, focusSpan, actualSpanCount, traceStart, traceDuration } = useMemo(() => {
+    const resolvedFocus = resolveTraceFocus(spans, focusSpanId)
+    const focusSpan = resolvedFocus?.focusSpan
+    const displayedSpans = resolvedFocus?.subtree ?? spans
+    const tree = buildSpanTree(displayedSpans)
 
-    // Calculate trace timeline bounds (only from actual spans, not span_events)
     let minTimestamp = Infinity
     let maxEnd = -Infinity
-    for (const span of spans) {
-      minTimestamp = Math.min(minTimestamp, span.timestamp)
-      const duration = span["span.duration_ms"] ?? 0
-      maxEnd = Math.max(maxEnd, span.timestamp + duration)
+
+    if (focusSpan) {
+      // Zooming rebases the timeline on the focused span, so its bar fills the
+      // full width. Descendant bars are clamped to that range when rendering.
+      minTimestamp = focusSpan.timestamp
+      maxEnd = focusSpan.timestamp + (focusSpan["span.duration_ms"] ?? 0)
+    }
+
+    // A zero-duration span (or the full trace view) still needs a usable axis.
+    if (!focusSpan || maxEnd <= minTimestamp) {
+      for (const span of displayedSpans) {
+        if (span["meta.signal_type"] !== "span") continue
+        minTimestamp = Math.min(minTimestamp, span.timestamp)
+        maxEnd = Math.max(maxEnd, span.timestamp + (span["span.duration_ms"] ?? 0))
+      }
     }
 
     return {
       roots: tree,
-      actualSpanCount: spans.filter((span) => span["meta.signal_type"] === "span").length,
+      focusSpan,
+      actualSpanCount: displayedSpans.filter(
+        (span) => span["meta.signal_type"] === "span"
+      ).length,
       traceStart: minTimestamp,
-      traceDuration: maxEnd - minTimestamp,
+      traceDuration: maxEnd > minTimestamp ? maxEnd - minTimestamp : 1,
     }
-  }, [spans])
+  }, [spans, focusSpanId])
 
+  const activeFocusSpanId = focusSpan?.span_id ?? null
   const collapsibleSpanIds = useMemo(() => collectParentSpanIds(roots), [roots])
   const [collapsedSpanIds, setCollapsedSpanIds] = useState<Set<string>>(
     () => new Set()
   )
+
+  // A different zoom level starts fully expanded instead of inheriting folded
+  // groups from the previous subtree.
+  const previousFocusSpanId = useRef<string | null>(activeFocusSpanId)
+  useEffect(() => {
+    if (previousFocusSpanId.current !== activeFocusSpanId) {
+      previousFocusSpanId.current = activeFocusSpanId
+      setCollapsedSpanIds(new Set())
+    }
+  }, [activeFocusSpanId])
+
   const visibleSpans = useMemo(
     () => flattenTree(roots, collapsedSpanIds),
     [roots, collapsedSpanIds]
@@ -450,16 +512,30 @@ export function TraceWaterfall({
     })
   }
 
-  if (traceDuration <= 0) {
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Invalid trace data
-      </div>
-    )
-  }
-
   return (
     <div className="overflow-auto rounded-md border border-border">
+      {focusSpan && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-2 py-1.5 text-xs">
+          <ZoomIn className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 truncate">
+            Focused on <span className="font-medium">{focusSpan.name}</span>
+          </span>
+          <span className="text-muted-foreground">
+            {actualSpanCount} span{actualSpanCount === 1 ? "" : "s"}
+          </span>
+          {onZoomOut && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="ml-auto h-8 px-2 sm:h-6"
+              onClick={onZoomOut}
+            >
+              Show full trace
+            </Button>
+          )}
+        </div>
+      )}
       {collapsibleSpanIds.size > 0 && (
         <TraceToolbar
           visibleCount={visibleSpans.length}
@@ -482,6 +558,11 @@ export function TraceWaterfall({
                 isSelected={selectedSpanId === span.span_id}
                 isCollapsed={collapsedSpanIds.has(span.span_id)}
                 onToggleCollapse={() => toggleCollapsed(span.span_id)}
+                onZoom={
+                  onZoomIn && span.span_id !== activeFocusSpanId
+                    ? () => onZoomIn(span.span_id)
+                    : undefined
+                }
                 onClick={() => {
                   // Toggle selection: click again to deselect
                   const newSelection = selectedSpanId === span.span_id ? null : span.span_id

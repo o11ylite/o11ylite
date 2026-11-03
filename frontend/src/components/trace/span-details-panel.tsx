@@ -1,7 +1,9 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { ZoomIn } from "lucide-react"
 
 import { ResultsLoading, ResultsError } from "@/components/results"
+import { Button } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
@@ -31,6 +33,7 @@ const COLLAPSE_THRESHOLD = 80
 
 async function fetchSpanWithEvents(
   spanId: string,
+  traceId: string,
   timeRange: { start: number; end: number }
 ): Promise<{ span: Record<string, unknown> | null; events: Record<string, unknown>[] }> {
   const response = await fetch("/api/query/events", {
@@ -38,7 +41,13 @@ async function fetchSpanWithEvents(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       time_range: timeRange,
-      filter: { field: "span_id", op: "=", value: spanId },
+      // Span ids are only trace-unique, so scope the lookup to the trace.
+      filter: {
+        and: [
+          { field: "trace_id", op: "=", value: traceId },
+          { field: "span_id", op: "=", value: spanId },
+        ],
+      },
       visualization: { type: "table" },
       limit: 100,
     }),
@@ -160,10 +169,14 @@ function SpanEventItem({
 
 export function SpanDetailsPanel({
   spanId,
+  traceId,
   spans,
+  onFocus,
 }: {
   spanId: string
+  traceId: string
   spans: TraceSpan[]
+  onFocus?: () => void
 }) {
   // Find the span in our existing data to get its timestamp for the query
   const spanInfo = useMemo(
@@ -184,8 +197,8 @@ export function SpanDetailsPanel({
   }, [spanInfo])
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["span-details", spanId],
-    queryFn: () => fetchSpanWithEvents(spanId, timeRange),
+    queryKey: ["span-details", traceId, spanId],
+    queryFn: () => fetchSpanWithEvents(spanId, traceId, timeRange),
     enabled: !!spanInfo,
   })
 
@@ -222,7 +235,21 @@ export function SpanDetailsPanel({
     <div className="flex flex-col gap-4 p-4">
       {/* Span Details Section */}
       <div>
-        <h3 className="mb-2 text-sm font-medium">Span Details</h3>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">Span Details</h3>
+          {onFocus && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="h-7 px-2"
+              onClick={onFocus}
+            >
+              <ZoomIn className="size-3.5" />
+              Zoom in
+            </Button>
+          )}
+        </div>
         <div className="space-y-2">
           {fields.map((field) => (
             <FieldEntry key={field} field={field} value={span[field]} />
