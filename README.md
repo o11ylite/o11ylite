@@ -7,9 +7,7 @@
   Logs, metrics, and traces all in a single process.
 </p>
 
-<p align="center">
-  <img src="docs/demo.gif" alt="Screenize demo" style="max-width: 100%; width: 520px;" />
-</p>
+https://github.com/user-attachments/assets/1f10f1a1-c412-438a-bc3c-178ceaef5ef3
 
 ## Features
 
