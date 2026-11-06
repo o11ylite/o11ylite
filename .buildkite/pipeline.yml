@@ -6,12 +6,13 @@ steps:
     command: docker buildx bake dev
 
   # Steps with a toolchain run the official mise image: Debian 13 with bash,
-  # git, curl, and mise. Everything else comes from mise.toml, so no language
-  # image is pinned here -- that would put a second Java or Node on PATH next to
-  # the version mise.toml already pins. The k8s stack's default image is
+  # git, curl, libatomic1, and mise. Everything else comes from mise.toml, so no
+  # language image is pinned here -- that would put a second Java or Node on PATH
+  # next to the version mise.toml already pins. The k8s stack's default image is
   # Alpine, where mise has no Java build and compiles Node from source.
+  # libatomic1 is required by the prebuilt Node binaries since Node 25.
   - label: ":clojure: Backend Test"
-    image: &toolchain jdxcode/mise:2026.10.3-debian@sha256:58c4c847f5518a9a87a9a582886a485443dbca5eb024426577f58d586a0990c6
+    image: &toolchain jdxcode/mise:2026.11.2-debian@sha256:84bb97455fe918f3b805520f9a7b1fd3060085a4ccc757a3ab17fa2e946df46e
     command: ".buildkite/steps/test-backend"
 
   - label: ":typescript: Frontend Test"
