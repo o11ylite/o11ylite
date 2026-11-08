@@ -32,7 +32,7 @@ helm = "4.3.1"
 # --- Development only, past this point -------------------------------------
 # dev/start: Caddy terminates TLS on o11ylite.localhost and proxies a single
 # port to the backend, Vite, and the OTLP/gRPC endpoint.
-caddy = "2.11.8"
+caddy = "2.11.9"
 
 # dev/start: Overmind runs dev/Procfile, driving processes through tmux, which
 # it execs by name and so must be on PATH.
