@@ -37,7 +37,7 @@ caddy = "2.11.9"
 # dev/start: Overmind runs dev/Procfile, driving processes through tmux, which
 # it execs by name and so must be on PATH.
 overmind = "2.5.1"
-tmux = "3.7c"
+tmux = "3.8"
 
 # dev/repl-eval: a native binary rather than a JVM, so it connects to the REPL
 # in milliseconds instead of paying JVM start-up on every call.
